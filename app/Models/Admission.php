@@ -1,0 +1,19 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Admission extends Model
+{
+    use HasFactory;
+
+    // Pastikan 'allocated_bed' ada di dalam array ini
+    protected $fillable = [
+        'patient_name', 
+        'status', 
+        'required_bed_type', 
+        'allocated_bed'
+    ];
+}
