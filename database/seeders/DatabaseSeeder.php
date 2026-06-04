@@ -112,14 +112,19 @@ class DatabaseSeeder extends Seeder
         }
 
         // ── 4. REGISTRASI PASIEN ──────────────────────────────────────────
+        // jenis_kelamin: 'L' = Laki-laki, 'P' = Perempuan
         $pasiens = [
-            ['No_MR'=>'MR-001','Nama_Pasien'=>'Budi Santoso',  'tgl_regist'=>Carbon::now()->subDays(5),'No_Identitas'=>'3201010001','KartuBPJS'=>'0001111001','NameUser'=>'admin_daftar'],
-            ['No_MR'=>'MR-002','Nama_Pasien'=>'Siti Rahayu',   'tgl_regist'=>Carbon::now()->subDays(4),'No_Identitas'=>'3201010002','KartuBPJS'=>'0001111002','NameUser'=>'admin_daftar'],
-            ['No_MR'=>'MR-003','Nama_Pasien'=>'Ahmad Fauzi',   'tgl_regist'=>Carbon::now()->subDays(3),'No_Identitas'=>'3201010003','KartuBPJS'=>null,        'NameUser'=>'admin_daftar'],
-            ['No_MR'=>'MR-004','Nama_Pasien'=>'Dewi Lestari',  'tgl_regist'=>Carbon::now()->subDays(2),'No_Identitas'=>'3201010004','KartuBPJS'=>'0001111004','NameUser'=>'admin_daftar'],
-            ['No_MR'=>'MR-005','Nama_Pasien'=>'Hendra Wijaya', 'tgl_regist'=>Carbon::now()->subDays(1),'No_Identitas'=>'3201010005','KartuBPJS'=>'0001111005','NameUser'=>'admin_daftar'],
-            ['No_MR'=>'MR-006','Nama_Pasien'=>'Rina Marlina',  'tgl_regist'=>Carbon::now()->subDays(1),'No_Identitas'=>'3201010006','KartuBPJS'=>null,        'NameUser'=>'admin_daftar'],
-            ['No_MR'=>'MR-007','Nama_Pasien'=>'Eko Prasetyo',  'tgl_regist'=>Carbon::now(),            'No_Identitas'=>'3201010007','KartuBPJS'=>'0001111007','NameUser'=>'admin_daftar'],
+            ['No_MR'=>'MR-001','Nama_Pasien'=>'Budi Santoso',     'jenis_kelamin'=>'L','tgl_regist'=>Carbon::now()->subDays(5),'No_Identitas'=>'3201010001','KartuBPJS'=>'0001111001','NameUser'=>'admin_daftar'],
+            ['No_MR'=>'MR-002','Nama_Pasien'=>'Siti Rahayu',      'jenis_kelamin'=>'P','tgl_regist'=>Carbon::now()->subDays(4),'No_Identitas'=>'3201010002','KartuBPJS'=>'0001111002','NameUser'=>'admin_daftar'],
+            ['No_MR'=>'MR-003','Nama_Pasien'=>'Ahmad Fauzi',      'jenis_kelamin'=>'L','tgl_regist'=>Carbon::now()->subDays(3),'No_Identitas'=>'3201010003','KartuBPJS'=>null,        'NameUser'=>'admin_daftar'],
+            ['No_MR'=>'MR-004','Nama_Pasien'=>'Dewi Lestari',     'jenis_kelamin'=>'P','tgl_regist'=>Carbon::now()->subDays(2),'No_Identitas'=>'3201010004','KartuBPJS'=>'0001111004','NameUser'=>'admin_daftar'],
+            ['No_MR'=>'MR-005','Nama_Pasien'=>'Hendra Wijaya',    'jenis_kelamin'=>'L','tgl_regist'=>Carbon::now()->subDays(1),'No_Identitas'=>'3201010005','KartuBPJS'=>'0001111005','NameUser'=>'admin_daftar'],
+            ['No_MR'=>'MR-006','Nama_Pasien'=>'Rina Marlina',     'jenis_kelamin'=>'P','tgl_regist'=>Carbon::now()->subDays(1),'No_Identitas'=>'3201010006','KartuBPJS'=>null,        'NameUser'=>'admin_daftar'],
+            ['No_MR'=>'MR-007','Nama_Pasien'=>'Eko Prasetyo',     'jenis_kelamin'=>'L','tgl_regist'=>Carbon::now(),            'No_Identitas'=>'3201010007','KartuBPJS'=>'0001111007','NameUser'=>'admin_daftar'],
+            // Pasien yang sudah ISI di status_kamar (HC306, HC314, CVCD3)
+            ['No_MR'=>'MR-099','Nama_Pasien'=>'Yuli Ardiansyah',  'jenis_kelamin'=>'L','tgl_regist'=>Carbon::now()->subDays(3),'No_Identitas'=>'3201010099','KartuBPJS'=>'0001111099','NameUser'=>'admin_daftar'],
+            ['No_MR'=>'MR-088','Nama_Pasien'=>'Kartini Susanti',  'jenis_kelamin'=>'P','tgl_regist'=>Carbon::now()->subDays(4),'No_Identitas'=>'3201010088','KartuBPJS'=>null,        'NameUser'=>'admin_daftar'],
+            ['No_MR'=>'MR-077','Nama_Pasien'=>'Rudi Hermawan',    'jenis_kelamin'=>'L','tgl_regist'=>Carbon::now()->subDays(2),'No_Identitas'=>'3201010077','KartuBPJS'=>'0001111077','NameUser'=>'admin_daftar'],
         ];
         foreach ($pasiens as $p) {
             RegistrasiPasien::create($p);
@@ -134,6 +139,10 @@ class DatabaseSeeder extends Seeder
             ['No_Reg'=>'REG-2026-005','No_MR'=>'MR-005','Kode_Masuk'=>'IGD','Kode_Asal'=>'UGD','PermintaanDPJP'=>'dr. Budi Sp.JP', 'Kode_Dokter'=>'DR-002','NameUser'=>'petugas3'],
             ['No_Reg'=>'REG-2026-006','No_MR'=>'MR-006','Kode_Masuk'=>'IGD','Kode_Asal'=>'UGD','PermintaanDPJP'=>'dr. Citra Sp.PD','Kode_Dokter'=>'DR-003','NameUser'=>'petugas3'],
             ['No_Reg'=>'REG-2026-007','No_MR'=>'MR-007','Kode_Masuk'=>'IGD','Kode_Asal'=>'UGD','PermintaanDPJP'=>'dr. Andi Sp.An', 'Kode_Dokter'=>'DR-001','NameUser'=>'petugas1'],
+            // Pasien yang sudah ISI di bed (HC306, HC314, CVCD3)
+            ['No_Reg'=>'REG-2026-099','No_MR'=>'MR-099','Kode_Masuk'=>'IGD','Kode_Asal'=>'UGD','PermintaanDPJP'=>'dr. Budi Sp.JP', 'Kode_Dokter'=>'DR-002','NameUser'=>'petugas1'],
+            ['No_Reg'=>'REG-2026-088','No_MR'=>'MR-088','Kode_Masuk'=>'IGD','Kode_Asal'=>'UGD','PermintaanDPJP'=>'dr. Citra Sp.PD','Kode_Dokter'=>'DR-003','NameUser'=>'petugas2'],
+            ['No_Reg'=>'REG-2026-077','No_MR'=>'MR-077','Kode_Masuk'=>'IGD','Kode_Asal'=>'UGD','PermintaanDPJP'=>'dr. Andi Sp.An', 'Kode_Dokter'=>'DR-001','NameUser'=>'petugas3'],
         ];
         foreach ($pendaftarans as $reg) {
             Pendaftaran::create($reg);
@@ -141,16 +150,22 @@ class DatabaseSeeder extends Seeder
 
         // ── 6. SPRI ───────────────────────────────────────────────────────
         $spris = [
-            // REG-001 → spri_dibuat, draft (belum diapprove admisi)
-            ['No_Reg'=>'REG-2026-001','Diagnosis'=>'Gagal Napas Akut',         'IndikasiRI'=>'Butuh ventilasi mekanik segera','spesialis'=>'Anestesiologi','Dokter'=>'dr. Andi Sp.An', 'NameUser'=>'dr_igd_1','Perawatan'=>'ICU','Keterangan'=>'Prioritas tinggi','Status'=>'draft'],
-            // REG-002 → waiting_icu, spri approved, butuh ICUNV (HC302/HC303 kosong)
-            ['No_Reg'=>'REG-2026-002','Diagnosis'=>'Gagal Napas + Infeksi',     'IndikasiRI'=>'Perlu ICU Non Ventilator',       'spesialis'=>'Pulmologi',    'Dokter'=>'dr. Budi Sp.JP', 'NameUser'=>'dr_igd_1','Perawatan'=>'ICU','Keterangan'=>'Monitor ketat',  'Status'=>'approved'],
-            // REG-003 → waiting_icu, butuh HCU (HC304/HC305 kosong)
-            ['No_Reg'=>'REG-2026-003','Diagnosis'=>'Syok Sepsis',               'IndikasiRI'=>'Monitoring intensif HCU',        'spesialis'=>'Penyakit Dalam','Dokter'=>'dr. Citra Sp.PD','NameUser'=>'dr_igd_2','Perawatan'=>'ICU','Keterangan'=>'-',              'Status'=>'approved'],
-            // REG-004 → booking_icu, dapat ICUA2 (sudah BOOKING di status_kamar)
-            ['No_Reg'=>'REG-2026-004','Diagnosis'=>'Gagal Jantung Kongestif',   'IndikasiRI'=>'ICU standar, monitoring EKG',    'spesialis'=>'Kardiologi',   'Dokter'=>'dr. Andi Sp.An', 'NameUser'=>'dr_igd_2','Perawatan'=>'ICU','Keterangan'=>'EKG 24 jam',     'Status'=>'approved'],
-            // REG-005 → di_icu, di HC301 (sudah ISI di status_kamar, ICUNV)
-            ['No_Reg'=>'REG-2026-005','Diagnosis'=>'Pneumonia Berat',           'IndikasiRI'=>'ICU Non Ventilator, isolasi',    'spesialis'=>'Pulmologi',    'Dokter'=>'dr. Budi Sp.JP', 'NameUser'=>'dr_igd_3','Perawatan'=>'ICU','Keterangan'=>'-',              'Status'=>'approved'],
+            // REG-001 → spri_dibuat, draft
+            ['No_Reg'=>'REG-2026-001','Diagnosis'=>'Gagal Napas Akut',        'IndikasiRI'=>'Butuh ventilasi mekanik segera','spesialis'=>'Anestesiologi', 'Dokter'=>'dr. Andi Sp.An', 'NameUser'=>'dr_igd_1','Perawatan'=>'ICU','Keterangan'=>'Prioritas tinggi','Status'=>'draft'],
+            // REG-002 → waiting_icu, spri approved, butuh ICUNV
+            ['No_Reg'=>'REG-2026-002','Diagnosis'=>'Gagal Napas + Infeksi',    'IndikasiRI'=>'Perlu ICU Non Ventilator',      'spesialis'=>'Pulmologi',    'Dokter'=>'dr. Budi Sp.JP', 'NameUser'=>'dr_igd_1','Perawatan'=>'ICU','Keterangan'=>'Monitor ketat',  'Status'=>'approved'],
+            // REG-003 → waiting_icu, butuh HCU
+            ['No_Reg'=>'REG-2026-003','Diagnosis'=>'Syok Sepsis',              'IndikasiRI'=>'Monitoring intensif HCU',       'spesialis'=>'Penyakit Dalam','Dokter'=>'dr. Citra Sp.PD','NameUser'=>'dr_igd_2','Perawatan'=>'ICU','Keterangan'=>'-',              'Status'=>'approved'],
+            // REG-004 → booking_icu, dapat ICUA2
+            ['No_Reg'=>'REG-2026-004','Diagnosis'=>'Gagal Jantung Kongestif',  'IndikasiRI'=>'ICU standar, monitoring EKG',   'spesialis'=>'Kardiologi',   'Dokter'=>'dr. Andi Sp.An', 'NameUser'=>'dr_igd_2','Perawatan'=>'ICU','Keterangan'=>'EKG 24 jam',     'Status'=>'approved'],
+            // REG-005 → di_icu, di HC301 (ICUNV)
+            ['No_Reg'=>'REG-2026-005','Diagnosis'=>'Pneumonia Berat',          'IndikasiRI'=>'ICU Non Ventilator, isolasi',   'spesialis'=>'Pulmologi',    'Dokter'=>'dr. Budi Sp.JP', 'NameUser'=>'dr_igd_3','Perawatan'=>'ICU','Keterangan'=>'-',              'Status'=>'approved'],
+            // REG-099 → di_icu, di HC306 (HCU) — L
+            ['No_Reg'=>'REG-2026-099','Diagnosis'=>'Pasca Operasi Jantung',    'IndikasiRI'=>'High Care Unit post op',        'spesialis'=>'Bedah Jantung','Dokter'=>'dr. Budi Sp.JP', 'NameUser'=>'dr_igd_3','Perawatan'=>'ICU','Keterangan'=>'Post CABG',      'Status'=>'approved'],
+            // REG-088 → di_icu, di HC314 (ICU) — P
+            ['No_Reg'=>'REG-2026-088','Diagnosis'=>'Stroke Hemoragik',         'IndikasiRI'=>'ICU standar monitoring intensif','spesialis'=>'Neurologi',   'Dokter'=>'dr. Citra Sp.PD','NameUser'=>'dr_igd_1','Perawatan'=>'ICU','Keterangan'=>'CT scan ulang',  'Status'=>'approved'],
+            // REG-077 → di_icu, di CVCD3 (CVCU) — L
+            ['No_Reg'=>'REG-2026-077','Diagnosis'=>'STEMI Anterior',           'IndikasiRI'=>'CVCU monitoring EKG 24 jam',    'spesialis'=>'Kardiologi',   'Dokter'=>'dr. Andi Sp.An', 'NameUser'=>'dr_igd_2','Perawatan'=>'ICU','Keterangan'=>'Primary PCI',    'Status'=>'approved'],
         ];
         foreach ($spris as $s) {
             Spri::create($s);
@@ -158,21 +173,26 @@ class DatabaseSeeder extends Seeder
 
         // ── 7. ICU ADMISION — tabel inti, semua tahap direpresentasikan ──
         $admisions = [
-            // Tahap 1 — baru daftar
+            // Tahap 1 — baru daftar (Rina Marlina, P)
             ['No_Reg'=>'REG-2026-006','No_MR'=>'MR-006','status'=>'daftar',      'required_bed_type'=>null,   'allocated_bed_id'=>null,   'match_status'=>null],
-            // Tahap 2 — di IGD, sedang diperiksa
+            // Tahap 2 — di IGD, sedang diperiksa (Eko Prasetyo, L)
             ['No_Reg'=>'REG-2026-007','No_MR'=>'MR-007','status'=>'igd_periksa', 'required_bed_type'=>null,   'allocated_bed_id'=>null,   'match_status'=>null],
-            // Tahap 3 — SPRI draft, menunggu approval admisi
-            // required_bed_type = Kode_Kelas dari M_KELAS
+            // Tahap 3 — SPRI draft, menunggu approval (Budi Santoso, L)
             ['No_Reg'=>'REG-2026-001','No_MR'=>'MR-001','status'=>'spri_dibuat', 'required_bed_type'=>'ICUNV','allocated_bed_id'=>null,   'match_status'=>'waiting'],
-            // Tahap 4 — SPRI approved, menunggu kamar ICUNV (HC302 & HC303 kosong → bisa dialokasi)
+            // Tahap 4 — waiting_icu, menunggu kamar ICUNV (Siti Rahayu, P)
             ['No_Reg'=>'REG-2026-002','No_MR'=>'MR-002','status'=>'waiting_icu', 'required_bed_type'=>'ICUNV','allocated_bed_id'=>null,   'match_status'=>'waiting'],
-            // Tahap 4b — menunggu kamar HCU (HC304/HC305 kosong → bisa dialokasi)
+            // Tahap 4b — waiting_icu, menunggu kamar HCU (Ahmad Fauzi, L)
             ['No_Reg'=>'REG-2026-003','No_MR'=>'MR-003','status'=>'waiting_icu', 'required_bed_type'=>'HCU',  'allocated_bed_id'=>null,   'match_status'=>'waiting'],
-            // Tahap 5 — booking, ICUA2 sudah BOOKING di status_kamar
+            // Tahap 5 — booking ICUA2 (Dewi Lestari, P)
             ['No_Reg'=>'REG-2026-004','No_MR'=>'MR-004','status'=>'booking_icu', 'required_bed_type'=>'ICU',  'allocated_bed_id'=>'ICUA2','match_status'=>'matched'],
-            // Tahap 6 — di ICU, HC301 sudah ISI di status_kamar (ICUNV)
+            // Tahap 6 — di ICU HC301, ICUNV (Hendra Wijaya, L → biru)
             ['No_Reg'=>'REG-2026-005','No_MR'=>'MR-005','status'=>'di_icu',      'required_bed_type'=>'ICUNV','allocated_bed_id'=>'HC301', 'match_status'=>'matched'],
+            // Tahap 6 — di ICU HC306, HCU (Yuli Ardiansyah, L → biru)
+            ['No_Reg'=>'REG-2026-099','No_MR'=>'MR-099','status'=>'di_icu',      'required_bed_type'=>'HCU',  'allocated_bed_id'=>'HC306', 'match_status'=>'matched'],
+            // Tahap 6 — di ICU HC314, ICU (Kartini Susanti, P → pink)
+            ['No_Reg'=>'REG-2026-088','No_MR'=>'MR-088','status'=>'di_icu',      'required_bed_type'=>'ICU',  'allocated_bed_id'=>'HC314', 'match_status'=>'matched'],
+            // Tahap 6 — di ICU CVCD3, CVCU (Rudi Hermawan, L → biru)
+            ['No_Reg'=>'REG-2026-077','No_MR'=>'MR-077','status'=>'di_icu',      'required_bed_type'=>'CVCU', 'allocated_bed_id'=>'CVCD3', 'match_status'=>'matched'],
         ];
         foreach ($admisions as $a) {
             IcuAdmision::create($a);

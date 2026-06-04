@@ -14,6 +14,7 @@ class RegistrasiPasien extends Model
     protected $fillable = [
         'No_MR',
         'Nama_Pasien',
+        'jenis_kelamin',
         'tgl_regist',
         'No_Identitas',
         'KartuBPJS',

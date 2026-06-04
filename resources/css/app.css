@@ -6,4 +6,51 @@
 @theme {
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
+
+    /* UHC Green Palette */
+    --color-uhc-50:  #f0fdf4;
+    --color-uhc-100: #dcfce7;
+    --color-uhc-500: #22c55e;
+    --color-uhc-600: #16a34a;
+    --color-uhc-700: #15803d;
+    --color-uhc-900: #14532d;
 }
+
+/* ── Sidebar transitions ─────────────────────────────── */
+.sidebar-enter-active,
+.sidebar-leave-active { transition: transform 0.25s ease; }
+.sidebar-enter-from,
+.sidebar-leave-to     { transform: translateX(-100%); }
+
+/* ── Sidebar scrollbar ───────────────────────────────── */
+.sidebar-scroll::-webkit-scrollbar       { width: 3px; }
+.sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
+.sidebar-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,.15); border-radius: 3px; }
+
+/* ── Live pulse ──────────────────────────────────────── */
+@keyframes pulse-green {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: .35; }
+}
+.pulse-green { animation: pulse-green 2s ease-in-out infinite; }
+
+/* ── Mobile: minimum touch target 44px ──────────────── */
+@media (max-width: 640px) {
+    button, a[role="button"], [type="submit"] {
+        min-height: 36px;
+    }
+}
+
+/* ── Prevent horizontal overflow on body ────────────── */
+body { overflow-x: hidden; }
+
+/* ── Tabel responsive helper ────────────────────────── */
+.table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* ── Scrollbar tipis untuk tab scroll ───────────────── */
+.overflow-x-auto::-webkit-scrollbar { height: 2px; }
+.overflow-x-auto::-webkit-scrollbar-track { background: transparent; }
+.overflow-x-auto::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 2px; }
