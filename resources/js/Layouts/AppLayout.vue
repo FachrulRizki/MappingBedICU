@@ -169,15 +169,6 @@ const iconMoon = 'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003
                 </div>
             </nav>
 
-<<<<<<< HEAD
-            <!-- Footer user -->
-            <div class="px-2.5 py-3 border-t border-green-700/50 flex-shrink-0">
-                <div :class="['flex items-center gap-2.5 px-1.5 py-1.5', !sidebarOpen && 'justify-center']">
-                    <div class="w-7 h-7 rounded-full bg-green-600 flex items-center justify-center flex-shrink-0 text-white text-xs font-bold">RS</div>
-                    <div v-show="sidebarOpen" class="overflow-hidden min-w-0">
-                        <p class="text-white text-xs font-semibold truncate">RSUS</p>
-                        <p class="text-green-400 text-xs truncate">Admin ICU</p>
-=======
             <!-- Promo Card -->
             <div class="px-3 pb-4 flex-shrink-0">
                 <div class="promo-card">
@@ -196,7 +187,6 @@ const iconMoon = 'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003
                                 Auto-refresh aktif setiap 30 detik
                             </p>
                         </div>
->>>>>>> 43a8115 (update UI dan revisi mapping nama bed)
                     </div>
                     <button @click="manualRefresh" class="btn-primary w-full justify-center text-xs">
                         <svg style="width:12px;height:12px" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
