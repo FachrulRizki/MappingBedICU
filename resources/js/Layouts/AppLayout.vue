@@ -142,7 +142,7 @@ const manualRefresh = () => { router.reload(); countdown.value = 30; };
                 <div :class="['flex items-center gap-2.5 px-1.5 py-1.5', !sidebarOpen && 'justify-center']">
                     <div class="w-7 h-7 rounded-full bg-green-600 flex items-center justify-center flex-shrink-0 text-white text-xs font-bold">RS</div>
                     <div v-show="sidebarOpen" class="overflow-hidden min-w-0">
-                        <p class="text-white text-xs font-semibold truncate">RSUD Kota</p>
+                        <p class="text-white text-xs font-semibold truncate">RSUS</p>
                         <p class="text-green-400 text-xs truncate">Admin ICU</p>
                     </div>
                 </div>
