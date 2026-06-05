@@ -1,44 +1,63 @@
 <script setup>
 defineProps({
-    label:    { type: String,  required: true },
-    value:    { type: [Number, String], required: true },
-    sub:      { type: String,  default: null },
-    icon:     { type: String,  required: true },  // SVG path d=
-    color:    { type: String,  default: 'green' }, // green | amber | rose | blue | teal
-    trend:    { type: String,  default: null },    // 'up' | 'down' | null
-    trendVal: { type: String,  default: null },
+    label:  { type: String,           required: true },
+    value:  { type: [Number, String], required: true },
+    sub:    { type: String,           default: null },
+    icon:   { type: String,           required: true },
+    color:  { type: String,           default: 'teal' },
+    trend:  { type: String,           default: null },  // '+1.2%' or '-0.5%'
 });
 
+// Dark-mode palette: icon bg, icon color, accent text
 const palette = {
-    green: { bg: 'bg-green-50',  border: 'border-green-100', icon: 'bg-green-600',  text: 'text-green-700',  val: 'text-green-900'  },
-    teal:  { bg: 'bg-teal-50',   border: 'border-teal-100',  icon: 'bg-teal-600',   text: 'text-teal-700',   val: 'text-teal-900'   },
-    amber: { bg: 'bg-amber-50',  border: 'border-amber-100', icon: 'bg-amber-500',  text: 'text-amber-700',  val: 'text-amber-900'  },
-    rose:  { bg: 'bg-rose-50',   border: 'border-rose-100',  icon: 'bg-rose-600',   text: 'text-rose-700',   val: 'text-rose-900'   },
-    blue:  { bg: 'bg-blue-50',   border: 'border-blue-100',  icon: 'bg-blue-600',   text: 'text-blue-700',   val: 'text-blue-900'   },
+    teal:   { bg: 'rgba(45,217,164,0.12)',  icon: '#2DD9A4',  accent: '#2DD9A4'  },
+    mint:   { bg: 'rgba(74,234,181,0.12)',  icon: '#4AEAB5',  accent: '#4AEAB5'  },
+    coral:  { bg: 'rgba(224,112,80,0.12)',  icon: '#E07050',  accent: '#E07050'  },
+    amber:  { bg: 'rgba(224,146,58,0.12)',  icon: '#E0923A',  accent: '#E0923A'  },
+    sky:    { bg: 'rgba(74,144,217,0.12)',  icon: '#4A90D9',  accent: '#4A90D9'  },
+    gray:   { bg: 'rgba(142,168,158,0.12)', icon: '#8EA89E',  accent: '#8EA89E'  },
 };
 </script>
 
 <template>
-    <div :class="['rounded-2xl border p-4 flex items-start gap-4 transition-shadow hover:shadow-md', palette[color].bg, palette[color].border]">
-        <!-- Icon -->
-        <div :class="['w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm', palette[color].icon]">
-            <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                <path stroke-linecap="round" stroke-linejoin="round" :d="icon" />
-            </svg>
-        </div>
-        <!-- Content -->
-        <div class="flex-1 min-w-0">
-            <p :class="['text-xs font-semibold uppercase tracking-wide', palette[color].text]">{{ label }}</p>
-            <p :class="['text-2xl font-bold mt-0.5 leading-tight', palette[color].val]">{{ value }}</p>
-            <div v-if="sub || trendVal" class="flex items-center gap-2 mt-1">
-                <span v-if="trendVal" :class="['flex items-center gap-0.5 text-xs font-semibold', trend === 'up' ? 'text-rose-600' : 'text-green-600']">
-                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
-                        <path stroke-linecap="round" stroke-linejoin="round" :d="trend === 'up' ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7'" />
-                    </svg>
-                    {{ trendVal }}
-                </span>
-                <span v-if="sub" class="text-xs text-gray-400">{{ sub }}</span>
+    <div class="kpi-card flex flex-col justify-between p-5 stat-card-kpi"
+        style="background:var(--bg-card); border-radius:14px; border:1px solid var(--border-default); min-height:100px; cursor:default"
+        @mouseenter="$el.style.borderColor='var(--border-card-hover)'"
+        @mouseleave="$el.style.borderColor='var(--border-default)'">
+
+        <!-- Top row: icon + trend -->
+        <div class="flex items-center justify-between mb-3">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center"
+                :style="`background:${palette[color]?.bg ?? palette.teal.bg}`">
+                <svg style="width:18px;height:18px" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"
+                    :style="`color:${palette[color]?.icon ?? palette.teal.icon}`">
+                    <path stroke-linecap="round" stroke-linejoin="round" :d="icon"/>
+                </svg>
             </div>
+            <span v-if="trend"
+                class="text-xs font-semibold px-2 py-0.5 rounded-full"
+                :style="trend.startsWith('+')
+                    ? 'background:rgba(61,219,138,0.12); color:#3DDB8A'
+                    : 'background:rgba(224,112,80,0.12); color:#E07050'"
+                style="font-family:'DM Mono',monospace">
+                {{ trend }}
+            </span>
         </div>
+
+        <!-- Value -->
+        <p class="font-bold leading-none mb-1"
+            style="font-size:28px; color:var(--text-primary); font-family:'Plus Jakarta Sans',sans-serif; letter-spacing:-0.02em">
+            {{ value }}
+        </p>
+
+        <!-- Label -->
+        <p class="text-xs font-semibold truncate" style="color:var(--text-secondary); font-family:'Plus Jakarta Sans',sans-serif">
+            {{ label }}
+        </p>
+
+        <!-- Sub -->
+        <p v-if="sub" class="text-xs mt-0.5 truncate" :style="`color:${palette[color]?.accent ?? '#2DD9A4'}; font-family:'DM Mono',monospace; font-size:11px`">
+            {{ sub }}
+        </p>
     </div>
 </template>

@@ -24,7 +24,7 @@ class BedService
         $bed = StatusKamar::with('ruang.kelas')
             ->where('Kode_Ruang', $kodeRuang)
             ->where('Status', 'KOSONG')
-            ->whereHas('ruang', fn($q) => $q->where('Kode_Kelas', $admision->required_bed_type))
+            ->whereHas('ruang.kelas', fn($q) => $q->where('Nama_Kelas', $admision->required_bed_type))
             ->first();
 
         if (! $bed) {

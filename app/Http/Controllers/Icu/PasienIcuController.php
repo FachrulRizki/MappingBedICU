@@ -33,6 +33,7 @@ class PasienIcuController extends Controller
                 'No_Reg'            => $a->No_Reg,
                 'No_MR'             => $a->No_MR,
                 'nama_pasien'       => $a->pasien?->Nama_Pasien ?? '-',
+                'jenis_kelamin'     => $a->pasien?->jenis_kelamin ?? null,
                 'required_bed_type' => $a->required_bed_type,
                 'allocated_bed_id'  => $a->allocated_bed_id,
                 'nama_bed'          => $a->bed?->ruang?->Nama_RuangM ?? $a->allocated_bed_id,

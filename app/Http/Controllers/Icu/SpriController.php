@@ -59,7 +59,7 @@ class SpriController extends Controller
         $validated = $request->validate([
             'Diagnosis'         => 'required|string|max:255',
             'IndikasiRI'        => 'required|string|max:255',
-            'required_bed_type' => 'required|exists:m_kelas,Kode_Kelas',
+            'required_bed_type' => 'required|exists:m_kelas,Nama_Kelas',
             'Keterangan'        => 'nullable|string|max:255',
             'Dokter'            => 'nullable|string|max:100',
             'spesialis'         => 'nullable|string|max:100',
@@ -77,7 +77,7 @@ class SpriController extends Controller
 
         return back()->with(
             'success',
-            "SPRI dibuat. Kebutuhan bed: {$result['namaKelas']} ({$validated['required_bed_type']})"
+            "SPRI dibuat. Kebutuhan bed: {$result['namaKelas']}"
         );
     }
 

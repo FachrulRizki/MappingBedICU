@@ -59,6 +59,7 @@ class BedController extends Controller
                 'Kode_Ruang' => $k->Kode_Ruang,
                 'nama_ruang' => $k->ruang?->Nama_RuangM ?? $k->Kode_Ruang,
                 'kode_kelas' => $k->ruang?->Kode_Kelas ?? null,
+                'nama_kelas' => $k->ruang?->kelas?->Nama_Kelas ?? null,  // ← dibutuhkan untuk matching di Vue
             ]);
 
         return Inertia::render('Icu/AlokasiBed', [

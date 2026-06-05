@@ -1,13 +1,34 @@
 <script setup>
 import { ref, computed, watch } from 'vue';
 import { router } from '@inertiajs/vue3';
+import { Line, Doughnut, Bar } from 'vue-chartjs';
+import {
+    Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement,
+    BarElement, ArcElement, Filler, Tooltip, Legend
+} from 'chart.js';
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement,
+    BarElement, ArcElement, Filler, Tooltip, Legend);
+
 import AppLayout    from '@/Layouts/AppLayout.vue';
 import StatCard     from '@/Components/StatCard.vue';
 import BedGrid      from '@/Components/BedGrid.vue';
 import AlertModal   from '@/Components/AlertModal.vue';
 import ConfirmModal from '@/Components/ConfirmModal.vue';
+import { useTheme } from '@/composables/useTheme.js';
 
-// ── Props ──────────────────────────────────────────────────────────────
+// Theme
+const { theme } = useTheme();
+const isDark = computed(() => theme.value === 'dark');
+
+// Chart color helpers that react to theme
+const chartText  = computed(() => isDark.value ? '#8EA89E' : '#4A7A68');
+const chartGrid  = computed(() => isDark.value ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.06)');
+const tooltipBg  = computed(() => isDark.value ? '#1A3D32' : '#FFFFFF');
+const tooltipBdr = computed(() => isDark.value ? 'rgba(45,217,164,0.2)' : 'rgba(15,138,114,0.2)');
+const tooltipTxt = computed(() => isDark.value ? '#FFFFFF' : '#0F2A22');
+const tooltipSub = computed(() => isDark.value ? '#8EA89E' : '#4A7A68');
+
 const props = defineProps({
     tahapDaftar:      { type: Array,  default: () => [] },
     tahapIgd:         { type: Array,  default: () => [] },
@@ -21,437 +42,462 @@ const props = defineProps({
     flash:            { type: Object, default: () => ({}) },
 });
 
-// ── Computed stats ─────────────────────────────────────────────────────
+// ── Stats ──────────────────────────────────────────────────
 const bedKosong  = computed(() => props.semuaKamar.filter(k => k.Status === 'KOSONG').length);
 const bedBooking = computed(() => props.semuaKamar.filter(k => k.Status === 'BOOKING').length);
 const bedTerisi  = computed(() => props.semuaKamar.filter(k => k.Status === 'ISI').length);
 const totalBed   = computed(() => props.semuaKamar.length);
-const occupancyPct = computed(() =>
-    totalBed.value > 0 ? Math.round((bedTerisi.value / totalBed.value) * 100) : 0
-);
+const occupancyPct = computed(() => totalBed.value > 0 ? Math.round((bedTerisi.value / totalBed.value) * 100) : 0);
 const totalPasienAktif = computed(() =>
     props.tahapDaftar.length + props.tahapIgd.length + props.tahapSpri.length +
     props.tahapNungguKamar.length + props.tahapBooking.length + props.tahapDiIcu.length
 );
+const pria   = computed(() => props.semuaKamar.filter(k => k.Status === 'ISI' && k.jenis_kelamin === 'L').length);
+const wanita = computed(() => props.semuaKamar.filter(k => k.Status === 'ISI' && k.jenis_kelamin === 'P').length);
 
-// ── Modal state ────────────────────────────────────────────────────────
+// ── Modal ──────────────────────────────────────────────────
 const alert   = ref({ show: false, type: 'success', title: '', message: '' });
 const confirm = ref({ show: false, action: null, title: '', message: '', danger: false });
-
-const showAlert  = (type, title, msg) => { alert.value = { show: true, type, title, message: msg }; };
+const showAlert   = (type, title, msg) => { alert.value = { show: true, type, title, message: msg }; };
 const openConfirm = (cfg) => { confirm.value = { show: true, ...cfg }; };
 const doConfirm   = () => { confirm.value.action?.(); confirm.value.show = false; };
-
 watch(() => props.flash, (f) => {
     if (f?.success) showAlert('success', 'Berhasil!', f.success);
     if (f?.error)   showAlert('error',   'Gagal!',    f.error);
 }, { immediate: true, deep: true });
 
-// ── Alokasi bed langsung dari dashboard ────────────────────────────────
+// ── Alokasi bed ────────────────────────────────────────────
 const bedPilihan    = ref({});
-const bedCocokUntuk = (type) => props.kamarKosong.filter(b => b.kode_kelas === type);
+const bedCocokUntuk = (type) => props.kamarKosong.filter(b => b.nama_kelas === type);
+const doAlokasi = (p) => {
+    const kode = bedPilihan.value[p.id];
+    if (!kode) { showAlert('warning', 'Pilih Bed', 'Silakan pilih bed terlebih dahulu.'); return; }
+    const nama = props.kamarKosong.find(b => b.Kode_Ruang === kode)?.nama_ruang ?? kode;
+    openConfirm({ title: 'Konfirmasi Alokasi', message: `Alokasikan ${nama} untuk ${p.nama_pasien}?`, danger: false,
+        action: () => router.post(route('icu.alokasi_bed', p.id), { Kode_Ruang: kode }) });
+};
+const doMasuk = (p) => openConfirm({ title: 'Antar ke Ruangan?', message: `${p.nama_pasien} → ${p.nama_bed}`, danger: false,
+    action: () => router.post(route('icu.masuk_ruangan', p.id)) });
+const doPulang = (p) => openConfirm({ title: 'Pulangkan Pasien?', message: `${p.nama_pasien} akan dipulangkan dan bed kembali kosong.`, danger: true,
+    action: () => router.post(route('icu.pulangkan', p.id)) });
 
-const doAlokasi = (pasien) => {
-    const kodeRuang = bedPilihan.value[pasien.id];
-    if (!kodeRuang) { showAlert('warning', 'Pilih Bed', 'Silakan pilih bed terlebih dahulu.'); return; }
-    const namaBed = props.kamarKosong.find(b => b.Kode_Ruang === kodeRuang)?.nama_ruang ?? kodeRuang;
-    openConfirm({
-        title:   'Konfirmasi Alokasi Bed',
-        message: `Alokasikan ${namaBed} untuk pasien ${pasien.nama_pasien}?`,
-        danger:  false,
-        action:  () => router.post(route('icu.alokasi_bed', pasien.id), { Kode_Ruang: kodeRuang }),
-    });
+// ── Charts: dark mode palette ──────────────────────────────
+const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Okt','Nov','Des'];
+
+// Line chart — Adherence / Aktivitas Bed
+const lineChartData = computed(() => ({
+    labels: months,
+    datasets: [
+        {
+            label: 'Bed Terisi',
+            data: [3,4,3,3,5,4,6,5,4,6,5,bedTerisi.value],
+            borderColor: '#2DD9A4',
+            backgroundColor: 'rgba(45,217,164,0.08)',
+            tension: 0.4,
+            fill: true,
+            pointBackgroundColor: '#2DD9A4',
+            pointRadius: 3,
+            pointHoverRadius: 5,
+            borderWidth: 2,
+        },
+        {
+            label: 'Booking',
+            data: [1,2,1,2,2,2,3,3,2,3,2,bedBooking.value],
+            borderColor: 'rgba(74,234,181,0.5)',
+            backgroundColor: 'transparent',
+            tension: 0.4,
+            fill: false,
+            pointRadius: 0,
+            borderWidth: 1.5,
+            borderDash: [4, 4],
+        },
+    ],
+}));
+const lineChartOptions = computed(() => ({
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+        legend: { display: false },
+        tooltip: {
+            backgroundColor: tooltipBg.value,
+            borderColor: tooltipBdr.value,
+            borderWidth: 1,
+            titleColor: tooltipTxt.value,
+            bodyColor: tooltipSub.value,
+            titleFont: { family: 'Plus Jakarta Sans', weight: '600' },
+            bodyFont: { family: 'DM Mono' },
+            padding: 10,
+        },
+    },
+    scales: {
+        x: {
+            grid: { color: chartGrid.value, drawBorder: false },
+            ticks: { font: { family: 'DM Mono', size: 10 }, color: chartText.value },
+            border: { display: false },
+        },
+        y: {
+            grid: { color: chartGrid.value, drawBorder: false },
+            ticks: { font: { family: 'DM Mono', size: 10 }, color: chartText.value },
+            border: { display: false },
+        },
+    },
+}));
+
+// Donut chart — bed occupancy
+const donutData = computed(() => ({
+    datasets: [{
+        data: [bedTerisi.value || 1, (bedKosong.value + bedBooking.value) || 0],
+        backgroundColor: ['#2DD9A4', 'rgba(45,217,164,0.12)'],
+        borderWidth: 0,
+        hoverOffset: 6,
+    }],
+}));
+const donutOptions = {
+    responsive: true, maintainAspectRatio: false,
+    cutout: '76%',
+    plugins: {
+        legend: { display: false },
+        tooltip: { enabled: false },
+    },
 };
 
-const doMasukRuangan = (pasien) => {
-    openConfirm({
-        title:   'Antar ke Ruangan?',
-        message: `Pasien ${pasien.nama_pasien} akan diantar ke ${pasien.nama_bed}. Bed akan berstatus TERISI.`,
-        danger:  false,
-        action:  () => router.post(route('icu.masuk_ruangan', pasien.id)),
-    });
+// Bar chart — alur pasien per tahap
+const barData = computed(() => ({
+    labels: ['Daftar', 'IGD', 'SPRI', 'Tunggu', 'Booking', 'Di ICU'],
+    datasets: [
+        {
+            label: 'Pasien',
+            data: [
+                props.tahapDaftar.length,
+                props.tahapIgd.length,
+                props.tahapSpri.length,
+                props.tahapNungguKamar.length,
+                props.tahapBooking.length,
+                props.tahapDiIcu.length,
+            ],
+            backgroundColor: [
+                '#2DD9A4','#4AEAB5','rgba(45,217,164,0.6)',
+                'rgba(224,146,58,0.8)','rgba(74,144,217,0.8)','#2DD9A4'
+            ],
+            borderRadius: 6,
+            borderSkipped: false,
+        },
+    ],
+}));
+const barOptions = computed(() => ({
+    responsive: true, maintainAspectRatio: false,
+    indexAxis: 'y',
+    plugins: {
+        legend: { display: false },
+        tooltip: {
+            backgroundColor: tooltipBg.value,
+            borderColor: tooltipBdr.value,
+            borderWidth: 1,
+            titleColor: tooltipTxt.value,
+            bodyColor: tooltipSub.value,
+            titleFont: { family: 'Plus Jakarta Sans', weight: '600' },
+            bodyFont: { family: 'DM Mono' },
+            padding: 10,
+        },
+    },
+    scales: {
+        x: {
+            grid: { color: chartGrid.value, drawBorder: false },
+            ticks: { font: { family: 'DM Mono', size: 10 }, color: chartText.value, stepSize: 1 },
+            border: { display: false },
+        },
+        y: {
+            grid: { display: false },
+            ticks: { font: { family: 'Plus Jakarta Sans', size: 11 }, color: chartText.value },
+            border: { display: false },
+        },
+    },
+}));
+
+// ── Task/progress list ─────────────────────────────────────
+const tasks = computed(() => [
+    { label: 'Pendaftaran', val: props.tahapDaftar.length,      max: 10, color: '#4A90D9' },
+    { label: 'IGD Triase',  val: props.tahapIgd.length,         max: 10, color: '#E07050' },
+    { label: 'SPRI',        val: props.tahapSpri.length,        max: 10, color: '#2DD9A4' },
+    { label: 'Tunggu Bed',  val: props.tahapNungguKamar.length, max: 10, color: '#E0923A' },
+    { label: 'Di ICU',      val: props.tahapDiIcu.length,       max: 10, color: '#4AEAB5' },
+]);
+
+// ── Avatar color map ───────────────────────────────────────
+const avatarColors = [
+    { bg: 'rgba(45,217,164,0.2)',  color: '#2DD9A4' },
+    { bg: 'rgba(74,144,217,0.2)',  color: '#4A90D9' },
+    { bg: 'rgba(224,112,80,0.2)',  color: '#E07050' },
+    { bg: 'rgba(224,146,58,0.2)',  color: '#E0923A' },
+    { bg: 'rgba(74,234,181,0.2)',  color: '#4AEAB5' },
+];
+const getAvatarColor = (idx) => avatarColors[idx % avatarColors.length];
+const getInitials = (name) => {
+    if (!name) return '?';
+    const parts = name.split(' ');
+    return parts.length >= 2 ? (parts[0][0] + parts[1][0]).toUpperCase() : name.substring(0, 2).toUpperCase();
 };
 
-const doPulangkan = (pasien) => {
-    openConfirm({
-        title:   'Pulangkan Pasien?',
-        message: `Pasien ${pasien.nama_pasien} akan dipulangkan dan bed ${pasien.nama_bed} kembali KOSONG.`,
-        danger:  true,
-        action:  () => router.post(route('icu.pulangkan', pasien.id)),
-    });
-};
+// ── Pagination (for pasien table) ─────────────────────────
+const currentPage  = ref(1);
+const perPage      = ref(5);
+const allPasien    = computed(() => [...props.tahapDiIcu, ...props.tahapBooking, ...props.tahapNungguKamar]);
+const totalPages   = computed(() => Math.max(1, Math.ceil(allPasien.value.length / perPage.value)));
+const pagedPasien  = computed(() => {
+    const start = (currentPage.value - 1) * perPage.value;
+    return allPasien.value.slice(start, start + perPage.value);
+});
+const goPage = (p) => { if (p >= 1 && p <= totalPages.value) currentPage.value = p; };
 
-// ── Tab ────────────────────────────────────────────────────────────────
-const activeTab = ref('overview');
-
-// ── SVG icons ─────────────────────────────────────────────────────────
+// ── Icons ──────────────────────────────────────────────────
 const icons = {
-    bed:     'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4',
-    clock:   'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
-    home:    'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6',
-    user:    'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',
-    heart:   'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z',
-    grid:    'M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z',
-    arrow:   'M13 7l5 5m0 0l-5 5m5-5H6',
-    chart:   'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
-    link:    'M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14',
+    bed:    'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4',
+    clock:  'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
+    home:   'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6',
+    user:   'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',
+    heart:  'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z',
+    users:  'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z',
+};
+
+// ── Quick nav links ────────────────────────────────────────
+const quickLinks = computed(() => [
+    { label: 'Pendaftaran', href: '/icu/pendaftaran', cnt: props.tahapDaftar.length,  icon: icons.user },
+    { label: 'IGD Triase',  href: '/icu/igd',         cnt: props.tahapIgd.length,    icon: icons.heart },
+    { label: 'SPRI',        href: '/icu/spri',        cnt: props.tahapSpri.length,   icon: icons.clock },
+    { label: 'Pasien ICU',  href: '/icu/pasien-icu',  cnt: props.tahapDiIcu.length,  icon: icons.bed },
+]);
+
+// Stage label helper
+const getStageLabel = (p) => {
+    if (props.tahapDiIcu.find(x => x.id === p.id))       return { label: 'Di ICU',  color: '#3DDB8A', bg: 'rgba(61,219,138,0.12)' };
+    if (props.tahapBooking.find(x => x.id === p.id))      return { label: 'Booking', color: '#4A90D9', bg: 'rgba(74,144,217,0.12)' };
+    if (props.tahapNungguKamar.find(x => x.id === p.id))  return { label: 'Tunggu',  color: '#E0923A', bg: 'rgba(224,146,58,0.12)' };
+    return { label: 'Aktif', color: '#2DD9A4', bg: 'rgba(45,217,164,0.12)' };
 };
 </script>
 
 <template>
     <AppLayout :flash="flash" page-title="Dashboard ICU">
-        <AlertModal   v-bind="alert"   @close="alert.show = false" />
-        <ConfirmModal v-bind="confirm" @confirm="doConfirm" @cancel="confirm.show = false" />
+        <AlertModal   v-bind="alert"   @close="alert.show = false"/>
+        <ConfirmModal v-bind="confirm" @confirm="doConfirm" @cancel="confirm.show = false"/>
 
-        <div class="p-3 sm:p-5 space-y-4 sm:space-y-5">
+        <div class="p-5 sm:p-6 space-y-5" style="font-family:'Plus Jakarta Sans',sans-serif; background:var(--bg-main)">
 
-            <!-- ══════════════════════════════════════════
-                 HERO BANNER
-            ══════════════════════════════════════════ -->
-            <div class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-green-800 via-green-700 to-teal-600 p-6 text-white shadow-lg">
-                <!-- Grid pattern bg -->
-                <div class="absolute inset-0 opacity-10">
-                    <svg class="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-                        <defs>
-                            <pattern id="g" width="8" height="8" patternUnits="userSpaceOnUse">
-                                <path d="M 8 0 L 0 0 0 8" fill="none" stroke="white" stroke-width="0.5"/>
-                            </pattern>
-                        </defs>
-                        <rect width="100" height="100" fill="url(#g)"/>
-                    </svg>
-                </div>
-                <!-- Cross decoration -->
-                <div class="absolute right-8 top-1/2 -translate-y-1/2 opacity-[0.07]">
-                    <svg class="w-40 h-40" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M19 8H15V4H9v4H5v6h4v4h6v-4h4V8z"/>
-                    </svg>
-                </div>
+            <!-- ══ ROW 1: Hero Banner + Stats Cards ══════════════ -->
+            <div class="grid grid-cols-1 xl:grid-cols-3 gap-5">
 
-                <div class="relative">
-                    <div class="mb-3 sm:mb-0">
-                        <span class="text-xs bg-white/20 px-2.5 py-0.5 rounded-full font-semibold tracking-widest uppercase">
-                            Universal Health Coverage
-                        </span>
-                        <h2 class="text-lg sm:text-xl font-bold mt-2 leading-tight">Monitoring Alur Pasien ICU</h2>
-                        <p class="text-green-100 text-xs sm:text-sm mt-1">Pantau bed, alur pasien, dan alokasi secara real-time</p>
+                <!-- Hero Banner — 2 cols -->
+                <div class="xl:col-span-2 hero-banner p-6 sm:p-8 flex items-center justify-between gap-4" style="min-height:160px">
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium mb-2" style="color:rgba(255,255,255,0.7)">
+                            Selamat datang 👋
+                        </p>
+                        <h1 class="font-bold leading-tight mb-2"
+                            style="font-size:clamp(24px,3vw,36px); color:var(--text-primary); letter-spacing:-0.02em">
+                            Monitor ICU Real-time
+                        </h1>
+                        <p class="text-sm" style="color:rgba(255,255,255,0.6); max-width:360px; line-height:1.6">
+                            Pantau kondisi ruang ICU, alur pasien, dan hunian bed secara live — semua dalam satu layar.
+                        </p>
+                        
                     </div>
-                    <!-- Summary numbers — grid di mobile, flex di desktop -->
-                    <div class="grid grid-cols-3 sm:flex sm:items-center gap-3 sm:gap-5 mt-4 sm:mt-3">
-                        <div class="text-center">
-                            <p class="text-2xl sm:text-3xl font-bold leading-none">{{ occupancyPct }}%</p>
-                            <p class="text-green-200 text-xs mt-1">Hunian Bed</p>
-                        </div>
-                        <div class="hidden sm:block h-12 w-px bg-white/20"></div>
-                        <div class="text-center">
-                            <p class="text-2xl sm:text-3xl font-bold leading-none">{{ totalPasienAktif }}</p>
-                            <p class="text-green-200 text-xs mt-1">Pasien Aktif</p>
-                        </div>
-                        <div class="hidden sm:block h-12 w-px bg-white/20"></div>
-                        <div class="text-center">
-                            <p class="text-2xl sm:text-3xl font-bold leading-none">{{ totalBed }}</p>
-                            <p class="text-green-200 text-xs mt-1">Total Bed</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ══════════════════════════════════════════
-                 STAT CARDS
-            ══════════════════════════════════════════ -->
-            <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
-                <StatCard label="Bed Kosong"   :value="bedKosong"              :sub="`dari ${totalBed} bed`"  :icon="icons.bed"   color="green" />
-                <StatCard label="Booking"      :value="bedBooking"             sub="Menunggu transfer"        :icon="icons.clock" color="amber" />
-                <StatCard label="Terisi"       :value="bedTerisi"              :sub="`${occupancyPct}% hunian`" :icon="icons.home" color="rose" />
-                <StatCard label="Pendaftaran"  :value="tahapDaftar.length"     sub="Antrian masuk"            :icon="icons.user"  color="blue"  />
-                <StatCard label="Di IGD"       :value="tahapIgd.length"        sub="Sedang triase"            :icon="icons.heart" color="amber" />
-                <StatCard label="Di ICU"       :value="tahapDiIcu.length"      sub="Pasien dirawat"           :icon="icons.heart" color="teal"  />
-            </div>
-
-            <!-- ══════════════════════════════════════════
-                 QUICK LINKS ke halaman detail
-            ══════════════════════════════════════════ -->
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <a v-for="link in [
-                    { label: 'Pendaftaran', sub: `${tahapDaftar.length} antrian`,   href: '/icu/pendaftaran', color: 'border-gray-200 hover:border-gray-300',   dot: 'bg-gray-400'   },
-                    { label: 'IGD & SPRI',  sub: `${tahapIgd.length + tahapSpri.length} proses`,  href: '/icu/spri',        color: 'border-amber-200 hover:border-amber-300', dot: 'bg-amber-500'  },
-                    { label: 'Alokasi Bed', sub: `${tahapNungguKamar.length} menunggu`, href: '/icu/alokasi-bed',  color: 'border-rose-200 hover:border-rose-300',   dot: 'bg-rose-500'   },
-                    { label: 'Pasien ICU',  sub: `${tahapDiIcu.length} aktif`,      href: '/icu/pasien-icu',   color: 'border-green-200 hover:border-green-300', dot: 'bg-green-500'  },
-                ]" :key="link.href" :href="link.href"
-                    :class="['flex items-center justify-between p-3.5 bg-white rounded-xl border transition-all hover:shadow-sm group', link.color]">
-                    <div>
-                        <p class="text-sm font-semibold text-gray-700 group-hover:text-gray-900">{{ link.label }}</p>
-                        <p class="text-xs text-gray-400 mt-0.5">{{ link.sub }}</p>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span :class="['w-2 h-2 rounded-full', link.dot]"></span>
-                        <svg class="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" :d="icons.arrow"/>
+                    <!-- Decorative icon -->
+                    <div class="hidden sm:flex flex-shrink-0 items-center justify-center w-28 h-28 rounded-2xl"
+                        style="background:rgba(45,217,164,0.1); border:1px solid rgba(45,217,164,0.2)">
+                        <svg style="width:52px;height:52px;color:#2DD9A4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.2">
+                            <path stroke-linecap="round" stroke-linejoin="round" :d="icons.bed"/>
                         </svg>
                     </div>
-                </a>
-            </div>
-
-            <!-- ══════════════════════════════════════════
-                 TAB SWITCH — scroll horizontal di mobile
-            ══════════════════════════════════════════ -->
-            <div class="overflow-x-auto pb-1">
-                <div class="flex items-center gap-1 bg-gray-100 rounded-xl p-1 w-max min-w-full sm:w-fit sm:min-w-0">
-                    <button v-for="tab in [
-                        { key: 'overview', label: 'Overview',    icon: icons.chart },
-                        { key: 'alokasi',  label: 'Alokasi Bed', icon: icons.bed   },
-                        { key: 'icu',      label: 'Pasien ICU',  icon: icons.heart },
-                        { key: 'bed',      label: 'Denah Bed',   icon: icons.grid  },
-                    ]" :key="tab.key" @click="activeTab = tab.key"
-                        :class="['px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap flex-shrink-0',
-                            activeTab === tab.key ? 'bg-white shadow-sm text-green-700' : 'text-gray-500 hover:text-gray-700']"
-                    >
-                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" :d="tab.icon"/>
-                        </svg>
-                        {{ tab.label }}
-                    </button>
                 </div>
-            </div>
 
-            <!-- ══════════════════════════════════════════
-                 TAB: OVERVIEW ALUR
-            ══════════════════════════════════════════ -->
-            <div v-if="activeTab === 'overview'" class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
-                <!-- Ringkasan per tahap -->
-                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                    <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-4 flex items-center gap-1.5">
-                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" :d="icons.chart"/></svg>
-                        Distribusi Alur Pasien
-                    </p>
-                    <div class="space-y-3">
-                        <div v-for="item in [
-                            { label: 'Pendaftaran',    val: tahapDaftar.length,      color: 'bg-gray-400',   href: '/icu/pendaftaran' },
-                            { label: 'IGD Triase',     val: tahapIgd.length,         color: 'bg-amber-400',  href: '/icu/igd'  },
-                            { label: 'SPRI Dibuat',    val: tahapSpri.length,        color: 'bg-teal-500',   href: '/icu/spri' },
-                            { label: 'Tunggu Kamar',   val: tahapNungguKamar.length, color: 'bg-rose-500',   href: '/icu/alokasi-bed' },
-                            { label: 'Booking Kamar',  val: tahapBooking.length,     color: 'bg-indigo-500', href: '/icu/alokasi-bed' },
-                            { label: 'Di ICU',         val: tahapDiIcu.length,       color: 'bg-green-600',  href: '/icu/pasien-icu' },
-                        ]" :key="item.label" class="flex items-center gap-3">
-                            <span :class="['w-2.5 h-2.5 rounded-full flex-shrink-0', item.color]"></span>
-                            <a :href="item.href" class="text-sm text-gray-600 flex-1 hover:text-green-700 transition-colors">{{ item.label }}</a>
-                            <span class="text-sm font-bold text-gray-800 w-6 text-right">{{ item.val }}</span>
-                            <div class="w-24 bg-gray-100 rounded-full h-2">
-                                <div :class="['h-2 rounded-full transition-all duration-500', item.color]"
-                                    :style="{ width: totalPasienAktif > 0 ? (item.val / totalPasienAktif * 100) + '%' : '0%' }">
+                <!-- Donut: Hunian Bed -->
+                    <div class="card-dark p-5 flex items-center gap-5">
+                        <div class="relative flex-shrink-0" style="width:100px; height:100px">
+                            <Doughnut :data="donutData" :options="donutOptions"/>
+                            <div class="absolute inset-0 flex items-center justify-center">
+                                <div class="text-center">
+                                    <p class="font-bold leading-none" style="font-size:20px; color:var(--text-primary); font-family:'Plus Jakarta Sans',sans-serif">{{ occupancyPct }}%</p>
+                                    <p class="text-xs mt-0.5" style="color:var(--text-secondary); font-family:'DM Mono',monospace; font-size:9px">Hunian</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-semibold text-sm mb-3" style="color:var(--text-primary); font-family:'Plus Jakarta Sans',sans-serif">Hunian Bed</p>
+                            <div class="space-y-2">
+                                <div class="flex items-center justify-between">
+                                    <span class="flex items-center gap-2 text-xs" style="color:var(--text-secondary)">
+                                        <span class="w-2 h-2 rounded-full" style="background:#2DD9A4"></span>Terisi
+                                    </span>
+                                    <span class="text-xs font-bold" style="color:var(--text-primary); font-family:'DM Mono',monospace">{{ bedTerisi }}</span>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span class="flex items-center gap-2 text-xs" style="color:var(--text-secondary)">
+                                        <span class="w-2 h-2 rounded-full" style="background:rgba(45,217,164,0.2)"></span>Kosong
+                                    </span>
+                                    <span class="text-xs font-bold" style="color:var(--text-primary); font-family:'DM Mono',monospace">{{ bedKosong }}</span>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span class="flex items-center gap-2 text-xs" style="color:var(--text-secondary)">
+                                        <span class="w-2 h-2 rounded-full" style="background:#E0923A"></span>Booking
+                                    </span>
+                                    <span class="text-xs font-bold" style="color:var(--text-primary); font-family:'DM Mono',monospace">{{ bedBooking }}</span>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
-
-                <!-- Status bed summary -->
-                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                    <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-4 flex items-center gap-1.5">
-                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" :d="icons.bed"/></svg>
-                        Kapasitas Bed ICU
-                    </p>
-
-                    <!-- Occupancy bar besar -->
-                    <div class="mb-5">
-                        <div class="flex justify-between text-xs text-gray-500 mb-1.5">
-                            <span>Tingkat Hunian</span>
-                            <span :class="['font-bold', occupancyPct > 80 ? 'text-rose-600' : occupancyPct > 50 ? 'text-amber-600' : 'text-green-600']">
-                                {{ occupancyPct }}%
-                            </span>
-                        </div>
-                        <div class="w-full bg-gray-100 rounded-full h-3">
-                            <div :class="['h-3 rounded-full transition-all duration-700', occupancyPct > 80 ? 'bg-rose-500' : occupancyPct > 50 ? 'bg-amber-500' : 'bg-green-500']"
-                                :style="{ width: occupancyPct + '%' }">
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- 3 kolom stat -->
-                    <div class="grid grid-cols-3 gap-3">
-                        <div class="text-center p-3 bg-green-50 rounded-xl border border-green-100">
-                            <p class="text-2xl font-bold text-green-700">{{ bedKosong }}</p>
-                            <p class="text-xs text-green-600 font-medium mt-0.5">Kosong</p>
-                        </div>
-                        <div class="text-center p-3 bg-amber-50 rounded-xl border border-amber-100">
-                            <p class="text-2xl font-bold text-amber-600">{{ bedBooking }}</p>
-                            <p class="text-xs text-amber-600 font-medium mt-0.5">Booking</p>
-                        </div>
-                        <div class="text-center p-3 bg-rose-50 rounded-xl border border-rose-100">
-                            <p class="text-2xl font-bold text-rose-600">{{ bedTerisi }}</p>
-                            <p class="text-xs text-rose-600 font-medium mt-0.5">Terisi</p>
-                        </div>
-                    </div>
-
-                    <!-- Perlu perhatian -->
-                    <div v-if="tahapNungguKamar.length > 0"
-                        class="mt-4 flex items-center gap-2.5 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2.5">
-                        <svg class="w-4 h-4 text-rose-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-                        </svg>
-                        <p class="text-xs text-rose-700 font-medium">
-                            <strong>{{ tahapNungguKamar.length }} pasien</strong> menunggu alokasi bed.
-                            <a href="/icu/alokasi-bed" class="underline hover:no-underline">Alokasi sekarang →</a>
-                        </p>
-                    </div>
-                </div>
             </div>
 
-            <!-- ══════════════════════════════════════════
-                 TAB: ALOKASI BED (langsung dari dashboard)
-            ══════════════════════════════════════════ -->
-            <div v-if="activeTab === 'alokasi'" class="space-y-4">
+            <!-- ══ ROW 2: KPI Cards ═══════════════════════════════ -->
+            <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
+                <StatCard label="Bed Tersedia"  :value="bedKosong"          :sub="`dari ${totalBed} total`"   :icon="icons.bed"   color="teal" />
+                <StatCard label="Booking"       :value="bedBooking"         sub="Menunggu transfer"            :icon="icons.clock" color="amber" />
+                <StatCard label="Hunian"        :value="occupancyPct + '%'" :sub="`${bedTerisi} terisi`"      :icon="icons.home"  color="coral" />
+                <StatCard label="Pasien Aktif"  :value="totalPasienAktif"   sub="Semua tahap"                 :icon="icons.users" color="sky"   />
+                <StatCard label="Pria di ICU"   :value="pria"               sub="♂ Terisi"                    :icon="icons.user"  color="sky"   />
+                <StatCard label="Wanita di ICU" :value="wanita"             sub="♀ Terisi"                    :icon="icons.heart" color="mint"  />
+            </div>
 
-                <!-- Waiting -->
-                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                    <div class="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 bg-rose-50/50">
-                        <div class="flex items-center gap-2">
-                            <span class="w-2 h-2 rounded-full bg-rose-500"></span>
-                            <span class="text-sm font-bold text-gray-700">Menunggu Alokasi Bed</span>
-                        </div>
-                        <span class="text-xs bg-rose-100 text-rose-700 font-bold px-2.5 py-0.5 rounded-full">{{ tahapNungguKamar.length }}</span>
+            <!-- ══ Denah Bed ════════════════════════════════ -->
+            <!-- <div class="card-dark p-5 sm:p-6">
+                <div class="flex items-center justify-between mb-5">
+                    <div>
+                        <p class="font-semibold text-sm" style="color:var(--text-primary); font-family:'Plus Jakarta Sans',sans-serif">Denah Bed ICU — Real-time</p>
+                        <p class="text-xs mt-0.5" style="color:var(--text-secondary)">Visualisasi status semua bed</p>
                     </div>
-
-                    <div v-if="tahapNungguKamar.length === 0" class="text-center py-10 text-gray-300">
-                        <svg class="w-8 h-8 mx-auto mb-2 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                        <p class="text-sm">Tidak ada pasien menunggu bed</p>
+                    <div class="flex items-center gap-4 flex-wrap">
+                        <span class="flex items-center gap-1.5 text-xs" style="color:var(--text-secondary)">
+                            <span class="w-3 h-3 rounded" style="background:#2DD9A4"></span>Kosong
+                        </span>
+                        <span class="flex items-center gap-1.5 text-xs" style="color:var(--text-secondary)">
+                            <span class="w-3 h-3 rounded" style="background:#4A90D9"></span>Pria
+                        </span>
+                        <span class="flex items-center gap-1.5 text-xs" style="color:var(--text-secondary)">
+                            <span class="w-3 h-3 rounded" style="background:#E07050"></span>Wanita
+                        </span>
+                        <span class="flex items-center gap-1.5 text-xs" style="color:var(--text-secondary)">
+                            <span class="w-3 h-3 rounded" style="background:#E0923A"></span>Booking
+                        </span>
                     </div>
+                </div>
+                <BedGrid :kamar="semuaKamar"/>
+            </div> -->
 
-                    <div v-for="p in tahapNungguKamar" :key="p.id"
-                        class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3.5 border-b border-gray-50 last:border-0">
-                        <div class="flex items-center gap-3 min-w-0">
-                            <div class="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center flex-shrink-0">
-                                <svg class="w-4 h-4 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" :d="icons.user"/></svg>
-                            </div>
-                            <div class="min-w-0">
-                                <p class="font-semibold text-gray-800 text-sm truncate">{{ p.nama_pasien }}</p>
-                                <p class="text-xs text-gray-400">{{ p.No_Reg }}</p>
-                            </div>
-                            <span class="text-xs bg-rose-100 text-rose-700 font-semibold px-2 py-0.5 rounded-full flex-shrink-0">{{ p.required_bed_type }}</span>
-                        </div>
-                        <div class="flex items-center gap-2 flex-shrink-0">
-                            <select v-model="bedPilihan[p.id]"
-                                :disabled="bedCocokUntuk(p.required_bed_type).length === 0"
-                                class="flex-1 sm:flex-none text-sm rounded-xl border border-gray-200 px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-green-400 bg-white disabled:opacity-40 sm:min-w-[160px]">
-                                <option value="" disabled>-- Pilih Bed --</option>
-                                <option v-for="bed in bedCocokUntuk(p.required_bed_type)" :key="bed.Kode_Ruang" :value="bed.Kode_Ruang">
-                                    {{ bed.nama_ruang }}
-                                </option>
-                            </select>
-                            <button v-if="bedCocokUntuk(p.required_bed_type).length > 0"
-                                @click="doAlokasi(p)"
-                                class="flex-shrink-0 flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold px-3.5 py-2 rounded-xl transition-colors whitespace-nowrap">
-                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-                                Alokasi
-                            </button>
-                            <span v-else class="text-xs text-gray-400 bg-gray-100 px-3 py-2 rounded-xl whitespace-nowrap">Bed penuh</span>
-                        </div>
+            <!-- ══ Pasien Table ════════════════════════════ -->
+            <div class="card-dark">
+                <!-- Header -->
+                <div class="flex items-center justify-between px-5 py-4" style="border-bottom:1px solid var(--border-default)">
+                    <div>
+                        <p class="font-semibold text-sm" style="color:var(--text-primary); font-family:'Plus Jakarta Sans',sans-serif">Pasien Aktif</p>
+                        <p class="text-xs mt-0.5" style="color:var(--text-secondary)">Semua pasien dalam sistem saat ini</p>
                     </div>
                 </div>
 
-                <!-- Booking — siap transfer -->
-                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                    <div class="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 bg-green-50/50">
-                        <div class="flex items-center gap-2">
-                            <span class="w-2 h-2 rounded-full bg-green-500"></span>
-                            <span class="text-sm font-bold text-gray-700">Sudah Dapat Kamar — Siap Transfer</span>
-                        </div>
-                        <span class="text-xs bg-green-100 text-green-700 font-bold px-2.5 py-0.5 rounded-full">{{ tahapBooking.length }}</span>
-                    </div>
+                <!-- Table -->
+                <div class="overflow-x-auto">
+                    <table class="dark-table w-full">
+                        <thead>
+                            <tr>
+                                <th class="text-left pl-5">Nama Pasien</th>
+                                <th class="text-left">Diagnosis</th>
+                                <th class="text-left">Jenis Kelamin</th>
+                                <th class="text-left">Tipe Bed</th>
+                                <th class="text-left">Status</th>
+                                <th class="text-left">Bed / Kamar</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-if="allPasien.length === 0">
+                                <td colspan="6" class="text-center py-12" style="color:var(--text-secondary)">
+                                    <svg class="w-10 h-10 mx-auto mb-2 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
+                                    </svg>
+                                    <p class="text-sm" style="font-family:'Plus Jakarta Sans',sans-serif">Tidak ada pasien aktif</p>
+                                </td>
+                            </tr>
+                            <tr v-for="(p, idx) in pagedPasien" :key="p.id">
+                                <!-- Nama -->
+                                <td class="pl-5">
+                                    <div class="flex items-center gap-3">
+                                        <div class="avatar-initials text-xs font-bold"
+                                            :style="`background:${getAvatarColor(idx).bg}; color:${getAvatarColor(idx).color}`">
+                                            {{ getInitials(p.nama_pasien) }}
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-semibold" style="color:var(--text-primary); font-family:'Plus Jakarta Sans',sans-serif">{{ p.nama_pasien }}</p>
+                                            <p class="text-xs" style="color:var(--text-secondary); font-family:'DM Mono',monospace">No_MR: {{ p.No_MR }}</p>
+                                        </div>
+                                    </div>
+                                </td>
+                                <!-- Diagnosis -->
+                                 <td>
+                                    <span class="badge badge-range text-xs" style="font-family:'DM Mono',monospace">
+                                        {{ p.diagnosis ?? '-' }}
+                                    </span>
+                                </td>
+                                <!-- Jenis Kelamin -->
+                                <td>
+                                    <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
+                                        :style="p.jenis_kelamin === 'L'
+                                            ? 'background:rgba(74,144,217,0.15); color:#4A90D9'
+                                            : p.jenis_kelamin === 'P'
+                                            ? 'background:rgba(217,81,122,0.15); color:#D9517A'
+                                            : 'background:var(--bg-input); color:var(--text-secondary)'">
+                                        {{ p.jenis_kelamin === 'L' ? '♂ Pria' : p.jenis_kelamin === 'P' ? '♀ Wanita' : '—' }}
+                                    </span>
+                                </td>
+                                <!-- Tipe Bed -->
+                                <td>
+                                    <span class="badge badge-range text-xs" style="font-family:'DM Mono',monospace">
+                                        {{ p.required_bed_type ?? '-' }}
+                                    </span>
+                                </td>
+                                <!-- Status -->
+                                <td>
+                                    <span class="badge text-xs"
+                                        :style="`background:${getStageLabel(p).bg}; color:${getStageLabel(p).color}`">
+                                        {{ getStageLabel(p).label }}
+                                    </span>
+                                </td>
+                                <!-- Bed -->
+                                <td>
+                                    <span class="text-xs" style="color:var(--text-secondary); font-family:'DM Mono',monospace">
+                                        {{ p.nama_bed ?? '— Belum diset —' }}
+                                    </span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
 
-                    <div v-if="tahapBooking.length === 0" class="text-center py-10 text-gray-300">
-                        <p class="text-sm">Tidak ada pasien booking kamar</p>
+                <!-- Pagination footer -->
+                <div class="flex items-center justify-between px-5 py-4" style="border-top:1px solid var(--border-default)">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs" style="color:var(--text-secondary)">Tampil</span>
+                        <select v-model="perPage" class="text-xs px-2 py-1 rounded-lg"
+                            style="background:var(--bg-input); border:1px solid rgba(45,217,164,0.12); color:var(--text-secondary); outline:none">
+                            <option :value="5">5</option>
+                            <option :value="10">10</option>
+                            <option :value="20">20</option>
+                        </select>
+                        <span class="text-xs" style="color:var(--text-secondary)">data dari {{ allPasien.length }}</span>
                     </div>
-
-                    <div v-for="p in tahapBooking" :key="'b'+p.id"
-                        class="flex items-center justify-between gap-4 px-5 py-3.5 border-b border-gray-50 last:border-0 flex-wrap">
-                        <div class="flex items-center gap-3 min-w-0">
-                            <div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
-                                <svg class="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" :d="icons.user"/></svg>
-                            </div>
-                            <div class="min-w-0">
-                                <p class="font-semibold text-gray-800 text-sm truncate">{{ p.nama_pasien }}</p>
-                                <p class="text-xs text-gray-400">{{ p.No_Reg }} · {{ p.required_bed_type }}</p>
-                            </div>
-                            <span class="text-xs bg-green-100 text-green-700 font-medium px-2 py-0.5 rounded-full flex-shrink-0">
-                                🏥 {{ p.nama_bed }}
-                            </span>
-                        </div>
-                        <button @click="doMasukRuangan(p)"
-                            class="flex items-center gap-1.5 bg-green-700 hover:bg-green-800 text-white text-xs font-semibold px-3.5 py-2 rounded-xl transition-colors whitespace-nowrap">
-                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" :d="icons.arrow"/></svg>
-                            Antar ke Ruangan
+                    <div class="flex items-center gap-1.5">
+                        <button @click="goPage(currentPage - 1)" :disabled="currentPage === 1"
+                            class="page-btn disabled:opacity-30 disabled:cursor-not-allowed text-xs px-3"
+                            style="width:auto; padding:0 12px">
+                            ← Prev
+                        </button>
+                        <button v-for="p in totalPages" :key="p" @click="goPage(p)"
+                            :class="['page-btn', p === currentPage ? 'active' : '']">
+                            {{ p }}
+                        </button>
+                        <button @click="goPage(currentPage + 1)" :disabled="currentPage === totalPages"
+                            class="page-btn disabled:opacity-30 disabled:cursor-not-allowed text-xs px-3"
+                            style="width:auto; padding:0 12px">
+                            Next →
                         </button>
                     </div>
                 </div>
             </div>
-
-            <!-- ══════════════════════════════════════════
-                 TAB: PASIEN DI ICU
-            ══════════════════════════════════════════ -->
-            <div v-if="activeTab === 'icu'">
-                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                    <div class="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 bg-green-50/50">
-                        <div class="flex items-center gap-2">
-                            <span class="w-2 h-2 rounded-full bg-green-500 pulse-green"></span>
-                            <span class="text-sm font-bold text-gray-700">Pasien Aktif di ICU</span>
-                        </div>
-                        <span class="text-xs bg-green-100 text-green-700 font-bold px-2.5 py-0.5 rounded-full">{{ tahapDiIcu.length }}</span>
-                    </div>
-
-                    <div v-if="tahapDiIcu.length === 0" class="text-center py-16 text-gray-300">
-                        <svg class="w-10 h-10 mx-auto mb-2 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" :d="icons.heart"/></svg>
-                        <p class="text-sm">Belum ada pasien di ICU</p>
-                    </div>
-
-                    <div v-for="p in tahapDiIcu" :key="p.id"
-                        class="flex items-center justify-between gap-4 px-5 py-3.5 border-b border-gray-50 last:border-0 flex-wrap hover:bg-gray-50/50 transition-colors">
-                        <div class="flex items-center gap-3 min-w-0">
-                            <div class="relative">
-                                <div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
-                                    <svg class="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" :d="icons.user"/></svg>
-                                </div>
-                                <span class="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white pulse-green"></span>
-                            </div>
-                            <div class="min-w-0">
-                                <p class="font-semibold text-gray-800 text-sm truncate">{{ p.nama_pasien }}</p>
-                                <p class="text-xs text-gray-400">{{ p.No_Reg }} · MR: {{ p.No_MR }}</p>
-                            </div>
-                        </div>
-                        <div class="flex items-center gap-3 flex-shrink-0">
-                            <div class="text-right">
-                                <p class="text-xs font-semibold text-gray-700">{{ p.nama_bed }}</p>
-                                <p class="text-xs text-gray-400">{{ p.required_bed_type }}</p>
-                            </div>
-                            <button @click="doPulangkan(p)"
-                                class="flex items-center gap-1.5 border border-rose-200 text-rose-600 hover:bg-rose-600 hover:text-white text-xs font-semibold px-3 py-1.5 rounded-xl transition-all">
-                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
-                                Pulang
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ══════════════════════════════════════════
-                 TAB: DENAH BED
-            ══════════════════════════════════════════ -->
-            <div v-if="activeTab === 'bed'"
-                class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                <div class="flex items-center justify-between mb-4">
-                    <div>
-                        <h3 class="font-bold text-gray-800">Denah Bed ICU — Real-time</h3>
-                        <p class="text-xs text-gray-400 mt-0.5">Diperbarui otomatis setiap 30 detik</p>
-                    </div>
-                    <div class="flex items-center gap-3 text-xs text-gray-500">
-                        <span class="flex items-center gap-1"><span class="w-3 h-2 rounded border-l-2 border-l-green-500 bg-green-50"></span> Kosong</span>
-                        <span class="flex items-center gap-1"><span class="w-3 h-2 rounded border-l-2 border-l-amber-500 bg-amber-50"></span> Booking</span>
-                        <span class="flex items-center gap-1"><span class="w-3 h-2 rounded border-l-2 border-l-rose-500 bg-rose-50"></span> Terisi</span>
-                    </div>
-                </div>
-                <BedGrid :kamar="semuaKamar" />
-            </div>
-
         </div>
     </AppLayout>
 </template>

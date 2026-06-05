@@ -3,7 +3,6 @@
 namespace App\Services\Icu;
 
 use App\Models\IcuAdmision;
-use App\Models\MKelas;
 use App\Models\Spri;
 
 class SpriService
@@ -44,11 +43,10 @@ class SpriService
             'match_status'      => 'waiting',
         ]);
 
-        $namaKelas = MKelas::find($requiredBedType)?->Nama_Kelas ?? $requiredBedType;
-
+        // required_bed_type sekarang sudah berisi Nama_Kelas langsung
         return [
             'admision'  => $admision->fresh(),
-            'namaKelas' => $namaKelas,
+            'namaKelas' => $requiredBedType,
         ];
     }
 

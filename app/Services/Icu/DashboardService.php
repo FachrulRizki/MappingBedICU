@@ -64,6 +64,7 @@ class DashboardService
             'allocated_bed_id'  => $a->allocated_bed_id,
             'match_status'      => $a->match_status,
             'nama_pasien'       => $a->pasien?->Nama_Pasien ?? '-',
+            'jenis_kelamin'     => $a->pasien?->jenis_kelamin ?? null,   // ← L | P | null
             'diagnosis'         => $a->pendaftaran?->spriAktif?->Diagnosis ?? null,
             'indikasi'          => $a->pendaftaran?->spriAktif?->IndikasiRI ?? null,
             'nama_bed'          => $a->bed?->ruang?->Nama_RuangM ?? $a->allocated_bed_id,
