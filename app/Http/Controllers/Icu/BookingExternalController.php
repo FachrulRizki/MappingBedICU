@@ -21,7 +21,7 @@ class BookingExternalController extends Controller
     /** Helper — nama user aktif (belum auth, pakai session/default) */
     private function currentUser(): string
     {
-        return session('user_name', 'petugas');
+        return auth()->user()?->name ?? 'petugas';
     }
 
     /** Halaman daftar semua booking external */

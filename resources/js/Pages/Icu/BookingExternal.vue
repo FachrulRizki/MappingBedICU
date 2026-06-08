@@ -4,6 +4,13 @@ import { router, useForm } from '@inertiajs/vue3';
 import AppLayout    from '@/Layouts/AppLayout.vue';
 import AlertModal   from '@/Components/AlertModal.vue';
 import ConfirmModal from '@/Components/ConfirmModal.vue';
+import { useAuth }  from '@/composables/useAuth.js';
+
+const {
+    canBuatBookingExternal, canKonfirmasiIcu, canValidasiAdmisi,
+    canVerifikasiBed, canLinkPasien, canKonfirmasiMasuk, canPulangkan,
+    isAdmin, user: authUser,
+} = useAuth();
 
 const props = defineProps({
     bookings:    { type: Array,  default: () => [] },
@@ -112,6 +119,21 @@ const statusGroups = {
     aktif:     ['di_icu'],
     ditolak:   ['ditolak'],
 };
+
+// Tab visibility per role — hanya tampilkan tab yang relevan
+const allTabs = [
+    { key:'daftar',     label:'Booking Masuk',    roles: ['admin','admisi','petugas_icu'] },
+    { key:'icu',        label:'Konfirmasi ICU',   roles: ['admin','petugas_icu'] },
+    { key:'admisi',     label:'Validasi Admisi',  roles: ['admin','admisi'] },
+    { key:'verifikasi', label:'Verifikasi Bed',   roles: ['admin','admisi'] },
+    { key:'aktif',      label:'Di ICU',           roles: ['admin','admisi','petugas_icu'] },
+    { key:'ditolak',    label:'Ditolak',          roles: ['admin','admisi','petugas_icu'] },
+];
+const visibleTabs = computed(() => allTabs.filter(t => {
+    if (!authUser.value) return false;
+    if (isAdmin.value)   return true;
+    return t.roles.includes(authUser.value.role);
+}));
 const filtered = computed(() => {
     const keys = statusGroups[activeTab.value] ?? [];
     return keys.length ? props.bookings.filter(b => keys.includes(b.status)) : props.bookings;
@@ -158,7 +180,7 @@ const statusBadge = (status) => {
                     <h1 class="font-bold text-lg" style="color:var(--text-primary)">Booking ICU — Pasien Eksternal</h1>
                     <p class="text-sm mt-0.5" style="color:var(--text-secondary)">Kelola booking pasien dari luar RS</p>
                 </div>
-                <button @click="showForm = !showForm"
+                <button v-if="canBuatBookingExternal" @click="showForm = !showForm"
                     class="flex items-center gap-2 text-sm font-semibold px-4 py-2.5 rounded-xl self-start sm:self-auto transition-all"
                     :style="showForm
                         ? 'background:var(--bg-main); color:var(--text-secondary); border:1px solid var(--border-default)'
@@ -172,7 +194,7 @@ const statusBadge = (status) => {
 
             <!-- ── Form Booking Baru ── -->
             <Transition enter-active-class="transition-all duration-200 ease-out" enter-from-class="opacity-0 -translate-y-2" enter-to-class="opacity-100 translate-y-0">
-                <form v-if="showForm" @submit.prevent="submitForm" class="card-dark overflow-hidden">
+                <form v-if="showForm && canBuatBookingExternal" @submit.prevent="submitForm" class="card-dark overflow-hidden">
                     <div class="px-5 py-3" style="background:linear-gradient(90deg,#2DD9A4,#1A9E8F)">
                         <p class="text-sm font-bold" style="color:#0D1A17">Form Booking ICU — Pasien Eksternal</p>
                     </div>
@@ -280,14 +302,7 @@ const statusBadge = (status) => {
 
             <!-- ── Status Tabs ── -->
             <div class="flex gap-1 p-1 rounded-xl overflow-x-auto" style="background:var(--bg-main); border:1px solid var(--border-default)">
-                <button v-for="tab in [
-                    { key:'daftar',     label:'Booking Masuk' },
-                    { key:'icu',        label:'Konfirmasi ICU' },
-                    { key:'admisi',     label:'Validasi Admisi' },
-                    { key:'verifikasi', label:'Verifikasi Bed' },
-                    { key:'aktif',      label:'Di ICU' },
-                    { key:'ditolak',    label:'Ditolak' },
-                ]" :key="tab.key"
+                <button v-for="tab in visibleTabs" :key="tab.key"
                     @click="activeTab = tab.key"
                     class="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap flex items-center gap-1.5 transition-all"
                     :style="activeTab === tab.key
@@ -378,6 +393,7 @@ const statusBadge = (status) => {
 
                             <!-- ICU: konfirmasi/tolak bed (pending_icu) -->
                             <template v-if="b.status === 'pending_icu'">
+                                <template v-if="canKonfirmasiIcu">
                                 <select v-model="bedPilihan[b.id]"
                                     :disabled="bedCocok(b.kebutuhan_bed).length === 0"
                                     class="text-xs px-3 py-2 rounded-xl outline-none disabled:opacity-40"
@@ -396,7 +412,6 @@ const statusBadge = (status) => {
                                 <span v-else class="text-xs text-center py-2 rounded-xl" style="background:rgba(224,112,80,0.1); color:#E07050">
                                     Tidak ada bed sesuai
                                 </span>
-                                <!-- Tolak form -->
                                 <div v-if="!showTolakForm[b.id]">
                                     <button @click="showTolakForm[b.id] = true"
                                         class="w-full text-xs font-semibold py-2 rounded-xl"
@@ -412,6 +427,10 @@ const statusBadge = (status) => {
                                         class="w-full text-xs font-bold py-1.5 rounded-xl"
                                         style="background:#E07050; color:#fff">Konfirmasi Tolak</button>
                                 </div>
+                                </template>
+                                <span v-else class="text-xs text-center py-2 rounded-xl" style="background:var(--bg-input); color:var(--text-secondary)">
+                                    Menunggu konfirmasi ICU
+                                </span>
                             </template>
 
                             <!-- Admisi: validasi konfirmasi ICU (bed_confirmed) -->
@@ -420,16 +439,20 @@ const statusBadge = (status) => {
                                     <p style="color:#2DD9A4" class="font-semibold mb-1">ICU Konfirmasi:</p>
                                     <p style="color:var(--text-primary)">🏥 {{ b.nama_bed }}</p>
                                 </div>
-                                <button @click="doValidasiAdmisi(b)"
+                                <button v-if="canValidasiAdmisi" @click="doValidasiAdmisi(b)"
                                     class="text-xs font-bold py-2 rounded-xl"
                                     style="background:#2DD9A4; color:#0D1A17">
                                     ✓ Validasi & Kirim Pasien
                                 </button>
+                                <span v-else class="text-xs text-center py-1.5 rounded-xl" style="background:var(--bg-input); color:var(--text-secondary)">
+                                    Menunggu validasi Admisi
+                                </span>
                             </template>
 
                             <!-- Admisi: link No_MR saat pasien tiba (admisi_validated) -->
                             <template v-else-if="b.status === 'admisi_validated'">
                                 <p class="text-xs font-semibold" style="color:#E0923A">⏳ Pasien dalam perjalanan...</p>
+                                <template v-if="canLinkPasien">
                                 <div v-if="!showLinkForm[b.id]">
                                     <button @click="showLinkForm[b.id] = true"
                                         class="w-full text-xs font-bold py-2 rounded-xl"
@@ -448,6 +471,7 @@ const statusBadge = (status) => {
                                         class="w-full text-xs font-bold py-1.5 rounded-xl"
                                         style="background:#2DD9A4; color:#0D1A17">Simpan & Link</button>
                                 </div>
+                                </template>
                             </template>
 
                             <!-- Admisi: verifikasi bed setelah pasien tiba (pasien_tiba) -->
@@ -456,11 +480,14 @@ const statusBadge = (status) => {
                                     <p style="color:var(--text-secondary)">MR: <span class="font-mono font-semibold" style="color:var(--text-primary)">{{ b.No_MR }}</span></p>
                                     <p style="color:var(--text-secondary)">Bed: <span class="font-semibold" style="color:#2DD9A4">{{ b.nama_bed }}</span></p>
                                 </div>
-                                <button @click="doVerifikasiBed(b)"
+                                <button v-if="canVerifikasiBed" @click="doVerifikasiBed(b)"
                                     class="text-xs font-bold py-2 rounded-xl"
                                     style="background:#2DD9A4; color:#0D1A17">
                                     ✓ Verifikasi Bed
                                 </button>
+                                <span v-else class="text-xs text-center py-1.5 rounded-xl" style="background:var(--bg-input); color:var(--text-secondary)">
+                                    Menunggu verifikasi Admisi
+                                </span>
                             </template>
 
                             <!-- ICU: konfirmasi pasien masuk (bed_verified) -->
@@ -469,11 +496,14 @@ const statusBadge = (status) => {
                                     <p style="color:#2DD9A4" class="font-semibold">Siap diantar ke bed:</p>
                                     <p style="color:var(--text-primary)">🏥 {{ b.nama_bed }}</p>
                                 </div>
-                                <button @click="doKonfirmasiMasuk(b)"
+                                <button v-if="canKonfirmasiMasuk" @click="doKonfirmasiMasuk(b)"
                                     class="text-xs font-bold py-2 rounded-xl"
                                     style="background:#3DDB8A; color:#0D1A17">
                                     ✓ Pasien Masuk ICU
                                 </button>
+                                <span v-else class="text-xs text-center py-1.5 rounded-xl" style="background:var(--bg-input); color:var(--text-secondary)">
+                                    Menunggu konfirmasi ICU
+                                </span>
                             </template>
 
                             <!-- Di ICU -->

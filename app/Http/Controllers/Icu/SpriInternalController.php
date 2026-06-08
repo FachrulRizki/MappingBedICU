@@ -65,7 +65,7 @@ class SpriInternalController extends Controller
 
         $spri = $this->service->buatSpri([
             ...$validated,
-            'NameUser' => session('user_name', 'petugas'),
+            'NameUser' => auth()->user()?->name ?? 'petugas',
         ]);
 
         // Ambil nama pasien untuk pesan sukses
@@ -77,7 +77,7 @@ class SpriInternalController extends Controller
     /** Admisi approve surat permintaan */
     public function approveAdmisi(int $id): RedirectResponse
     {
-        $spri = $this->service->approveAdmisi($id, session('user_name', 'admisi'));
+        $spri = $this->service->approveAdmisi($id, auth()->user()?->name ?? 'admisi');
         $nama = $spri->pasien?->Nama_Pasien ?? '-';
 
         return back()->with('success', "Surat Permintaan {$nama} disetujui. Diteruskan ke ICU untuk booking bed.");
@@ -90,7 +90,7 @@ class SpriInternalController extends Controller
             'alasan_tolak' => 'required|string|max:255',
         ]);
 
-        $this->service->tolakAdmisi($id, $validated['alasan_tolak'], session('user_name', 'admisi'));
+        $this->service->tolakAdmisi($id, $validated['alasan_tolak'], auth()->user()?->name ?? 'admisi');
 
         return back()->with('success', 'Surat Permintaan ditolak.');
     }
@@ -102,7 +102,7 @@ class SpriInternalController extends Controller
             'Kode_Ruang' => 'required|exists:status_kamar,Kode_Ruang',
         ]);
 
-        $spri    = $this->service->bookingBedIcu($id, $validated['Kode_Ruang'], session('user_name', 'icu'));
+        $spri    = $this->service->bookingBedIcu($id, $validated['Kode_Ruang'], auth()->user()?->name ?? 'icu');
         $namaBed = $spri->bed?->ruang?->Nama_RuangM ?? $validated['Kode_Ruang'];
         $nama    = $spri->pasien?->Nama_Pasien ?? '-';
 
@@ -116,7 +116,7 @@ class SpriInternalController extends Controller
             'alasan_tolak' => 'required|string|max:255',
         ]);
 
-        $this->service->tolakIcu($id, $validated['alasan_tolak'], session('user_name', 'icu'));
+        $this->service->tolakIcu($id, $validated['alasan_tolak'], auth()->user()?->name ?? 'icu');
 
         return back()->with('success', 'Permintaan bed ditolak.');
     }
@@ -124,7 +124,7 @@ class SpriInternalController extends Controller
     /** Admisi verifikasi akhir */
     public function verifikasiAdmisi(int $id): RedirectResponse
     {
-        $spri = $this->service->verifikasiAdmisi($id, session('user_name', 'admisi'));
+        $spri = $this->service->verifikasiAdmisi($id, auth()->user()?->name ?? 'admisi');
         $nama = $spri->pasien?->Nama_Pasien ?? '-';
 
         return back()->with('success', "Pasien {$nama} siap diantar ke ICU.");

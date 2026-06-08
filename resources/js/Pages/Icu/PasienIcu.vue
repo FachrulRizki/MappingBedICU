@@ -4,6 +4,9 @@ import { router } from '@inertiajs/vue3';
 import AppLayout    from '@/Layouts/AppLayout.vue';
 import AlertModal   from '@/Components/AlertModal.vue';
 import ConfirmModal from '@/Components/ConfirmModal.vue';
+import { useAuth }  from '@/composables/useAuth.js';
+
+const { canPulangkan } = useAuth();
 
 const props = defineProps({
     pasienIcu: { type: Array, default: () => [] },
@@ -189,7 +192,7 @@ const countByGender = computed(() => ({
                             </div>
 
                             <!-- Pulangkan -->
-                            <button @click="doPulang(p)"
+                            <button v-if="canPulangkan" @click="doPulang(p)"
                                 class="w-full flex items-center justify-center gap-2 text-xs font-semibold px-4 py-2 rounded-xl transition-all"
                                 style="border:1px solid rgba(224,112,80,0.35); color:#E07050; background:rgba(224,112,80,0.06)"
                                 @mouseenter="$el.style.background='rgba(224,112,80,0.14)'"

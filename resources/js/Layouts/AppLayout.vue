@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { router } from '@inertiajs/vue3';
+import { router, usePage } from '@inertiajs/vue3';
 import FlashMessage from '@/Components/FlashMessage.vue';
 import { useTheme } from '@/composables/useTheme.js';
 
@@ -8,6 +8,20 @@ defineProps({
     flash:     { type: Object, default: () => ({}) },
     pageTitle: { type: String, default: 'Dashboard' },
 });
+
+// ── Auth user dari Inertia shared data ─────────────────────
+const page    = usePage();
+const authUser = computed(() => page.props.auth?.user ?? null);
+const userRole = computed(() => authUser.value?.role ?? '');
+
+// Menu visibility per role
+const canSee = (roles) => {
+    if (!authUser.value) return false;
+    if (userRole.value === 'admin') return true;
+    return roles.includes(userRole.value);
+};
+
+const doLogout = () => router.post(route('logout'));
 
 // ── Theme ──────────────────────────────────────────────────
 const { theme, toggle, init: initTheme } = useTheme();
@@ -33,51 +47,70 @@ const formattedDate = computed(() =>
 );
 
 // ── Nav items ──────────────────────────────────────────────
+// ── Nav items dengan role guard ────────────────────────────
 const navItems = [
     {
         label: 'Dashboard',
         href:  '/dashboard-icu',
+        roles: ['admin','admisi','petugas_icu','petugas_ruang'],
         icon:  'M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z',
     },
     {
         label: 'Booking External',
         href:  '/icu/booking-external',
+        roles: ['admin','admisi','petugas_icu'],
         icon:  'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6',
     },
     {
         label: 'Surat Permintaan ICU',
         href:  '/icu/spri-internal',
+        roles: ['admin','admisi','petugas_icu','petugas_ruang'],
         icon:  'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
     },
     {
         label: 'Denah Bed ICU',
         href:  '/icu/denah-bed',
+        roles: ['admin','admisi','petugas_icu','petugas_ruang'],
         icon:  'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4',
     },
     {
         label: 'Pasien ICU',
         href:  '/icu/pasien-icu',
+        roles: ['admin','admisi','petugas_icu'],
         icon:  'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',
     },
 ];
 
+const visibleNavItems = computed(() => navItems.filter(item => canSee(item.roles)));
+
 const moreItems = [
     {
-        label: 'Pengaturan',
-        href:  '#',
-        icon:  'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z',
+        label: 'Kelola User',
+        href:  '/settings/users',
+        roles: ['admin'],
+        icon:  'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z',
     },
     {
-        label: 'Tutorial',
-        href:  '#',
-        icon:  'M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+        label: 'Role & Permission',
+        href:  '/settings/roles',
+        roles: ['admin'],
+        icon:  'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z',
     },
-    {
-        label: 'Bantuan',
-        href:  '#',
-        icon:  'M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
-    },
+    // {
+    //     label: 'Pengaturan',
+    //     href:  '#',
+    //     roles: ['admin'],
+    //     icon:  'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z',
+    // },
+    // {
+    //     label: 'Bantuan',
+    //     href:  '#',
+    //     roles: ['admin','admisi','petugas_icu','petugas_ruang'],
+    //     icon:  'M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+    // },
 ];
+
+const visibleMoreItems = computed(() => moreItems.filter(item => canSee(item.roles)));
 
 const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
 const isActive = (href) => currentPath === href || currentPath.startsWith(href + '/');
@@ -138,7 +171,7 @@ const iconMoon = 'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003
                 <p class="px-3 mb-2 text-xs font-semibold tracking-widest uppercase"
                     style="color:var(--text-muted); font-family:'Plus Jakarta Sans',sans-serif">Menu</p>
                 <div class="space-y-0.5">
-                    <a v-for="item in navItems" :key="item.href"
+                    <a v-for="item in visibleNavItems" :key="item.href"
                         :href="item.href"
                         :class="['nav-item', isActive(item.href) ? 'active' : '']">
                         <svg class="flex-shrink-0" style="width:18px;height:18px" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
@@ -148,14 +181,15 @@ const iconMoon = 'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003
                     </a>
                 </div>
 
-                <hr class="divider my-4">
+                <hr v-if="visibleMoreItems.length" class="divider my-4">
 
-                <p class="px-3 mb-2 text-xs font-semibold tracking-widest uppercase"
+                <p v-if="visibleMoreItems.length"
+                    class="px-3 mb-2 text-xs font-semibold tracking-widest uppercase"
                     style="color:var(--text-muted); font-family:'Plus Jakarta Sans',sans-serif">Lainnya</p>
                 <div class="space-y-0.5">
-                    <a v-for="item in moreItems" :key="item.label"
+                    <a v-for="item in visibleMoreItems" :key="item.label"
                         :href="item.href"
-                        class="nav-item">
+                        :class="['nav-item', isActive(item.href) ? 'active' : '']">
                         <svg class="flex-shrink-0" style="width:18px;height:18px" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                             <path stroke-linecap="round" stroke-linejoin="round" :d="item.icon"/>
                         </svg>
@@ -164,7 +198,24 @@ const iconMoon = 'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003
                 </div>
             </nav>
 
-            <!-- Promo Card -->
+            <!-- User info di sidebar bottom -->
+            <div class="px-3 pb-3 flex-shrink-0" style="border-top:1px solid var(--border-default)">
+                <div class="flex items-center gap-2.5 px-2 py-2.5 rounded-xl" style="background:var(--bg-surface-2)">
+                    <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-sm"
+                        :style="`background:${authUser?.role_color ? authUser.role_color + '25' : 'rgba(45,217,164,0.15)'}; color:${authUser?.role_color ?? '#2DD9A4'}; font-family:'Plus Jakarta Sans',sans-serif`">
+                        {{ authUser?.name?.charAt(0)?.toUpperCase() ?? 'G' }}
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <p class="text-xs font-bold truncate" style="color:var(--text-primary); font-family:'Plus Jakarta Sans',sans-serif">
+                            {{ authUser?.name ?? 'Guest' }}
+                        </p>
+                        <p class="text-xs truncate font-semibold" style="font-size:10px; font-family:'DM Mono',monospace"
+                            :style="`color:${authUser?.role_color ?? '#8EA89E'}`">
+                            {{ authUser?.unit_kerja ?? authUser?.role_label ?? '' }}
+                        </p>
+                    </div>
+                </div>
+            </div>
             <div class="px-3 pb-4 flex-shrink-0">
                 <div class="promo-card">
                     <div class="flex items-start gap-2 mb-3">
@@ -255,10 +306,34 @@ const iconMoon = 'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003
                             </span>
                         </button>
                         
-                        <!-- Avatar -->
-                        <div class="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-sm"
-                            style="background:linear-gradient(135deg,#2DD9A4,#1A9E8F); color:#0D1A17; font-family:'Plus Jakarta Sans',sans-serif">
-                            RS
+                        <!-- Avatar + user info + logout -->
+                        <div class="flex items-center gap-2">
+                            <!-- User info -->
+                            <div class="hidden sm:block text-right">
+                                <p class="text-xs font-bold leading-tight" style="color:var(--text-primary); font-family:'Plus Jakarta Sans',sans-serif">
+                                    {{ authUser?.name ?? 'Guest' }}
+                                </p>
+                                <p class="text-xs leading-tight font-semibold"
+                                    :style="`color:${authUser?.role_color ?? '#8EA89E'}; font-family:'DM Mono',monospace; font-size:10px`">
+                                    {{ authUser?.role_label ?? '' }}
+                                </p>
+                            </div>
+                            <!-- Avatar -->
+                            <div class="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-sm cursor-pointer"
+                                :style="`background:${authUser?.role_color ? authUser.role_color + '30' : 'rgba(45,217,164,0.2)'}; color:${authUser?.role_color ?? '#2DD9A4'}; border:2px solid ${authUser?.role_color ?? '#2DD9A4'}40; font-family:'Plus Jakarta Sans',sans-serif`">
+                                {{ authUser?.name?.charAt(0)?.toUpperCase() ?? 'G' }}
+                            </div>
+                            <!-- Logout -->
+                            <button @click="doLogout"
+                                title="Logout"
+                                class="p-2 rounded-lg transition-all"
+                                style="color:var(--text-secondary); background:rgba(224,112,80,0.06); border:1px solid rgba(224,112,80,0.15)"
+                                @mouseenter="$el.style.background='rgba(224,112,80,0.15)'; $el.style.color='#E07050'"
+                                @mouseleave="$el.style.background='rgba(224,112,80,0.06)'; $el.style.color='var(--text-secondary)'">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                                </svg>
+                            </button>
                         </div>
                     </div>
                 </div>

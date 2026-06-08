@@ -4,6 +4,13 @@ import { router, useForm } from '@inertiajs/vue3';
 import AppLayout    from '@/Layouts/AppLayout.vue';
 import AlertModal   from '@/Components/AlertModal.vue';
 import ConfirmModal from '@/Components/ConfirmModal.vue';
+import { useAuth }  from '@/composables/useAuth.js';
+
+const {
+    canBuatSpriInternal, canApproveAdmisi, canBookingBedIcu,
+    canVerifikasiAdmisi, canKonfirmasiMasuk, canPulangkan,
+    isAdmin, user: authUser,
+} = useAuth();
 
 const props = defineProps({
     spriList:    { type: Array,  default: () => [] },
@@ -44,6 +51,20 @@ const statusGroups = {
     aktif:    ['di_icu'],
     ditolak:  ['ditolak'],
 };
+
+// Visible tabs berdasarkan role
+const allSpriTabs = [
+    { key:'masuk',   label:'Masuk / Admisi', roles: ['admin','admisi','petugas_ruang'] },
+    { key:'icu',     label:'Proses ICU',     roles: ['admin','petugas_icu'] },
+    { key:'verif',   label:'Verifikasi',     roles: ['admin','admisi'] },
+    { key:'aktif',   label:'Di ICU',         roles: ['admin','admisi','petugas_icu'] },
+    { key:'ditolak', label:'Ditolak',        roles: ['admin','admisi','petugas_icu','petugas_ruang'] },
+];
+const visibleTabs = computed(() => allSpriTabs.filter(t => {
+    if (!authUser.value) return false;
+    if (isAdmin.value)   return true;
+    return t.roles.includes(authUser.value.role);
+}));
 const filtered = computed(() => {
     const keys = statusGroups[activeTab.value] ?? [];
     return keys.length ? props.spriList.filter(s => keys.includes(s.status)) : props.spriList;
@@ -151,7 +172,7 @@ const statusBadge = (status) => {
                     <h1 class="font-bold text-lg" style="color:var(--text-primary)">Surat Permintaan Rawat ICU</h1>
                     <p class="text-sm mt-0.5" style="color:var(--text-secondary)">Jalur internal — pasien sudah ada di RS</p>
                 </div>
-                <button @click="showForm = !showForm"
+                <button v-if="canBuatSpriInternal" @click="showForm = !showForm"
                     class="flex items-center gap-2 text-sm font-semibold px-4 py-2.5 rounded-xl self-start sm:self-auto transition-all"
                     :style="showForm
                         ? 'background:var(--bg-main); color:var(--text-secondary); border:1px solid var(--border-default)'
@@ -165,7 +186,7 @@ const statusBadge = (status) => {
 
             <!-- ── Form Buat Surat ── -->
             <Transition enter-active-class="transition-all duration-200 ease-out" enter-from-class="opacity-0 -translate-y-2" enter-to-class="opacity-100 translate-y-0">
-                <form v-if="showForm" @submit.prevent="submitForm" class="card-dark overflow-hidden">
+                <form v-if="showForm && canBuatSpriInternal" @submit.prevent="submitForm" class="card-dark overflow-hidden">
                     <div class="px-5 py-3" style="background:linear-gradient(90deg,#4A90D9,#2DD9A4)">
                         <p class="text-sm font-bold" style="color:#fff">Surat Permintaan Rawat ICU — Pasien Internal</p>
                     </div>
@@ -259,14 +280,9 @@ const statusBadge = (status) => {
             </Transition>
 
             <!-- ── Status Tabs ── -->
+            <!-- ── Status Tabs ── -->
             <div class="flex gap-1 p-1 rounded-xl overflow-x-auto" style="background:var(--bg-main); border:1px solid var(--border-default)">
-                <button v-for="tab in [
-                    { key:'masuk',   label:'Masuk / Admisi' },
-                    { key:'icu',     label:'Proses ICU' },
-                    { key:'verif',   label:'Verifikasi' },
-                    { key:'aktif',   label:'Di ICU' },
-                    { key:'ditolak', label:'Ditolak' },
-                ]" :key="tab.key"
+                <button v-for="tab in visibleTabs" :key="tab.key"
                     @click="activeTab = tab.key"
                     class="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap flex items-center gap-1.5 transition-all"
                     :style="activeTab === tab.key
@@ -358,65 +374,77 @@ const statusBadge = (status) => {
 
                             <!-- Admisi: approve / tolak (pending_admisi) -->
                             <template v-if="s.status === 'pending_admisi'">
-                                <button @click="doApprove(s)"
-                                    class="text-xs font-bold py-2 rounded-xl"
-                                    style="background:#2DD9A4; color:#0D1A17">
-                                    ✓ Setujui Surat
-                                </button>
-                                <div v-if="!showTolakForm['adm_'+s.id]">
-                                    <button @click="showTolakForm['adm_'+s.id] = true"
-                                        class="w-full text-xs font-semibold py-2 rounded-xl"
-                                        style="background:rgba(224,112,80,0.1); color:#E07050; border:1px solid rgba(224,112,80,0.25)">
-                                        ✕ Tolak
+                                <template v-if="canApproveAdmisi">
+                                    <button @click="doApprove(s)"
+                                        class="text-xs font-bold py-2 rounded-xl"
+                                        style="background:#2DD9A4; color:#0D1A17">
+                                        ✓ Setujui Surat
                                     </button>
-                                </div>
-                                <div v-else class="space-y-1.5">
-                                    <input v-model="alasanTolak[s.id]" placeholder="Alasan penolakan *"
-                                        class="w-full text-xs px-3 py-2 rounded-xl outline-none"
-                                        style="border:1px solid rgba(224,112,80,0.3); background:var(--bg-surface); color:var(--text-primary)"/>
-                                    <button @click="doTolakAdmisi(s)"
-                                        class="w-full text-xs font-bold py-1.5 rounded-xl"
-                                        style="background:#E07050; color:#fff">Konfirmasi Tolak</button>
-                                </div>
+                                    <div v-if="!showTolakForm['adm_'+s.id]">
+                                        <button @click="showTolakForm['adm_'+s.id] = true"
+                                            class="w-full text-xs font-semibold py-2 rounded-xl"
+                                            style="background:rgba(224,112,80,0.1); color:#E07050; border:1px solid rgba(224,112,80,0.25)">
+                                            ✕ Tolak
+                                        </button>
+                                    </div>
+                                    <div v-else class="space-y-1.5">
+                                        <input v-model="alasanTolak[s.id]" placeholder="Alasan penolakan *"
+                                            class="w-full text-xs px-3 py-2 rounded-xl outline-none"
+                                            style="border:1px solid rgba(224,112,80,0.3); background:var(--bg-surface); color:var(--text-primary)"/>
+                                        <button @click="doTolakAdmisi(s)"
+                                            class="w-full text-xs font-bold py-1.5 rounded-xl"
+                                            style="background:#E07050; color:#fff">Konfirmasi Tolak</button>
+                                    </div>
+                                </template>
+                                <span v-else class="text-xs text-center py-2 rounded-xl"
+                                    style="background:rgba(224,146,58,0.1); color:#E0923A; border:1px solid rgba(224,146,58,0.2)">
+                                    Menunggu persetujuan Admisi
+                                </span>
                             </template>
 
                             <!-- ICU: booking bed (pending_icu) -->
                             <template v-else-if="s.status === 'pending_icu'">
-                                <select v-model="bedPilihan[s.id]"
-                                    :disabled="bedCocok(s.kebutuhan_bed).length === 0"
-                                    class="text-xs px-3 py-2 rounded-xl outline-none disabled:opacity-40"
-                                    style="border:1px solid var(--border-default); background:var(--bg-surface); color:var(--text-primary)">
-                                    <option value="" disabled>-- Pilih Bed --</option>
-                                    <option v-for="bed in bedCocok(s.kebutuhan_bed)" :key="bed.Kode_Ruang" :value="bed.Kode_Ruang">
-                                        {{ bed.nama_ruang }}
-                                    </option>
-                                </select>
-                                <button v-if="bedCocok(s.kebutuhan_bed).length > 0"
-                                    @click="doBookingBed(s)"
-                                    class="text-xs font-bold py-2 rounded-xl"
-                                    style="background:#2DD9A4; color:#0D1A17">
-                                    ✓ Booking Bed
-                                </button>
-                                <span v-else class="text-xs text-center py-2 rounded-xl"
-                                    style="background:rgba(224,112,80,0.1); color:#E07050">
-                                    Tidak ada bed sesuai
-                                </span>
-                                <!-- Tolak ICU -->
-                                <div v-if="!showTolakForm['icu_'+s.id]">
-                                    <button @click="showTolakForm['icu_'+s.id] = true"
-                                        class="w-full text-xs font-semibold py-2 rounded-xl"
-                                        style="background:rgba(224,112,80,0.1); color:#E07050; border:1px solid rgba(224,112,80,0.25)">
-                                        ✕ Tolak
+                                <template v-if="canBookingBedIcu">
+                                    <select v-model="bedPilihan[s.id]"
+                                        :disabled="bedCocok(s.kebutuhan_bed).length === 0"
+                                        class="text-xs px-3 py-2 rounded-xl outline-none disabled:opacity-40"
+                                        style="border:1px solid var(--border-default); background:var(--bg-surface); color:var(--text-primary)">
+                                        <option value="" disabled>-- Pilih Bed --</option>
+                                        <option v-for="bed in bedCocok(s.kebutuhan_bed)" :key="bed.Kode_Ruang" :value="bed.Kode_Ruang">
+                                            {{ bed.nama_ruang }}
+                                        </option>
+                                    </select>
+                                    <button v-if="bedCocok(s.kebutuhan_bed).length > 0"
+                                        @click="doBookingBed(s)"
+                                        class="text-xs font-bold py-2 rounded-xl"
+                                        style="background:#2DD9A4; color:#0D1A17">
+                                        ✓ Booking Bed
                                     </button>
-                                </div>
-                                <div v-else class="space-y-1.5">
-                                    <input v-model="alasanTolak['icu_'+s.id]" placeholder="Alasan penolakan *"
-                                        class="w-full text-xs px-3 py-2 rounded-xl outline-none"
-                                        style="border:1px solid rgba(224,112,80,0.3); background:var(--bg-surface); color:var(--text-primary)"/>
-                                    <button @click="doTolakIcu(s)"
-                                        class="w-full text-xs font-bold py-1.5 rounded-xl"
-                                        style="background:#E07050; color:#fff">Konfirmasi Tolak</button>
-                                </div>
+                                    <span v-else class="text-xs text-center py-2 rounded-xl"
+                                        style="background:rgba(224,112,80,0.1); color:#E07050">
+                                        Tidak ada bed sesuai
+                                    </span>
+                                    <!-- Tolak ICU -->
+                                    <div v-if="!showTolakForm['icu_'+s.id]">
+                                        <button @click="showTolakForm['icu_'+s.id] = true"
+                                            class="w-full text-xs font-semibold py-2 rounded-xl"
+                                            style="background:rgba(224,112,80,0.1); color:#E07050; border:1px solid rgba(224,112,80,0.25)">
+                                            ✕ Tolak
+                                        </button>
+                                    </div>
+                                    <div v-else class="space-y-1.5">
+                                        <input v-model="alasanTolak['icu_'+s.id]" placeholder="Alasan penolakan *"
+                                            class="w-full text-xs px-3 py-2 rounded-xl outline-none"
+                                            style="border:1px solid rgba(224,112,80,0.3); background:var(--bg-surface); color:var(--text-primary)"/>
+                                        <button @click="doTolakIcu(s)"
+                                            class="w-full text-xs font-bold py-1.5 rounded-xl"
+                                            style="background:#E07050; color:#fff">Konfirmasi Tolak</button>
+                                    </div>
+                                </template>
+                                <span v-else class="text-xs text-center py-2 rounded-xl"
+                                    style="background:rgba(224,146,58,0.1); color:#E0923A; border:1px solid rgba(224,146,58,0.2)">
+                                    Menunggu booking ICU
+                                </span>
                             </template>
 
                             <!-- Admisi: verifikasi akhir (bed_booked) -->
@@ -425,11 +453,15 @@ const statusBadge = (status) => {
                                     <p style="color:#2DD9A4" class="font-semibold">ICU Pesan Bed:</p>
                                     <p style="color:var(--text-primary)">🏥 {{ s.nama_bed }}</p>
                                 </div>
-                                <button @click="doVerifikasiAdmisi(s)"
+                                <button v-if="canVerifikasiAdmisi" @click="doVerifikasiAdmisi(s)"
                                     class="text-xs font-bold py-2 rounded-xl"
                                     style="background:#2DD9A4; color:#0D1A17">
                                     ✓ Verifikasi — Pasien Siap
                                 </button>
+                                <span v-else class="text-xs text-center py-2 rounded-xl"
+                                    style="background:rgba(224,146,58,0.1); color:#E0923A; border:1px solid rgba(224,146,58,0.2)">
+                                    Menunggu verifikasi Admisi
+                                </span>
                             </template>
 
                             <!-- ICU: konfirmasi masuk (admisi_verified) -->
@@ -438,11 +470,15 @@ const statusBadge = (status) => {
                                     <p style="color:#2DD9A4" class="font-semibold">Siap diantar:</p>
                                     <p style="color:var(--text-primary)">🏥 {{ s.nama_bed }}</p>
                                 </div>
-                                <button @click="doKonfirmasiMasuk(s)"
+                                <button v-if="canKonfirmasiMasuk" @click="doKonfirmasiMasuk(s)"
                                     class="text-xs font-bold py-2 rounded-xl"
                                     style="background:#3DDB8A; color:#0D1A17">
                                     ✓ Pasien Masuk ICU
                                 </button>
+                                <span v-else class="text-xs text-center py-2 rounded-xl"
+                                    style="background:rgba(224,146,58,0.1); color:#E0923A; border:1px solid rgba(224,146,58,0.2)">
+                                    Menunggu konfirmasi ICU
+                                </span>
                             </template>
 
                             <!-- Di ICU -->
