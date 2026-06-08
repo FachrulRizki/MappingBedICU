@@ -25,7 +25,7 @@ watch(() => props.flash, (f) => {
 // ── Tambah User ────────────────────────────────────────────
 const showAddForm = ref(false);
 const addForm = useForm({
-    name: '', email: '', password: '', role: '', unit_kerja: '',
+    name: '', username: '', email: '', password: '', role: '', unit_kerja: '',
 });
 const submitAdd = () => addForm.post(route('settings.users.store'), {
     onSuccess: () => { addForm.reset(); showAddForm.value = false; },
@@ -106,15 +106,26 @@ const getInitial   = (name) => name?.charAt(0)?.toUpperCase() ?? '?';
                     </div>
                     <div class="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                         <div>
-                            <label class="block text-xs font-semibold mb-1" style="color:var(--text-primary)">Nama <span style="color:#E07050">*</span></label>
+                            <label class="block text-xs font-semibold mb-1" style="color:var(--text-primary)">Nama Lengkap <span style="color:#E07050">*</span></label>
                             <input v-model="addForm.name" required placeholder="Nama lengkap"
                                 class="w-full px-3 py-2.5 text-sm rounded-xl outline-none"
                                 :style="`border:1px solid ${addForm.errors.name?'#E07050':'var(--border-default)'}; background:var(--bg-surface); color:var(--text-primary)`"/>
                             <p v-if="addForm.errors.name" class="text-xs mt-1" style="color:#E07050">{{ addForm.errors.name }}</p>
                         </div>
                         <div>
-                            <label class="block text-xs font-semibold mb-1" style="color:var(--text-primary)">Email <span style="color:#E07050">*</span></label>
-                            <input v-model="addForm.email" type="email" required placeholder="email@rs.id"
+                            <label class="block text-xs font-semibold mb-1" style="color:var(--text-primary)">
+                                Username <span style="color:#E07050">*</span>
+                                <span class="font-normal ml-1" style="color:var(--text-secondary)">(untuk login)</span>
+                            </label>
+                            <input v-model="addForm.username" required placeholder="contoh: icu1, admisi2"
+                                class="w-full px-3 py-2.5 text-sm rounded-xl outline-none font-mono"
+                                :style="`border:1px solid ${addForm.errors.username?'#E07050':'var(--border-default)'}; background:var(--bg-surface); color:var(--text-primary)`"/>
+                            <p v-if="addForm.errors.username" class="text-xs mt-1" style="color:#E07050">{{ addForm.errors.username }}</p>
+                            <p v-else class="text-xs mt-1" style="color:var(--text-secondary)">Huruf, angka, titik, dash — tidak boleh spasi</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold mb-1" style="color:var(--text-primary)">Email <span style="color:var(--text-secondary); font-weight:400">(opsional)</span></label>
+                            <input v-model="addForm.email" type="email" placeholder="email@rs.id (opsional)"
                                 class="w-full px-3 py-2.5 text-sm rounded-xl outline-none font-mono"
                                 :style="`border:1px solid ${addForm.errors.email?'#E07050':'var(--border-default)'}; background:var(--bg-surface); color:var(--text-primary)`"/>
                             <p v-if="addForm.errors.email" class="text-xs mt-1" style="color:#E07050">{{ addForm.errors.email }}</p>
@@ -175,6 +186,7 @@ const getInitial   = (name) => name?.charAt(0)?.toUpperCase() ?? '?';
                         <thead>
                             <tr>
                                 <th class="text-left px-5">User</th>
+                                <th class="text-left px-4">Username</th>
                                 <th class="text-left px-4">Role</th>
                                 <th class="text-left px-4">Unit Kerja</th>
                                 <th class="text-left px-4">Status</th>
@@ -194,9 +206,15 @@ const getInitial   = (name) => name?.charAt(0)?.toUpperCase() ?? '?';
                                             </div>
                                             <div>
                                                 <p class="font-semibold text-sm" style="color:var(--text-primary)">{{ u.name }}</p>
-                                                <p class="text-xs font-mono" style="color:var(--text-secondary)">{{ u.email }}</p>
+                                                <p class="text-xs font-mono" style="color:var(--text-secondary)">{{ u.email ?? '—' }}</p>
                                             </div>
                                         </div>
+                                    </td>
+                                    <td class="px-4">
+                                        <span class="text-xs font-mono font-semibold px-2 py-1 rounded-lg"
+                                            style="background:var(--bg-input); color:var(--text-accent)">
+                                            {{ u.username }}
+                                        </span>
                                     </td>
                                     <td class="px-4">
                                         <span class="text-xs font-semibold px-2.5 py-1 rounded-full"
@@ -246,7 +264,7 @@ const getInitial   = (name) => name?.charAt(0)?.toUpperCase() ?? '?';
 
                                 <!-- Row edit inline -->
                                 <tr v-else style="background:var(--bg-surface-2)">
-                                    <td colspan="6" class="px-5 py-4">
+                                    <td colspan="7" class="px-5 py-4">
                                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
                                             <div>
                                                 <label class="block text-xs font-semibold mb-1" style="color:var(--text-primary)">Nama</label>
@@ -297,7 +315,7 @@ const getInitial   = (name) => name?.charAt(0)?.toUpperCase() ?? '?';
 
                                 <!-- Reset password row -->
                                 <tr v-if="resetId === u.id" style="background:rgba(74,144,217,0.04)">
-                                    <td colspan="6" class="px-5 py-3">
+                                    <td colspan="7" class="px-5 py-3">
                                         <div class="flex items-center gap-3 flex-wrap">
                                             <span class="text-xs font-semibold" style="color:#4A90D9">Reset Password — {{ u.name }}</span>
                                             <input v-model="resetForm.password" type="password" placeholder="Password baru (min 6 karakter)"

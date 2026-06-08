@@ -18,13 +18,11 @@ class BookingExternalController extends Controller
         private readonly BookingExternalService $service
     ) {}
 
-    /** Helper — nama user aktif (belum auth, pakai session/default) */
     private function currentUser(): string
     {
         return auth()->user()?->name ?? 'petugas';
     }
 
-    /** Halaman daftar semua booking external */
     public function index(): Response
     {
         $bookings = IcuBookingExternal::with(['bed.ruang.kelas', 'pasien'])
@@ -50,7 +48,9 @@ class BookingExternalController extends Controller
         ]);
     }
 
-    /** Admisi buat booking request baru → langsung pending_icu */
+    // ── Admisi: buat booking request + form jaminan ──────────────────────
+    // Langsung masuk pending_icu, admisi tidak menentukan bed
+
     public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate([
@@ -61,33 +61,52 @@ class BookingExternalController extends Controller
             'no_telp_keluarga' => 'nullable|string|max:20',
             'diagnosa'         => 'required|string|max:255',
             'rencana_tindakan' => 'required|string|max:255',
-            'kebutuhan_bed'    => 'required|exists:m_kelas,Nama_Kelas',
+            // kebutuhan_bed TIDAK diisi admisi — ICU yang tentukan saat konfirmasi bed
+            'jaminan'          => 'required|in:BPJS,Umum,Asuransi,Lainnya',
+            'catatan_jaminan'  => 'nullable|string|max:500',
             'keterangan'       => 'nullable|string|max:500',
         ]);
 
-        IcuBookingExternal::create([
+        $booking = $this->service->buatBooking([
             ...$validated,
-            'status'     => 'pending_icu',
-            'created_by' => $this->currentUser(),
+            'kebutuhan_bed' => null,   // diisi ICU saat konfirmasi bed
+            'created_by'    => $this->currentUser(),
         ]);
 
-        return back()->with('success', "Booking untuk {$validated['nama_pasien']} berhasil dibuat dan dikirim ke ICU.");
+        return back()->with('success', "Booking untuk {$booking->nama_pasien} berhasil dikirim ke ICU.");
     }
 
-    /** ICU konfirmasi ada bed */
+    // ── Petugas ICU: pilih & konfirmasi bed ─────────────────────────────
+    // ICU satu-satunya penentu bed, langsung bed_confirmed
+
     public function konfirmasiIcu(Request $request, int $id): RedirectResponse
     {
         $validated = $request->validate([
-            'Kode_Ruang' => 'required|exists:status_kamar,Kode_Ruang',
+            'Kode_Ruang'    => 'required|exists:status_kamar,Kode_Ruang',
+            'kebutuhan_bed' => 'required|exists:m_kelas,Nama_Kelas',   // ICU tentukan jenis
         ]);
 
-        $booking = $this->service->konfirmasiIcu($id, $validated['Kode_Ruang'], $this->currentUser());
+        $booking = $this->service->konfirmasiIcu($id, $validated['Kode_Ruang'], $validated['kebutuhan_bed'], $this->currentUser());
         $namaBed = $booking->bed?->ruang?->Nama_RuangM ?? $validated['Kode_Ruang'];
 
-        return back()->with('success', "Bed {$namaBed} dikonfirmasi untuk {$booking->nama_pasien}.");
+        return back()->with('success', "Bed {$namaBed} ({$validated['kebutuhan_bed']}) dikonfirmasi untuk {$booking->nama_pasien}. Pasien siap diantar.");
     }
 
-    /** ICU tolak */
+    /**
+     * ICU catat bahwa belum ada bed — pasien tetap di waiting list.
+     * Tidak menolak, tidak memblok. Status tetap pending_icu.
+     */
+    public function catatTanpaBed(Request $request, int $id): RedirectResponse
+    {
+        $validated = $request->validate([
+            'catatan' => 'nullable|string|max:500',
+        ]);
+
+        $this->service->catatTanpaBed($id, $validated['catatan'] ?? 'Belum ada bed tersedia.', $this->currentUser());
+
+        return back()->with('success', 'Pasien tetap di daftar tunggu ICU.');
+    }
+
     public function tolakIcu(Request $request, int $id): RedirectResponse
     {
         $validated = $request->validate([
@@ -96,48 +115,33 @@ class BookingExternalController extends Controller
 
         $this->service->tolakIcu($id, $validated['alasan_tolak'], $this->currentUser());
 
-        return back()->with('success', 'Booking ditolak.');
+        return back()->with('success', 'Booking ditolak oleh ICU.');
     }
 
-    /** Admisi validasi konfirmasi ICU → pasien dalam perjalanan */
-    public function validasiAdmisi(int $id): RedirectResponse
-    {
-        $booking = $this->service->validasiAdmisi($id, $this->currentUser());
+    // ── Petugas ICU: konfirmasi pasien masuk — LANGSUNG di_icu ──────────
+    // (skip validasi admisi — sesuai alur baru)
 
-        return back()->with('success', "Booking {$booking->nama_pasien} divalidasi. Pasien dapat diarahkan ke RS.");
-    }
-
-    /** Pasien tiba di IGD — Admisi link No_MR */
-    public function linkPasienTiba(Request $request, int $id): RedirectResponse
+    public function konfirmasiMasuk(Request $request, int $id): RedirectResponse
     {
+        // No_MR opsional — diisi jika pasien sudah terdaftar di sistem RS
         $validated = $request->validate([
-            'No_MR'  => 'required|exists:registrasi_pasien,No_MR',
-            'No_Reg' => 'required|exists:pendaftaran,No_Reg',
+            'No_MR'  => 'nullable|exists:registrasi_pasien,No_MR',
+            'No_Reg' => 'nullable|exists:pendaftaran,No_Reg',
         ]);
 
-        $booking = $this->service->linkPasienTiba($id, $validated['No_MR'], $validated['No_Reg']);
+        $booking = $this->service->konfirmasiMasuk(
+            id:    $id,
+            noMr:  $validated['No_MR']  ?? null,
+            noReg: $validated['No_Reg'] ?? null,
+        );
 
-        return back()->with('success', "Pasien {$booking->nama_pasien} tiba — terhubung ke No_MR {$validated['No_MR']}.");
-    }
-
-    /** Admisi verifikasi bed setelah pasien tiba */
-    public function verifikasiBed(int $id): RedirectResponse
-    {
-        $booking = $this->service->verifikasiBed($id, $this->currentUser());
-
-        return back()->with('success', "Bed diverifikasi. Pasien {$booking->nama_pasien} siap diantar ke ICU.");
-    }
-
-    /** ICU konfirmasi pasien masuk ruangan */
-    public function konfirmasiMasuk(int $id): RedirectResponse
-    {
-        $booking = $this->service->konfirmasiMasuk($id);
         $namaBed = $booking->bed?->ruang?->Nama_RuangM ?? '-';
 
         return back()->with('success', "Pasien {$booking->nama_pasien} masuk ke {$namaBed}. Bed terisi.");
     }
 
-    /** Pulangkan pasien (dari ICU) */
+    // ── Petugas ICU: pulangkan ───────────────────────────────────────────
+
     public function pulangkan(int $id): RedirectResponse
     {
         $booking = $this->service->pulangkan($id);
@@ -157,6 +161,8 @@ class BookingExternalController extends Controller
             'diagnosa'         => $b->diagnosa,
             'rencana_tindakan' => $b->rencana_tindakan,
             'kebutuhan_bed'    => $b->kebutuhan_bed,
+            'jaminan'          => $b->jaminan,
+            'catatan_jaminan'  => $b->catatan_jaminan,
             'keterangan'       => $b->keterangan,
             'No_MR'            => $b->No_MR,
             'No_Reg'           => $b->No_Reg,

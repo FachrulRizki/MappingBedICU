@@ -23,12 +23,12 @@ class IcuSpriInternal extends Model
         'spesialis',
         'Keterangan',
         'NameUser',
+        'catatan_admisi',    // catatan dari admisi (bukan bed)
         'allocated_bed_id',
         'status',
         'alasan_tolak',
         'approved_by',
         'booked_by',
-        'verified_by',
     ];
 
     // ── Relasi ────────────────────────────────────────────────────────────
@@ -53,15 +53,13 @@ class IcuSpriInternal extends Model
     public function statusLabel(): string
     {
         return match ($this->status) {
-            'spri_dibuat'     => 'Surat Dibuat',
-            'pending_admisi'  => 'Menunggu Admisi',
-            'admisi_approved' => 'Disetujui Admisi',
-            'pending_icu'     => 'Menunggu Booking ICU',
-            'bed_booked'      => 'Bed Dipesan ICU',
-            'admisi_verified' => 'Diverifikasi Admisi',
-            'di_icu'          => 'Di ICU',
-            'ditolak'         => 'Ditolak',
-            default           => $this->status,
+            'pending_admisi' => 'Menunggu Admisi',
+            'pending_icu'    => 'Menunggu ICU',
+            'bed_booked'     => 'Bed Dipesan — Siap Antar',
+            'di_icu'         => 'Di ICU',
+            'ditolak'        => 'Ditolak',
+            'pulang'         => 'Pulang',
+            default          => $this->status,
         };
     }
 }

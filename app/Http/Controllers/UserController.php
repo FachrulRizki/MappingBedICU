@@ -24,6 +24,7 @@ class UserController extends Controller
             ->map(fn($u) => [
                 'id'         => $u->id,
                 'name'       => $u->name,
+                'username'   => $u->username,
                 'email'      => $u->email,
                 'role'       => $u->role,
                 'role_label' => $u->roleLabel(),
@@ -44,7 +45,8 @@ class UserController extends Controller
     {
         $validated = $request->validate([
             'name'       => 'required|string|max:100',
-            'email'      => 'required|email|unique:users,email',
+            'username'   => 'required|string|max:50|unique:users,username|alpha_dash',
+            'email'      => 'nullable|email|unique:users,email',
             'password'   => 'required|string|min:6',
             'role'       => 'required|in:admin,admisi,petugas_icu,petugas_ruang',
             'unit_kerja' => 'nullable|string|max:100',
@@ -52,14 +54,15 @@ class UserController extends Controller
 
         User::create([
             'name'       => $validated['name'],
-            'email'      => $validated['email'],
+            'username'   => $validated['username'],
+            'email'      => $validated['email'] ?? null,
             'password'   => Hash::make($validated['password']),
             'role'       => $validated['role'],
             'unit_kerja' => $validated['unit_kerja'] ?? null,
             'is_active'  => true,
         ]);
 
-        return back()->with('success', "User {$validated['name']} berhasil ditambahkan.");
+        return back()->with('success', "User {$validated['name']} (username: {$validated['username']}) berhasil ditambahkan.");
     }
 
     public function update(Request $request, int $id): RedirectResponse

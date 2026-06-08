@@ -19,6 +19,9 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        // Jalankan UserSeeder dulu
+        $this->call(UserSeeder::class);
+
         DB::statement('SET FOREIGN_KEY_CHECKS=0;');
         IcuSpriInternal::truncate();
         IcuBookingExternal::truncate();
@@ -33,32 +36,36 @@ class DatabaseSeeder extends Seeder
 
         // ── 1. M_KELAS ────────────────────────────────────────────────────
         $kelasData = [
-            ['Kode_Kelas' => 'ICU',   'Nama_Kelas' => 'ICU',               'Kelas' => 'ICU'],
+            ['Kode_Kelas' => 'ICU',   'Nama_Kelas' => 'ICU',                'Kelas' => 'ICU'],
             ['Kode_Kelas' => 'ICUNV', 'Nama_Kelas' => 'ICU Non Ventilator', 'Kelas' => 'ICU'],
-            ['Kode_Kelas' => 'HCU',   'Nama_Kelas' => 'HCU',               'Kelas' => 'ICU'],
-            ['Kode_Kelas' => 'CVCU',  'Nama_Kelas' => 'CVCU',              'Kelas' => 'ICU'],
-            ['Kode_Kelas' => 'BPICU', 'Nama_Kelas' => 'ICU BPJS',          'Kelas' => 'ICU'],
+            ['Kode_Kelas' => 'HCU',   'Nama_Kelas' => 'HCU',                'Kelas' => 'ICU'],
+            ['Kode_Kelas' => 'CVCU',  'Nama_Kelas' => 'CVCU',               'Kelas' => 'ICU'],
+            ['Kode_Kelas' => 'BPICU', 'Nama_Kelas' => 'ICU BPJS',           'Kelas' => 'ICU'],
         ];
         foreach ($kelasData as $k) MKelas::create($k);
 
         // ── 2. M_RUANG_MASTER ─────────────────────────────────────────────
         $ruangs = [
+            // ICUNV
             ['Kode_RuangM'=>'HC301','Kode_Bangsal'=>'ICU','Kode_Kelas'=>'ICUNV','Nama_RuangM'=>'HIGH CARE UNIT 301','Status'=>1,'KelasBPJS'=>'ICU','KetBed'=>'Bed Khusus'],
             ['Kode_RuangM'=>'HC302','Kode_Bangsal'=>'ICU','Kode_Kelas'=>'ICUNV','Nama_RuangM'=>'HIGH CARE UNIT 302','Status'=>1,'KelasBPJS'=>'ICU','KetBed'=>'Bed Khusus'],
             ['Kode_RuangM'=>'HC303','Kode_Bangsal'=>'ICU','Kode_Kelas'=>'ICUNV','Nama_RuangM'=>'HIGH CARE UNIT 303','Status'=>1,'KelasBPJS'=>'ICU','KetBed'=>'Bed Khusus'],
-            ['Kode_RuangM'=>'HC304','Kode_Bangsal'=>'ICU','Kode_Kelas'=>'HCU', 'Nama_RuangM'=>'HIGH CARE UNIT 304','Status'=>1,'KelasBPJS'=>'ICU','KetBed'=>'Bed Khusus'],
-            ['Kode_RuangM'=>'HC305','Kode_Bangsal'=>'ICU','Kode_Kelas'=>'HCU', 'Nama_RuangM'=>'HIGH CARE UNIT 305','Status'=>1,'KelasBPJS'=>'ICU','KetBed'=>'Bed Khusus'],
-            ['Kode_RuangM'=>'HC306','Kode_Bangsal'=>'ICU','Kode_Kelas'=>'HCU', 'Nama_RuangM'=>'HIGH CARE UNIT 306','Status'=>1,'KelasBPJS'=>'ICU','KetBed'=>'Bed Khusus'],
-            ['Kode_RuangM'=>'HC307','Kode_Bangsal'=>'ICU','Kode_Kelas'=>'HCU', 'Nama_RuangM'=>'HIGH CARE UNIT 307','Status'=>1,'KelasBPJS'=>'ICU','KetBed'=>'Bed Khusus'],
-            ['Kode_RuangM'=>'HC308','Kode_Bangsal'=>'ICU','Kode_Kelas'=>'HCU', 'Nama_RuangM'=>'HIGH CARE UNIT 308','Status'=>1,'KelasBPJS'=>'ICU','KetBed'=>'Bed Khusus'],
-            ['Kode_RuangM'=>'HC313','Kode_Bangsal'=>'ICU','Kode_Kelas'=>'ICU', 'Nama_RuangM'=>'HIGH CARE UNIT 313','Status'=>1,'KelasBPJS'=>'ICU','KetBed'=>'Bed Khusus'],
-            ['Kode_RuangM'=>'HC314','Kode_Bangsal'=>'ICU','Kode_Kelas'=>'ICU', 'Nama_RuangM'=>'HIGH CARE UNIT 314','Status'=>1,'KelasBPJS'=>'ICU','KetBed'=>'Bed Khusus'],
-            ['Kode_RuangM'=>'HC315','Kode_Bangsal'=>'ICU','Kode_Kelas'=>'ICU', 'Nama_RuangM'=>'HIGH CARE UNIT 315','Status'=>1,'KelasBPJS'=>'ICU','KetBed'=>'Bed Khusus'],
-            ['Kode_RuangM'=>'ICUA1','Kode_Bangsal'=>'ICU','Kode_Kelas'=>'ICU', 'Nama_RuangM'=>'ICU A1','Status'=>1,'KelasBPJS'=>'ICU','KetBed'=>'Bed Khusus'],
-            ['Kode_RuangM'=>'ICUA2','Kode_Bangsal'=>'ICU','Kode_Kelas'=>'ICU', 'Nama_RuangM'=>'ICU A2','Status'=>1,'KelasBPJS'=>'ICU','KetBed'=>'Bed Khusus'],
-            ['Kode_RuangM'=>'ICUA3','Kode_Bangsal'=>'ICU','Kode_Kelas'=>'ICU', 'Nama_RuangM'=>'ICU A3','Status'=>1,'KelasBPJS'=>'ICU','KetBed'=>'Bed Khusus'],
-            ['Kode_RuangM'=>'ICUA4','Kode_Bangsal'=>'ICU','Kode_Kelas'=>'ICU', 'Nama_RuangM'=>'ICU A4','Status'=>1,'KelasBPJS'=>'ICU','KetBed'=>'Bed Khusus'],
-            ['Kode_RuangM'=>'ICUB1','Kode_Bangsal'=>'ICU','Kode_Kelas'=>'ICU', 'Nama_RuangM'=>'ICU B1','Status'=>1,'KelasBPJS'=>'ICU','KetBed'=>'Bed Khusus'],
+            // HCU
+            ['Kode_RuangM'=>'HC304','Kode_Bangsal'=>'ICU','Kode_Kelas'=>'HCU','Nama_RuangM'=>'HIGH CARE UNIT 304','Status'=>1,'KelasBPJS'=>'ICU','KetBed'=>'Bed Khusus'],
+            ['Kode_RuangM'=>'HC305','Kode_Bangsal'=>'ICU','Kode_Kelas'=>'HCU','Nama_RuangM'=>'HIGH CARE UNIT 305','Status'=>1,'KelasBPJS'=>'ICU','KetBed'=>'Bed Khusus'],
+            ['Kode_RuangM'=>'HC306','Kode_Bangsal'=>'ICU','Kode_Kelas'=>'HCU','Nama_RuangM'=>'HIGH CARE UNIT 306','Status'=>1,'KelasBPJS'=>'ICU','KetBed'=>'Bed Khusus'],
+            ['Kode_RuangM'=>'HC307','Kode_Bangsal'=>'ICU','Kode_Kelas'=>'HCU','Nama_RuangM'=>'HIGH CARE UNIT 307','Status'=>1,'KelasBPJS'=>'ICU','KetBed'=>'Bed Khusus'],
+            ['Kode_RuangM'=>'HC308','Kode_Bangsal'=>'ICU','Kode_Kelas'=>'HCU','Nama_RuangM'=>'HIGH CARE UNIT 308','Status'=>1,'KelasBPJS'=>'ICU','KetBed'=>'Bed Khusus'],
+            // ICU standar
+            ['Kode_RuangM'=>'HC313','Kode_Bangsal'=>'ICU','Kode_Kelas'=>'ICU','Nama_RuangM'=>'HIGH CARE UNIT 313','Status'=>1,'KelasBPJS'=>'ICU','KetBed'=>'Bed Khusus'],
+            ['Kode_RuangM'=>'HC314','Kode_Bangsal'=>'ICU','Kode_Kelas'=>'ICU','Nama_RuangM'=>'HIGH CARE UNIT 314','Status'=>1,'KelasBPJS'=>'ICU','KetBed'=>'Bed Khusus'],
+            ['Kode_RuangM'=>'HC315','Kode_Bangsal'=>'ICU','Kode_Kelas'=>'ICU','Nama_RuangM'=>'HIGH CARE UNIT 315','Status'=>1,'KelasBPJS'=>'ICU','KetBed'=>'Bed Khusus'],
+            ['Kode_RuangM'=>'ICUA1','Kode_Bangsal'=>'ICU','Kode_Kelas'=>'ICU','Nama_RuangM'=>'ICU A1','Status'=>1,'KelasBPJS'=>'ICU','KetBed'=>'Bed Khusus'],
+            ['Kode_RuangM'=>'ICUA2','Kode_Bangsal'=>'ICU','Kode_Kelas'=>'ICU','Nama_RuangM'=>'ICU A2','Status'=>1,'KelasBPJS'=>'ICU','KetBed'=>'Bed Khusus'],
+            ['Kode_RuangM'=>'ICUA3','Kode_Bangsal'=>'ICU','Kode_Kelas'=>'ICU','Nama_RuangM'=>'ICU A3','Status'=>1,'KelasBPJS'=>'ICU','KetBed'=>'Bed Khusus'],
+            ['Kode_RuangM'=>'ICUA4','Kode_Bangsal'=>'ICU','Kode_Kelas'=>'ICU','Nama_RuangM'=>'ICU A4','Status'=>1,'KelasBPJS'=>'ICU','KetBed'=>'Bed Khusus'],
+            ['Kode_RuangM'=>'ICUB1','Kode_Bangsal'=>'ICU','Kode_Kelas'=>'ICU','Nama_RuangM'=>'ICU B1','Status'=>1,'KelasBPJS'=>'ICU','KetBed'=>'Bed Khusus'],
+            // CVCU
             ['Kode_RuangM'=>'CVCD1','Kode_Bangsal'=>'ICU','Kode_Kelas'=>'CVCU','Nama_RuangM'=>'CVCU/ICCU D1','Status'=>1,'KelasBPJS'=>'ICU','KetBed'=>'Bed Khusus'],
             ['Kode_RuangM'=>'CVCD2','Kode_Bangsal'=>'ICU','Kode_Kelas'=>'CVCU','Nama_RuangM'=>'CVCU/ICCU D2','Status'=>1,'KelasBPJS'=>'ICU','KetBed'=>'Bed Khusus'],
             ['Kode_RuangM'=>'CVCD3','Kode_Bangsal'=>'ICU','Kode_Kelas'=>'CVCU','Nama_RuangM'=>'CVCU/ICCU D3','Status'=>1,'KelasBPJS'=>'ICU','KetBed'=>'Bed Khusus'],
@@ -66,26 +73,31 @@ class DatabaseSeeder extends Seeder
         foreach ($ruangs as $r) MRuangMaster::create($r);
 
         // ── 3. STATUS_KAMAR ───────────────────────────────────────────────
+        // Sebagian sudah ISI/BOOKING sesuai data admision di bawah
         $statusKamars = [
-            ['Kode_Ruang'=>'HC301','Kode_Bangsal'=>'ICU','Status'=>'ISI',    'KelasBPJS'=>'ICU','No_MR'=>'MR-005','Oksigen'=>'ADA'],
-            ['Kode_Ruang'=>'HC302','Kode_Bangsal'=>'ICU','Status'=>'KOSONG', 'KelasBPJS'=>'ICU','No_MR'=>null,   'Oksigen'=>'ADA'],
-            ['Kode_Ruang'=>'HC303','Kode_Bangsal'=>'ICU','Status'=>'KOSONG', 'KelasBPJS'=>'ICU','No_MR'=>null,   'Oksigen'=>'ADA'],
-            ['Kode_Ruang'=>'HC304','Kode_Bangsal'=>'ICU','Status'=>'KOSONG', 'KelasBPJS'=>'ICU','No_MR'=>null,   'Oksigen'=>'ADA'],
-            ['Kode_Ruang'=>'HC305','Kode_Bangsal'=>'ICU','Status'=>'KOSONG', 'KelasBPJS'=>'ICU','No_MR'=>null,   'Oksigen'=>'ADA'],
-            ['Kode_Ruang'=>'HC306','Kode_Bangsal'=>'ICU','Status'=>'ISI',    'KelasBPJS'=>'ICU','No_MR'=>'MR-099','Oksigen'=>'ADA'],
-            ['Kode_Ruang'=>'HC307','Kode_Bangsal'=>'ICU','Status'=>'KOSONG', 'KelasBPJS'=>'ICU','No_MR'=>null,   'Oksigen'=>'ADA'],
-            ['Kode_Ruang'=>'HC308','Kode_Bangsal'=>'ICU','Status'=>'KOSONG', 'KelasBPJS'=>'ICU','No_MR'=>null,   'Oksigen'=>'ADA'],
-            ['Kode_Ruang'=>'HC313','Kode_Bangsal'=>'ICU','Status'=>'KOSONG', 'KelasBPJS'=>'ICU','No_MR'=>null,   'Oksigen'=>'ADA'],
-            ['Kode_Ruang'=>'HC314','Kode_Bangsal'=>'ICU','Status'=>'ISI',    'KelasBPJS'=>'ICU','No_MR'=>'MR-088','Oksigen'=>'ADA'],
-            ['Kode_Ruang'=>'HC315','Kode_Bangsal'=>'ICU','Status'=>'KOSONG', 'KelasBPJS'=>'ICU','No_MR'=>null,   'Oksigen'=>'ADA'],
-            ['Kode_Ruang'=>'ICUA1','Kode_Bangsal'=>'ICU','Status'=>'KOSONG', 'KelasBPJS'=>'ICU','No_MR'=>null,   'Oksigen'=>'ADA'],
-            ['Kode_Ruang'=>'ICUA2','Kode_Bangsal'=>'ICU','Status'=>'BOOKING','KelasBPJS'=>'ICU','No_MR'=>null,   'Oksigen'=>'ADA'],
-            ['Kode_Ruang'=>'ICUA3','Kode_Bangsal'=>'ICU','Status'=>'KOSONG', 'KelasBPJS'=>'ICU','No_MR'=>null,   'Oksigen'=>'ADA'],
-            ['Kode_Ruang'=>'ICUA4','Kode_Bangsal'=>'ICU','Status'=>'KOSONG', 'KelasBPJS'=>'ICU','No_MR'=>null,   'Oksigen'=>'ADA'],
-            ['Kode_Ruang'=>'ICUB1','Kode_Bangsal'=>'ICU','Status'=>'KOSONG', 'KelasBPJS'=>'ICU','No_MR'=>null,   'Oksigen'=>'ADA'],
-            ['Kode_Ruang'=>'CVCD1','Kode_Bangsal'=>'ICU','Status'=>'KOSONG', 'KelasBPJS'=>'ICU','No_MR'=>null,   'Oksigen'=>'ADA'],
-            ['Kode_Ruang'=>'CVCD2','Kode_Bangsal'=>'ICU','Status'=>'KOSONG', 'KelasBPJS'=>'ICU','No_MR'=>null,   'Oksigen'=>'ADA'],
-            ['Kode_Ruang'=>'CVCD3','Kode_Bangsal'=>'ICU','Status'=>'ISI',    'KelasBPJS'=>'ICU','No_MR'=>'MR-077','Oksigen'=>'ADA'],
+            // ICUNV
+            ['Kode_Ruang'=>'HC301','Kode_Bangsal'=>'ICU','Status'=>'ISI',    'KelasBPJS'=>'ICU','No_MR'=>'MR-005','Oksigen'=>'ADA'], // di_icu internal
+            ['Kode_Ruang'=>'HC302','Kode_Bangsal'=>'ICU','Status'=>'KOSONG', 'KelasBPJS'=>'ICU','No_MR'=>null,    'Oksigen'=>'ADA'],
+            ['Kode_Ruang'=>'HC303','Kode_Bangsal'=>'ICU','Status'=>'KOSONG', 'KelasBPJS'=>'ICU','No_MR'=>null,    'Oksigen'=>'ADA'],
+            // HCU
+            ['Kode_Ruang'=>'HC304','Kode_Bangsal'=>'ICU','Status'=>'KOSONG', 'KelasBPJS'=>'ICU','No_MR'=>null,    'Oksigen'=>'ADA'],
+            ['Kode_Ruang'=>'HC305','Kode_Bangsal'=>'ICU','Status'=>'KOSONG', 'KelasBPJS'=>'ICU','No_MR'=>null,    'Oksigen'=>'ADA'],
+            ['Kode_Ruang'=>'HC306','Kode_Bangsal'=>'ICU','Status'=>'ISI',    'KelasBPJS'=>'ICU','No_MR'=>'MR-099','Oksigen'=>'ADA'], // di_icu internal
+            ['Kode_Ruang'=>'HC307','Kode_Bangsal'=>'ICU','Status'=>'BOOKING','KelasBPJS'=>'ICU','No_MR'=>null,    'Oksigen'=>'ADA'], // spri_internal bed_booked
+            ['Kode_Ruang'=>'HC308','Kode_Bangsal'=>'ICU','Status'=>'KOSONG', 'KelasBPJS'=>'ICU','No_MR'=>null,    'Oksigen'=>'ADA'],
+            // ICU
+            ['Kode_Ruang'=>'HC313','Kode_Bangsal'=>'ICU','Status'=>'KOSONG', 'KelasBPJS'=>'ICU','No_MR'=>null,    'Oksigen'=>'ADA'],
+            ['Kode_Ruang'=>'HC314','Kode_Bangsal'=>'ICU','Status'=>'ISI',    'KelasBPJS'=>'ICU','No_MR'=>'MR-088','Oksigen'=>'ADA'], // di_icu internal
+            ['Kode_Ruang'=>'HC315','Kode_Bangsal'=>'ICU','Status'=>'BOOKING','KelasBPJS'=>'ICU','No_MR'=>null,    'Oksigen'=>'ADA'], // booking_external bed_confirmed
+            ['Kode_Ruang'=>'ICUA1','Kode_Bangsal'=>'ICU','Status'=>'KOSONG', 'KelasBPJS'=>'ICU','No_MR'=>null,    'Oksigen'=>'ADA'],
+            ['Kode_Ruang'=>'ICUA2','Kode_Bangsal'=>'ICU','Status'=>'BOOKING','KelasBPJS'=>'ICU','No_MR'=>null,    'Oksigen'=>'ADA'], // icu_admision booking_icu
+            ['Kode_Ruang'=>'ICUA3','Kode_Bangsal'=>'ICU','Status'=>'KOSONG', 'KelasBPJS'=>'ICU','No_MR'=>null,    'Oksigen'=>'ADA'],
+            ['Kode_Ruang'=>'ICUA4','Kode_Bangsal'=>'ICU','Status'=>'KOSONG', 'KelasBPJS'=>'ICU','No_MR'=>null,    'Oksigen'=>'ADA'],
+            ['Kode_Ruang'=>'ICUB1','Kode_Bangsal'=>'ICU','Status'=>'KOSONG', 'KelasBPJS'=>'ICU','No_MR'=>null,    'Oksigen'=>'ADA'],
+            // CVCU
+            ['Kode_Ruang'=>'CVCD1','Kode_Bangsal'=>'ICU','Status'=>'BOOKING','KelasBPJS'=>'ICU','No_MR'=>null,    'Oksigen'=>'ADA'], // booking_external bed_confirmed
+            ['Kode_Ruang'=>'CVCD2','Kode_Bangsal'=>'ICU','Status'=>'KOSONG', 'KelasBPJS'=>'ICU','No_MR'=>null,    'Oksigen'=>'ADA'],
+            ['Kode_Ruang'=>'CVCD3','Kode_Bangsal'=>'ICU','Status'=>'ISI',    'KelasBPJS'=>'ICU','No_MR'=>'MR-077','Oksigen'=>'ADA'], // di_icu internal
         ];
         foreach ($statusKamars as $sk) StatusKamar::create($sk);
 
@@ -119,21 +131,20 @@ class DatabaseSeeder extends Seeder
         ];
         foreach ($pendaftarans as $reg) Pendaftaran::create($reg);
 
-        // ── 6. SPRI (jalur lama, masih dipakai untuk IcuAdmision) ────────
+        // ── 6. SPRI lama (untuk IcuAdmision legacy) ───────────────────────
         $spris = [
-            ['No_Reg'=>'REG-2026-001','Diagnosis'=>'Gagal Napas Akut',      'IndikasiRI'=>'Butuh ventilasi mekanik',  'spesialis'=>'Anestesiologi', 'Dokter'=>'dr. Andi Sp.An', 'NameUser'=>'dr_igd','Perawatan'=>'ICU','Keterangan'=>'Prioritas tinggi','Status'=>'draft'],
-            ['No_Reg'=>'REG-2026-002','Diagnosis'=>'Gagal Napas + Infeksi', 'IndikasiRI'=>'Perlu ICU Non Ventilator', 'spesialis'=>'Pulmologi',    'Dokter'=>'dr. Budi Sp.JP', 'NameUser'=>'dr_igd','Perawatan'=>'ICU','Keterangan'=>'Monitor ketat',  'Status'=>'approved'],
-            ['No_Reg'=>'REG-2026-003','Diagnosis'=>'Syok Sepsis',           'IndikasiRI'=>'Monitoring intensif HCU', 'spesialis'=>'Penyakit Dalam','Dokter'=>'dr. Citra Sp.PD','NameUser'=>'dr_igd','Perawatan'=>'ICU','Keterangan'=>'-',              'Status'=>'approved'],
-            ['No_Reg'=>'REG-2026-004','Diagnosis'=>'Gagal Jantung',         'IndikasiRI'=>'ICU standar, monitoring', 'spesialis'=>'Kardiologi',   'Dokter'=>'dr. Andi Sp.An', 'NameUser'=>'dr_igd','Perawatan'=>'ICU','Keterangan'=>'EKG 24 jam',     'Status'=>'approved'],
-            ['No_Reg'=>'REG-2026-005','Diagnosis'=>'Pneumonia Berat',       'IndikasiRI'=>'ICU Non Ventilator',      'spesialis'=>'Pulmologi',    'Dokter'=>'dr. Budi Sp.JP', 'NameUser'=>'dr_igd','Perawatan'=>'ICU','Keterangan'=>'-',              'Status'=>'approved'],
-            ['No_Reg'=>'REG-2026-099','Diagnosis'=>'Pasca Operasi Jantung', 'IndikasiRI'=>'High Care Unit post op', 'spesialis'=>'Bedah Jantung','Dokter'=>'dr. Budi Sp.JP', 'NameUser'=>'dr_igd','Perawatan'=>'ICU','Keterangan'=>'Post CABG',      'Status'=>'approved'],
-            ['No_Reg'=>'REG-2026-088','Diagnosis'=>'Stroke Hemoragik',      'IndikasiRI'=>'ICU monitoring intensif', 'spesialis'=>'Neurologi',   'Dokter'=>'dr. Citra Sp.PD','NameUser'=>'dr_igd','Perawatan'=>'ICU','Keterangan'=>'CT scan ulang',  'Status'=>'approved'],
-            ['No_Reg'=>'REG-2026-077','Diagnosis'=>'STEMI Anterior',        'IndikasiRI'=>'CVCU monitoring EKG',    'spesialis'=>'Kardiologi',   'Dokter'=>'dr. Andi Sp.An', 'NameUser'=>'dr_igd','Perawatan'=>'ICU','Keterangan'=>'Primary PCI',    'Status'=>'approved'],
+            ['No_Reg'=>'REG-2026-001','Diagnosis'=>'Gagal Napas Akut',      'IndikasiRI'=>'Butuh ventilasi mekanik', 'spesialis'=>'Anestesiologi', 'Dokter'=>'dr. Andi Sp.An', 'NameUser'=>'dr_igd','Perawatan'=>'ICU','Keterangan'=>'Prioritas tinggi','Status'=>'draft'],
+            ['No_Reg'=>'REG-2026-002','Diagnosis'=>'Gagal Napas + Infeksi', 'IndikasiRI'=>'Perlu ICU Non Ventilator','spesialis'=>'Pulmologi',    'Dokter'=>'dr. Budi Sp.JP', 'NameUser'=>'dr_igd','Perawatan'=>'ICU','Keterangan'=>'Monitor ketat', 'Status'=>'approved'],
+            ['No_Reg'=>'REG-2026-003','Diagnosis'=>'Syok Sepsis',           'IndikasiRI'=>'Monitoring intensif HCU','spesialis'=>'Penyakit Dalam','Dokter'=>'dr. Citra Sp.PD','NameUser'=>'dr_igd','Perawatan'=>'ICU','Keterangan'=>'-',             'Status'=>'approved'],
+            ['No_Reg'=>'REG-2026-004','Diagnosis'=>'Gagal Jantung',         'IndikasiRI'=>'ICU standar, monitoring','spesialis'=>'Kardiologi',   'Dokter'=>'dr. Andi Sp.An', 'NameUser'=>'dr_igd','Perawatan'=>'ICU','Keterangan'=>'EKG 24 jam',    'Status'=>'approved'],
+            ['No_Reg'=>'REG-2026-005','Diagnosis'=>'Pneumonia Berat',       'IndikasiRI'=>'ICU Non Ventilator',     'spesialis'=>'Pulmologi',    'Dokter'=>'dr. Budi Sp.JP', 'NameUser'=>'dr_igd','Perawatan'=>'ICU','Keterangan'=>'-',             'Status'=>'approved'],
+            ['No_Reg'=>'REG-2026-099','Diagnosis'=>'Pasca Operasi Jantung', 'IndikasiRI'=>'High Care Unit post op', 'spesialis'=>'Bedah Jantung','Dokter'=>'dr. Budi Sp.JP', 'NameUser'=>'dr_igd','Perawatan'=>'ICU','Keterangan'=>'Post CABG',     'Status'=>'approved'],
+            ['No_Reg'=>'REG-2026-088','Diagnosis'=>'Stroke Hemoragik',      'IndikasiRI'=>'ICU monitoring intensif','spesialis'=>'Neurologi',   'Dokter'=>'dr. Citra Sp.PD','NameUser'=>'dr_igd','Perawatan'=>'ICU','Keterangan'=>'CT scan ulang', 'Status'=>'approved'],
+            ['No_Reg'=>'REG-2026-077','Diagnosis'=>'STEMI Anterior',        'IndikasiRI'=>'CVCU monitoring EKG',    'spesialis'=>'Kardiologi',   'Dokter'=>'dr. Andi Sp.An', 'NameUser'=>'dr_igd','Perawatan'=>'ICU','Keterangan'=>'Primary PCI',   'Status'=>'approved'],
         ];
         foreach ($spris as $s) Spri::create($s);
 
-        // ── 7. ICU ADMISION (jalur lama) ──────────────────────────────────
-        // required_bed_type sekarang pakai Nama_Kelas (bukan Kode_Kelas)
+        // ── 7. ICU ADMISION (legacy) ──────────────────────────────────────
         $admisions = [
             ['No_Reg'=>'REG-2026-006','No_MR'=>'MR-006','status'=>'daftar',      'required_bed_type'=>null,                'allocated_bed_id'=>null,   'match_status'=>null],
             ['No_Reg'=>'REG-2026-007','No_MR'=>'MR-007','status'=>'igd_periksa', 'required_bed_type'=>null,                'allocated_bed_id'=>null,   'match_status'=>null],
@@ -148,9 +159,10 @@ class DatabaseSeeder extends Seeder
         ];
         foreach ($admisions as $a) IcuAdmision::create($a);
 
-        // ── 8. ICU BOOKING EXTERNAL — data demo berbagai status ──────────
+        // ── 8. BOOKING EXTERNAL (alur baru) ──────────────────────────────
+        // Status enum: pending_icu | bed_confirmed | di_icu | ditolak | pulang
         $bookingExternals = [
-            // Booking baru dikirim ke ICU untuk dicek
+            // Baru masuk dari admisi → menunggu ICU tentukan bed
             [
                 'nama_pasien'      => 'Agus Purnomo',
                 'jenis_kelamin'    => 'L',
@@ -160,11 +172,13 @@ class DatabaseSeeder extends Seeder
                 'diagnosa'         => 'Gagal Napas Akut',
                 'rencana_tindakan' => 'Pemasangan Ventilator Mekanik',
                 'kebutuhan_bed'    => 'ICU Non Ventilator',
-                'keterangan'       => 'Pasien dirujuk emergency',
+                'jaminan'          => 'BPJS',
+                'catatan_jaminan'  => 'No. BPJS: 0001234567001',
+                'keterangan'       => 'Pasien dirujuk emergency, saturasi 78%',
                 'status'           => 'pending_icu',
-                'created_by'       => 'admisi_01',
+                'created_by'       => 'admisi1',
             ],
-            // ICU sudah konfirmasi ada bed
+            // ICU sudah pilih bed CVCD1 → siap antar, skip verif admisi
             [
                 'nama_pasien'      => 'Sri Wahyuni',
                 'jenis_kelamin'    => 'P',
@@ -174,13 +188,15 @@ class DatabaseSeeder extends Seeder
                 'diagnosa'         => 'Syok Kardiogenik',
                 'rencana_tindakan' => 'Monitoring CVCU intensif',
                 'kebutuhan_bed'    => 'CVCU',
+                'jaminan'          => 'Asuransi',
+                'catatan_jaminan'  => 'Prudential - No. Polis: PRU-2024-001',
                 'keterangan'       => 'Riwayat PCI 2 tahun lalu',
                 'allocated_bed_id' => 'CVCD1',
                 'status'           => 'bed_confirmed',
-                'created_by'       => 'admisi_01',
-                'confirmed_by'     => 'icu_nurse_01',
+                'created_by'       => 'admisi1',
+                'confirmed_by'     => 'icu1',
             ],
-            // Admisi sudah validasi, pasien dalam perjalanan
+            // ICU sudah konfirmasi bed HC315 → menunggu pasien tiba & antar
             [
                 'nama_pasien'      => 'Bambang Susilo',
                 'jenis_kelamin'    => 'L',
@@ -188,24 +204,23 @@ class DatabaseSeeder extends Seeder
                 'asal_rujukan'     => 'RS Harapan Bersama',
                 'no_telp_keluarga' => '083456789012',
                 'diagnosa'         => 'Meningitis Bakterial',
-                'rencana_tindakan' => 'ICU monitoring ketat',
+                'rencana_tindakan' => 'ICU monitoring ketat, LP, antibiotik IV',
                 'kebutuhan_bed'    => 'ICU',
-                'keterangan'       => 'Suhu tinggi, kejang',
+                'jaminan'          => 'Umum',
+                'catatan_jaminan'  => 'Bayar mandiri - keluarga sudah konfirmasi',
+                'keterangan'       => 'Suhu 40C, kejang berulang, GCS 11',
                 'allocated_bed_id' => 'HC315',
-                'status'           => 'admisi_validated',
-                'created_by'       => 'admisi_02',
-                'confirmed_by'     => 'icu_nurse_01',
-                'validated_by'     => 'admisi_01',
+                'status'           => 'bed_confirmed',
+                'created_by'       => 'admisi2',
+                'confirmed_by'     => 'icu1',
             ],
         ];
-        // Update bed yang dipakai menjadi BOOKING
-        StatusKamar::where('Kode_Ruang', 'CVCD1')->update(['Status' => 'BOOKING']);
-        StatusKamar::where('Kode_Ruang', 'HC315')->update(['Status' => 'BOOKING']);
         foreach ($bookingExternals as $be) IcuBookingExternal::create($be);
 
-        // ── 9. ICU SPRI INTERNAL — data demo berbagai status ─────────────
+        // ── 9. SPRI INTERNAL (alur baru) ──────────────────────────────────
+        // Status enum: pending_admisi | pending_icu | bed_booked | di_icu | ditolak | pulang
         $spriInternals = [
-            // Surat baru masuk, menunggu approval admisi
+            // Baru dibuat petugas ruang → menunggu admisi isi catatan
             [
                 'No_MR'         => 'MR-003',
                 'No_Reg'        => 'REG-2026-003',
@@ -216,25 +231,26 @@ class DatabaseSeeder extends Seeder
                 'Dokter'        => 'dr. Citra Sp.PD',
                 'spesialis'     => 'Penyakit Dalam',
                 'Keterangan'    => 'Lab kultur darah positif, MAP < 65',
-                'NameUser'      => 'perawat_pd',
+                'NameUser'      => 'poli.dalam',
                 'status'        => 'pending_admisi',
             ],
-            // Admisi sudah approve, menunggu ICU booking bed
+            // Admisi sudah isi catatan → menunggu ICU tentukan bed
             [
-                'No_MR'         => 'MR-004',
-                'No_Reg'        => 'REG-2026-004',
-                'Diagnosis'     => 'Gagal Jantung Dekompensasi Akut',
-                'IndikasiRI'    => 'EF 20%, edema paru akut',
-                'kebutuhan_bed' => 'CVCU',
-                'asal_ruang'    => 'Poli Jantung - Gedung B',
-                'Dokter'        => 'dr. Andi Sp.An',
-                'spesialis'     => 'Kardiologi',
-                'Keterangan'    => 'BNP sangat tinggi, perlu diuretik IV',
-                'NameUser'      => 'perawat_jantung',
-                'approved_by'   => 'admisi_01',
-                'status'        => 'pending_icu',
+                'No_MR'          => 'MR-004',
+                'No_Reg'         => 'REG-2026-004',
+                'Diagnosis'      => 'Gagal Jantung Dekompensasi Akut',
+                'IndikasiRI'     => 'EF 20%, edema paru akut',
+                'kebutuhan_bed'  => 'CVCU',
+                'asal_ruang'     => 'Poli Jantung - Gedung B',
+                'Dokter'         => 'dr. Andi Sp.An',
+                'spesialis'      => 'Kardiologi',
+                'Keterangan'     => 'BNP sangat tinggi, perlu diuretik IV',
+                'NameUser'       => 'poli.jantung',
+                'catatan_admisi' => 'Jaminan BPJS aktif. Pasien eligible masuk ICU.',
+                'approved_by'    => 'admisi1',
+                'status'         => 'pending_icu',
             ],
-            // ICU sudah booking bed, menunggu verifikasi admisi
+            // ICU sudah pilih bed HC307 → langsung siap antar, skip verif admisi
             [
                 'No_MR'            => 'MR-001',
                 'No_Reg'           => 'REG-2026-001',
@@ -245,17 +261,29 @@ class DatabaseSeeder extends Seeder
                 'Dokter'           => 'dr. Budi Sp.JP',
                 'spesialis'        => 'Pulmologi',
                 'Keterangan'       => 'PaO2/FiO2 < 200',
-                'NameUser'         => 'perawat_paru',
+                'NameUser'         => 'poli.paru',
+                'catatan_admisi'   => 'BPJS kelas 1. Tidak ada tunggakan.',
                 'allocated_bed_id' => 'HC307',
-                'approved_by'      => 'admisi_02',
-                'booked_by'        => 'icu_nurse_01',
+                'approved_by'      => 'admisi2',
+                'booked_by'        => 'icu1',
                 'status'           => 'bed_booked',
             ],
         ];
-        // Update bed yang dipakai menjadi BOOKING
-        StatusKamar::where('Kode_Ruang', 'HC307')->update(['Status' => 'BOOKING']);
         foreach ($spriInternals as $si) IcuSpriInternal::create($si);
 
-        $this->command->info('✓ Seeder selesai. Data berhasil di-seed termasuk booking external dan surat permintaan internal.');
+        $this->command->info('✓ DatabaseSeeder selesai.');
+        $this->command->table(
+            ['Tabel', 'Jumlah'],
+            [
+                ['M_Kelas',          MKelas::count()],
+                ['M_Ruang_Master',   MRuangMaster::count()],
+                ['Status_Kamar',     StatusKamar::count()],
+                ['Registrasi_Pasien',RegistrasiPasien::count()],
+                ['Pendaftaran',      Pendaftaran::count()],
+                ['Icu_Admision',     IcuAdmision::count()],
+                ['Booking_External', IcuBookingExternal::count()],
+                ['Spri_Internal',    IcuSpriInternal::count()],
+            ]
+        );
     }
 }

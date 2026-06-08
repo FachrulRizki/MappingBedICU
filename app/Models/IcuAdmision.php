@@ -11,27 +11,30 @@ class IcuAdmision extends Model
     protected $fillable = [
         'No_Reg',
         'No_MR',
+        'nama_pasien_ext',
+        'asal_rs',
+        'jaminan',
+        'catatan_jaminan',
+        'jenis_pasien',
         'status',
         'required_bed_type',
+        'catatan_admisi',
         'allocated_bed_id',
         'match_status',
     ];
 
     // ─── Relasi ──────────────────────────────────────────────
 
-    /** Data kunjungan (pendaftaran) */
     public function pendaftaran()
     {
         return $this->belongsTo(Pendaftaran::class, 'No_Reg', 'No_Reg');
     }
 
-    /** Data pasien (registrasi) */
     public function pasien()
     {
         return $this->belongsTo(RegistrasiPasien::class, 'No_MR', 'No_MR');
     }
 
-    /** Bed yang dialokasikan — relasi ke STATUS_KAMAR.Kode_Ruang */
     public function bed()
     {
         return $this->belongsTo(StatusKamar::class, 'allocated_bed_id', 'Kode_Ruang');
@@ -39,39 +42,56 @@ class IcuAdmision extends Model
 
     // ─── Helper ──────────────────────────────────────────────
 
-    /** Nama lengkap pasien via relasi */
+    /** Nama pasien: prioritaskan dari registrasi, fallback ke nama_pasien_ext */
     public function getNamaPasienAttribute(): string
     {
-        return $this->pasien?->Nama_Pasien ?? '-';
+        return $this->pasien?->Nama_Pasien ?? $this->nama_pasien_ext ?? '-';
     }
 
-    /** Label badge warna berdasarkan status */
+    public function isExternal(): bool
+    {
+        return $this->jenis_pasien === 'external';
+    }
+
+    /**
+     * Status yang menunggu aksi dari Petugas ICU:
+     *   - internal: waiting_icu (SPRI sudah diisi, admisi sudah catat keterangan)
+     *   - external: ext_waiting (admisi sudah input, menunggu ICU konfirmasi bed)
+     */
+    public function isWaitingIcu(): bool
+    {
+        return in_array($this->status, ['waiting_icu', 'ext_waiting']);
+    }
+
     public function statusBadge(): string
     {
         return match ($this->status) {
-            'daftar'      => 'secondary',
-            'igd_periksa' => 'warning',
-            'spri_dibuat' => 'info',
-            'waiting_icu' => 'danger',
-            'booking_icu' => 'primary',
-            'di_icu'      => 'dark',
-            'pulang'      => 'success',
-            default       => 'light',
+            'daftar'       => 'secondary',
+            'igd_periksa'  => 'warning',
+            'spri_dibuat'  => 'info',
+            'waiting_icu'  => 'danger',
+            'ext_request'  => 'warning',
+            'ext_waiting'  => 'danger',
+            'booking_icu'  => 'primary',
+            'di_icu'       => 'dark',
+            'pulang'       => 'success',
+            default        => 'light',
         };
     }
 
-    /** Label status yang mudah dibaca */
     public function statusLabel(): string
     {
         return match ($this->status) {
-            'daftar'      => 'Terdaftar',
-            'igd_periksa' => 'Di IGD',
-            'spri_dibuat' => 'SPRI Dibuat',
-            'waiting_icu' => 'Menunggu Kamar',
-            'booking_icu' => 'Booking Kamar',
-            'di_icu'      => 'Di ICU',
-            'pulang'      => 'Pulang',
-            default       => $this->status,
+            'daftar'       => 'Terdaftar',
+            'igd_periksa'  => 'Di IGD',
+            'spri_dibuat'  => 'SPRI Dibuat',
+            'waiting_icu'  => 'Menunggu ICU',
+            'ext_request'  => 'Request Masuk',
+            'ext_waiting'  => 'Menunggu ICU',
+            'booking_icu'  => 'Booking Bed',
+            'di_icu'       => 'Di ICU',
+            'pulang'       => 'Pulang',
+            default        => $this->status,
         };
     }
 }

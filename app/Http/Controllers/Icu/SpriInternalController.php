@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Icu;
 use App\Http\Controllers\Controller;
 use App\Models\IcuSpriInternal;
 use App\Models\MKelas;
-use App\Models\StatusKamar;
 use App\Models\Pendaftaran;
+use App\Models\RegistrasiPasien;
+use App\Models\StatusKamar;
 use App\Services\Icu\SpriInternalService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -19,7 +21,6 @@ class SpriInternalController extends Controller
         private readonly SpriInternalService $service
     ) {}
 
-    /** Halaman daftar semua Surat Permintaan Rawat ICU internal */
     public function index(): Response
     {
         $spriList = IcuSpriInternal::with(['pasien', 'pendaftaran', 'bed.ruang.kelas'])
@@ -45,45 +46,80 @@ class SpriInternalController extends Controller
         ]);
     }
 
-    /**
-     * Petugas ruang asal buat Surat Permintaan Rawat ICU.
-     * No_MR & No_Reg sudah ada (dari sistem existing).
-     */
+    // ── Lookup AJAX: cari pasien berdasarkan No_MR ───────────────────────
+
+    public function lookupPasien(Request $request): JsonResponse
+    {
+        $noMr = trim($request->query('No_MR', ''));
+        if (! $noMr) {
+            return response()->json(['found' => false, 'message' => 'No_MR kosong.']);
+        }
+
+        $pasien = RegistrasiPasien::where('No_MR', $noMr)->first();
+        if (! $pasien) {
+            return response()->json(['found' => false, 'message' => "Pasien dengan No_MR '{$noMr}' tidak ditemukan."]);
+        }
+
+        // Ambil kunjungan aktif milik pasien ini
+        $kunjungans = Pendaftaran::where('No_MR', $noMr)
+            ->latest()
+            ->get(['No_Reg', 'Kode_Masuk', 'PermintaanDPJP', 'created_at'])
+            ->map(fn($r) => [
+                'No_Reg'       => $r->No_Reg,
+                'label'        => $r->No_Reg . ' — ' . ($r->Kode_Masuk ?? '-'),
+                'Dokter'       => $r->PermintaanDPJP ?? '',
+            ]);
+
+        return response()->json([
+            'found'       => true,
+            'No_MR'       => $pasien->No_MR,
+            'nama_pasien' => $pasien->Nama_Pasien,
+            'kunjungans'  => $kunjungans,
+        ]);
+    }
+
+    // ── Petugas Ruang: buat SPRI ─────────────────────────────────────────
+
     public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'No_MR'         => 'required|exists:registrasi_pasien,No_MR',
-            'No_Reg'        => 'required|exists:pendaftaran,No_Reg',
-            'Diagnosis'     => 'required|string|max:255',
-            'IndikasiRI'    => 'required|string|max:255',
-            'kebutuhan_bed' => 'required|exists:m_kelas,Nama_Kelas',
-            'asal_ruang'    => 'nullable|string|max:100',
-            'Dokter'        => 'nullable|string|max:100',
-            'spesialis'     => 'nullable|string|max:100',
-            'Keterangan'    => 'nullable|string|max:500',
+            'No_MR'      => 'required|exists:registrasi_pasien,No_MR',
+            'No_Reg'     => 'required|exists:pendaftaran,No_Reg',
+            'Diagnosis'  => 'required|string|max:255',
+            'IndikasiRI' => 'required|string|max:255',
+            // kebutuhan_bed TIDAK diisi di sini — ICU yang tentukan saat booking bed
+            'asal_ruang' => 'nullable|string|max:100',
+            'Dokter'     => 'nullable|string|max:100',
+            'spesialis'  => 'nullable|string|max:100',
+            'Keterangan' => 'nullable|string|max:500',
         ]);
 
         $spri = $this->service->buatSpri([
             ...$validated,
-            'NameUser' => auth()->user()?->name ?? 'petugas',
+            'kebutuhan_bed' => null,   // diisi ICU saat booking bed
+            'NameUser'      => auth()->user()?->name ?? 'petugas',
         ]);
 
-        // Ambil nama pasien untuk pesan sukses
-        $namaPasien = $spri->pasien?->Nama_Pasien ?? $validated['No_MR'];
-
-        return back()->with('success', "Surat Permintaan Rawat ICU untuk {$namaPasien} berhasil dibuat.");
+        return back()->with('success', "SPRI untuk {$spri->pasien?->Nama_Pasien} berhasil dibuat.");
     }
 
-    /** Admisi approve surat permintaan */
-    public function approveAdmisi(int $id): RedirectResponse
+    // ── Admisi: approve + isi catatan (TIDAK menentukan bed) ─────────────
+
+    public function approveAdmisi(Request $request, int $id): RedirectResponse
     {
-        $spri = $this->service->approveAdmisi($id, auth()->user()?->name ?? 'admisi');
-        $nama = $spri->pasien?->Nama_Pasien ?? '-';
+        $validated = $request->validate([
+            'catatan_admisi' => 'nullable|string|max:500',
+        ]);
 
-        return back()->with('success', "Surat Permintaan {$nama} disetujui. Diteruskan ke ICU untuk booking bed.");
+        $spri = $this->service->approveAdmisi(
+            id:             $id,
+            approvedBy:     auth()->user()?->name ?? 'admisi',
+            catatanAdmisi:  $validated['catatan_admisi'] ?? null,
+        );
+
+        return back()->with('success', "SPRI {$spri->pasien?->Nama_Pasien} disetujui. Diteruskan ke Petugas ICU.");
     }
 
-    /** Admisi tolak */
     public function tolakAdmisi(Request $request, int $id): RedirectResponse
     {
         $validated = $request->validate([
@@ -95,21 +131,37 @@ class SpriInternalController extends Controller
         return back()->with('success', 'Surat Permintaan ditolak.');
     }
 
-    /** ICU booking bed */
+    // ── Petugas ICU: pilih bed ───────────────────────────────────────────
+
     public function bookingBedIcu(Request $request, int $id): RedirectResponse
     {
         $validated = $request->validate([
-            'Kode_Ruang' => 'required|exists:status_kamar,Kode_Ruang',
+            'Kode_Ruang'    => 'required|exists:status_kamar,Kode_Ruang',
+            'kebutuhan_bed' => 'required|exists:m_kelas,Nama_Kelas',   // ICU tentukan jenis bed
         ]);
 
-        $spri    = $this->service->bookingBedIcu($id, $validated['Kode_Ruang'], auth()->user()?->name ?? 'icu');
+        $spri    = $this->service->bookingBedIcu($id, $validated['Kode_Ruang'], $validated['kebutuhan_bed'], auth()->user()?->name ?? 'icu');
         $namaBed = $spri->bed?->ruang?->Nama_RuangM ?? $validated['Kode_Ruang'];
         $nama    = $spri->pasien?->Nama_Pasien ?? '-';
 
-        return back()->with('success', "Bed {$namaBed} dipesan untuk {$nama}. Menunggu verifikasi Admisi.");
+        return back()->with('success', "Bed {$namaBed} ({$validated['kebutuhan_bed']}) dipesan untuk {$nama}. Pasien siap diantar.");
     }
 
-    /** ICU tolak booking */
+    /**
+     * ICU catat bahwa belum ada bed — pasien tetap di waiting list.
+     * Tidak memblok alur, tidak menolak pasien.
+     */
+    public function catatTanpaBed(Request $request, int $id): RedirectResponse
+    {
+        $validated = $request->validate([
+            'catatan' => 'nullable|string|max:500',
+        ]);
+
+        $this->service->catatTanpaBed($id, $validated['catatan'] ?? 'Belum ada bed tersedia.', auth()->user()?->name ?? 'icu');
+
+        return back()->with('success', 'Pasien tetap di daftar tunggu ICU.');
+    }
+
     public function tolakIcu(Request $request, int $id): RedirectResponse
     {
         $validated = $request->validate([
@@ -118,19 +170,12 @@ class SpriInternalController extends Controller
 
         $this->service->tolakIcu($id, $validated['alasan_tolak'], auth()->user()?->name ?? 'icu');
 
-        return back()->with('success', 'Permintaan bed ditolak.');
+        return back()->with('success', 'Permintaan bed ditolak oleh ICU.');
     }
 
-    /** Admisi verifikasi akhir */
-    public function verifikasiAdmisi(int $id): RedirectResponse
-    {
-        $spri = $this->service->verifikasiAdmisi($id, auth()->user()?->name ?? 'admisi');
-        $nama = $spri->pasien?->Nama_Pasien ?? '-';
+    // ── Petugas ICU: konfirmasi pasien masuk — LANGSUNG di_icu ──────────
+    // (skip verifikasi admisi — sesuai alur baru)
 
-        return back()->with('success', "Pasien {$nama} siap diantar ke ICU.");
-    }
-
-    /** ICU konfirmasi pasien masuk ruangan */
     public function konfirmasiMasuk(int $id): RedirectResponse
     {
         $spri    = $this->service->konfirmasiMasuk($id);
@@ -140,16 +185,15 @@ class SpriInternalController extends Controller
         return back()->with('success', "Pasien {$nama} masuk ke {$namaBed}. Bed terisi.");
     }
 
-    /** Pulangkan pasien dari ICU */
+    // ── Petugas ICU: pulangkan ───────────────────────────────────────────
+
     public function pulangkan(int $id): RedirectResponse
     {
         $spri = $this->service->pulangkan($id);
-        $nama = $spri->pasien?->Nama_Pasien ?? '-';
 
-        return back()->with('success', "Pasien {$nama} dipulangkan. Bed kembali kosong.");
+        return back()->with('success', "Pasien {$spri->pasien?->Nama_Pasien} dipulangkan. Bed kembali kosong.");
     }
 
-    /** Format spri untuk Vue */
     private function format(IcuSpriInternal $s): array
     {
         return [
@@ -157,7 +201,7 @@ class SpriInternalController extends Controller
             'No_MR'            => $s->No_MR,
             'No_Reg'           => $s->No_Reg,
             'nama_pasien'      => $s->pasien?->Nama_Pasien ?? '-',
-            'jenis_kelamin'    => $s->pasien?->jenis_kelamin ?? null,
+            'jenis_kelamin'    => $s->pasien?->jenis_kelamin ?? null,   // dari registrasi_pasien
             'Diagnosis'        => $s->Diagnosis,
             'IndikasiRI'       => $s->IndikasiRI,
             'kebutuhan_bed'    => $s->kebutuhan_bed,
@@ -165,6 +209,7 @@ class SpriInternalController extends Controller
             'Dokter'           => $s->Dokter,
             'spesialis'        => $s->spesialis,
             'Keterangan'       => $s->Keterangan,
+            'catatan_admisi'   => $s->catatan_admisi,
             'allocated_bed_id' => $s->allocated_bed_id,
             'nama_bed'         => $s->bed?->ruang?->Nama_RuangM ?? null,
             'status'           => $s->status,

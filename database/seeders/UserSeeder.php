@@ -13,9 +13,10 @@ class UserSeeder extends Seeder
         User::truncate();
 
         $users = [
-            // ── Admin — full akses ────────────────────────────────
+            // ── Admin ─────────────────────────────────────────────
             [
                 'name'       => 'Administrator',
+                'username'   => 'admin',
                 'email'      => 'admin@icu.rs',
                 'password'   => Hash::make('admin123'),
                 'role'       => 'admin',
@@ -23,9 +24,10 @@ class UserSeeder extends Seeder
                 'is_active'  => true,
             ],
 
-            // ── Admisi — kelola booking, validasi, verifikasi ─────
+            // ── Admisi ────────────────────────────────────────────
             [
                 'name'       => 'Petugas Admisi 1',
+                'username'   => 'admisi1',
                 'email'      => 'admisi1@icu.rs',
                 'password'   => Hash::make('admisi123'),
                 'role'       => 'admisi',
@@ -34,6 +36,7 @@ class UserSeeder extends Seeder
             ],
             [
                 'name'       => 'Petugas Admisi 2',
+                'username'   => 'admisi2',
                 'email'      => 'admisi2@icu.rs',
                 'password'   => Hash::make('admisi123'),
                 'role'       => 'admisi',
@@ -41,9 +44,10 @@ class UserSeeder extends Seeder
                 'is_active'  => true,
             ],
 
-            // ── Petugas ICU — konfirmasi bed, verifikasi masuk ────
+            // ── Petugas ICU ───────────────────────────────────────
             [
                 'name'       => 'Petugas ICU 1',
+                'username'   => 'icu1',
                 'email'      => 'icu1@icu.rs',
                 'password'   => Hash::make('icu123'),
                 'role'       => 'petugas_icu',
@@ -52,6 +56,7 @@ class UserSeeder extends Seeder
             ],
             [
                 'name'       => 'Petugas ICU 2',
+                'username'   => 'icu2',
                 'email'      => 'icu2@icu.rs',
                 'password'   => Hash::make('icu123'),
                 'role'       => 'petugas_icu',
@@ -59,9 +64,10 @@ class UserSeeder extends Seeder
                 'is_active'  => true,
             ],
 
-            // ── Petugas Ruang — buat surat permintaan ICU ─────────
+            // ── Petugas Ruang ─────────────────────────────────────
             [
                 'name'       => 'Petugas Poli Dalam',
+                'username'   => 'poli.dalam',
                 'email'      => 'poli.dalam@icu.rs',
                 'password'   => Hash::make('ruang123'),
                 'role'       => 'petugas_ruang',
@@ -70,6 +76,7 @@ class UserSeeder extends Seeder
             ],
             [
                 'name'       => 'Petugas Poli Jantung',
+                'username'   => 'poli.jantung',
                 'email'      => 'poli.jantung@icu.rs',
                 'password'   => Hash::make('ruang123'),
                 'role'       => 'petugas_ruang',
@@ -78,6 +85,7 @@ class UserSeeder extends Seeder
             ],
             [
                 'name'       => 'Petugas Poli Paru',
+                'username'   => 'poli.paru',
                 'email'      => 'poli.paru@icu.rs',
                 'password'   => Hash::make('ruang123'),
                 'role'       => 'petugas_ruang',
@@ -92,11 +100,18 @@ class UserSeeder extends Seeder
 
         $this->command->info('✓ Users berhasil di-seed.');
         $this->command->table(
-            ['Email', 'Role', 'Password'],
+            ['Username', 'Role', 'Password'],
             array_map(fn($u) => [
-                $u['email'],
+                $u['username'],
                 $u['role'],
-                str_replace('123', '***', basename($u['email'], '@icu.rs')) . '123',
+                // tampilkan password hint
+                match($u['role']) {
+                    'admin'         => 'admin123',
+                    'admisi'        => 'admisi123',
+                    'petugas_icu'   => 'icu123',
+                    'petugas_ruang' => 'ruang123',
+                    default         => '???',
+                },
             ], $users)
         );
     }

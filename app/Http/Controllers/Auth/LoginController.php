@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -13,7 +14,6 @@ class LoginController extends Controller
 {
     public function showLogin(): Response
     {
-        // Redirect jika sudah login
         if (Auth::check()) {
             return Inertia::location(route('icu.dashboard'));
         }
@@ -25,27 +25,32 @@ class LoginController extends Controller
 
     public function login(Request $request): RedirectResponse
     {
-        $credentials = $request->validate([
-            'email'    => 'required|email',
+        $request->validate([
+            'username' => 'required|string',
             'password' => 'required|string',
         ]);
 
-        // Cek user aktif
-        $user = \App\Models\User::where('email', $credentials['email'])->first();
-        if ($user && ! $user->is_active) {
+        // Cek user berdasarkan username
+        $user = User::where('username', $request->username)->first();
+
+        if (! $user) {
+            return back()->with('error', 'Username atau password salah.');
+        }
+
+        if (! $user->is_active) {
             return back()->with('error', 'Akun Anda tidak aktif. Hubungi administrator.');
         }
 
-        if (Auth::attempt($credentials, $request->boolean('remember'))) {
+        // Attempt login dengan username + password
+        if (Auth::attempt(
+            ['username' => $request->username, 'password' => $request->password],
+            $request->boolean('remember')
+        )) {
             $request->session()->regenerate();
-
-            // Simpan info user ke session untuk dipakai controller
-            session(['user_name' => Auth::user()->name]);
-
             return redirect()->intended(route('icu.dashboard'));
         }
 
-        return back()->with('error', 'Email atau password salah.');
+        return back()->with('error', 'Username atau password salah.');
     }
 
     public function logout(Request $request): RedirectResponse

@@ -6,18 +6,18 @@ use Illuminate\Support\Facades\Schema;
 
 /**
  * Tabel untuk jalur INTERNAL — pasien sudah ada di RS, indikasi pindah ke ICU.
- * Data pasien diambil dari tabel pendaftaran & registrasi_pasien yang sudah ada.
- * Dokumen ini adalah "Surat Permintaan Rawat ICU" (rename dari SPRI).
  *
- * Alur status:
- *   spri_dibuat      → Petugas ruang asal buat surat permintaan
- *   pending_admisi   → Menunggu Admisi approve
- *   admisi_approved  → Admisi setujui, lanjut ke ICU untuk booking bed
- *   pending_icu      → Menunggu petugas ICU validasi booking bed
- *   bed_booked       → ICU konfirmasi booking bed sesuai kebutuhan
- *   admisi_verified  → Admisi verifikasi akhir, pasien siap diantar
- *   di_icu           → Pasien sudah di ruang ICU, bed terisi
- *   ditolak          → Ditolak oleh Admisi atau ICU
+ * ALUR STATUS (disederhanakan):
+ *   pending_admisi  → Petugas ruang buat SPRI, menunggu Admisi
+ *   pending_icu     → Admisi approve + isi catatan → diteruskan ke ICU
+ *   bed_booked      → ICU pilih & booking bed → siap antar
+ *                     Jika tidak ada bed → tetap pending_icu (waiting list)
+ *   di_icu          → ICU konfirmasi pasien masuk → LANGSUNG di_icu
+ *   ditolak         → Admisi atau ICU tolak
+ *   pulang          → Pasien keluar, bed kosong kembali
+ *
+ * Tidak ada step admisi_verified / verifikasiAdmisi setelah ICU booking bed.
+ * Admisi hanya mengisi catatan, ICU yang tentukan & pilih bed.
  */
 return new class extends Migration
 {
@@ -34,34 +34,34 @@ return new class extends Migration
 
             // ── Data klinis dari ruang asal ───────────────────────────
             $table->string('Diagnosis');
-            $table->string('IndikasiRI');                        // Indikasi rawat ICU
+            $table->string('IndikasiRI');
             $table->string('kebutuhan_bed');                     // Nama_Kelas dari m_kelas
-            $table->string('asal_ruang')->nullable();            // Nama/kode ruang asal pasien
-            $table->string('Dokter')->nullable();                // Dokter DPJP yang meminta
+            $table->string('asal_ruang')->nullable();
+            $table->string('Dokter')->nullable();
             $table->string('spesialis')->nullable();
             $table->text('Keterangan')->nullable();
-            $table->string('NameUser')->nullable();              // Petugas ruang yang input
+            $table->string('NameUser')->nullable();              // petugas ruang yang input
 
-            // ── Bed allocation ─────────────────────────────────────────
+            // ── Catatan dari Admisi (HANYA keterangan, bukan bed) ─────
+            $table->text('catatan_admisi')->nullable();          // jaminan, catatan, info tambahan
+
+            // ── Bed allocation (ditentukan Petugas ICU) ───────────────
             $table->string('allocated_bed_id')->nullable();
             $table->foreign('allocated_bed_id')->references('Kode_Ruang')->on('status_kamar')->nullOnDelete();
 
             // ── Status & tracking ──────────────────────────────────────
             $table->enum('status', [
-                'spri_dibuat',
-                'pending_admisi',
-                'admisi_approved',
-                'pending_icu',
-                'bed_booked',
-                'admisi_verified',
-                'di_icu',
-                'ditolak',
-            ])->default('spri_dibuat');
+                'pending_admisi',  // petugas ruang buat, menunggu admisi
+                'pending_icu',     // admisi approve + catat, antri ke ICU
+                'bed_booked',      // ICU sudah pilih bed → siap antar
+                'di_icu',          // pasien di ruangan, bed terisi
+                'ditolak',         // admisi/ICU tolak
+                'pulang',          // pasien keluar
+            ])->default('pending_admisi');
 
             $table->string('alasan_tolak')->nullable();
-            $table->string('approved_by')->nullable();           // user admisi yang approve
-            $table->string('booked_by')->nullable();             // user ICU yang booking bed
-            $table->string('verified_by')->nullable();           // user admisi yang verifikasi
+            $table->string('approved_by')->nullable();           // admisi yang approve
+            $table->string('booked_by')->nullable();             // ICU yang booking bed
             $table->timestamps();
         });
     }

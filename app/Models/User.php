@@ -12,7 +12,8 @@ class User extends Authenticatable
 
     protected $fillable = [
         'name',
-        'email',
+        'username',       // login identifier
+        'email',          // opsional, untuk notifikasi
         'password',
         'role',
         'unit_kerja',
@@ -32,36 +33,32 @@ class User extends Authenticatable
 
     // ── Role helpers ──────────────────────────────────────────
 
-    public function isAdmin(): bool       { return $this->role === 'admin'; }
-    public function isAdmisi(): bool      { return $this->role === 'admisi'; }
-    public function isIcu(): bool         { return $this->role === 'petugas_icu'; }
-    public function isPetugasRuang(): bool{ return $this->role === 'petugas_ruang'; }
+    public function isAdmin(): bool        { return $this->role === 'admin'; }
+    public function isAdmisi(): bool       { return $this->role === 'admisi'; }
+    public function isIcu(): bool          { return $this->role === 'petugas_icu'; }
+    public function isPetugasRuang(): bool { return $this->role === 'petugas_ruang'; }
 
-    /** Admin atau admisi bisa kelola booking/surat */
     public function canManageAdmisi(): bool
     {
         return in_array($this->role, ['admin', 'admisi']);
     }
 
-    /** Admin atau petugas ICU bisa konfirmasi bed */
     public function canManageIcu(): bool
     {
         return in_array($this->role, ['admin', 'petugas_icu']);
     }
 
-    /** Label role untuk display */
     public function roleLabel(): string
     {
         return match ($this->role) {
-            'admin'          => 'Administrator',
-            'admisi'         => 'Petugas Admisi',
-            'petugas_icu'    => 'Petugas ICU',
-            'petugas_ruang'  => 'Petugas Ruang',
-            default          => $this->role,
+            'admin'         => 'Administrator',
+            'admisi'        => 'Petugas Admisi',
+            'petugas_icu'   => 'Petugas ICU',
+            'petugas_ruang' => 'Petugas Ruang',
+            default         => $this->role,
         };
     }
 
-    /** Warna badge role */
     public function roleColor(): string
     {
         return match ($this->role) {

@@ -7,13 +7,13 @@ const props = defineProps({
 });
 
 const form = useForm({
-    email:    '',
+    username: '',
     password: '',
     remember: false,
 });
 
-const showPass   = ref(false);
-const errorMsg   = ref('');
+const showPass = ref(false);
+const errorMsg = ref('');
 
 watch(() => props.flash, (f) => {
     if (f?.error) errorMsg.value = f.error;
@@ -22,7 +22,7 @@ watch(() => props.flash, (f) => {
 const submit = () => {
     errorMsg.value = '';
     form.post(route('login'), {
-        onError: () => { errorMsg.value = form.errors.email || form.errors.password || 'Login gagal.'; },
+        onError: () => { errorMsg.value = form.errors.username || form.errors.password || 'Login gagal.'; },
     });
 };
 </script>
@@ -48,9 +48,6 @@ const submit = () => {
 
             <!-- Form Card -->
             <div class="card-dark p-6 sm:p-8">
-                <h2 class="text-base font-bold mb-1" style="color:var(--text-primary)">Masuk ke Sistem</h2>
-                <p class="text-xs mb-6" style="color:var(--text-secondary)">Gunakan akun yang diberikan administrator</p>
-
                 <!-- Error banner -->
                 <div v-if="errorMsg"
                     class="flex items-center gap-2 px-3 py-2.5 rounded-xl mb-4 text-sm"
@@ -62,30 +59,30 @@ const submit = () => {
                 </div>
 
                 <form @submit.prevent="submit" class="space-y-4">
-                    <!-- Email -->
+                    <!-- Username -->
                     <div>
                         <label class="block text-xs font-semibold mb-1.5" style="color:var(--text-primary)">
-                            Email
+                            Username
                         </label>
                         <div class="relative">
                             <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style="color:var(--text-secondary)"
                                 fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
                             </svg>
                             <input
-                                v-model="form.email"
-                                type="email"
+                                v-model="form.username"
+                                type="text"
                                 required
-                                autocomplete="email"
-                                placeholder="nama@icu.rs"
+                                autocomplete="username"
+                                placeholder="username anda"
                                 class="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl outline-none transition-all"
                                 :style="`
-                                    border: 1px solid ${form.errors.email ? 'rgba(224,112,80,0.5)' : 'var(--border-default)'};
+                                    border: 1px solid ${form.errors.username ? 'rgba(224,112,80,0.5)' : 'var(--border-default)'};
                                     background: var(--bg-input);
                                     color: var(--text-primary);
                                 `"
                                 @focus="$el.style.borderColor='var(--border-input-focus)'"
-                                @blur="$el.style.borderColor=form.errors.email?'rgba(224,112,80,0.5)':'var(--border-default)'"
+                                @blur="$el.style.borderColor=form.errors.username?'rgba(224,112,80,0.5)':'var(--border-default)'"
                             />
                         </div>
                     </div>
@@ -163,17 +160,6 @@ const submit = () => {
                     </button>
                 </form>
             </div>
-
-            <!-- Hint akun demo -->
-            <!-- <div class="mt-4 p-4 rounded-xl text-xs" style="background:var(--bg-card); border:1px solid var(--border-default)">
-                <p class="font-bold mb-2" style="color:var(--text-secondary)">Akun Demo:</p>
-                <div class="space-y-1" style="color:var(--text-secondary)">
-                    <p><span class="font-mono" style="color:var(--text-accent)">admin@icu.rs</span> / admin123 — Admin</p>
-                    <p><span class="font-mono" style="color:#4A90D9">admisi1@icu.rs</span> / admisi123 — Admisi</p>
-                    <p><span class="font-mono" style="color:#2DD9A4">icu1@icu.rs</span> / icu123 — Petugas ICU</p>
-                    <p><span class="font-mono" style="color:#D9517A">poli.dalam@icu.rs</span> / ruang123 — Petugas Ruang</p>
-                </div>
-            </div> -->
         </div>
     </div>
 </template>

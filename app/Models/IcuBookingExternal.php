@@ -7,6 +7,9 @@ use Illuminate\Database\Eloquent\Model;
 /**
  * Booking ICU jalur EXTERNAL.
  * Pasien dari luar RS — belum punya No_MR saat booking dibuat.
+ *
+ * Alur: pending_icu → bed_confirmed → di_icu → pulang
+ * Admisi isi keterangan + jaminan, ICU yang tentukan bed.
  */
 class IcuBookingExternal extends Model
 {
@@ -21,6 +24,8 @@ class IcuBookingExternal extends Model
         'diagnosa',
         'rencana_tindakan',
         'kebutuhan_bed',
+        'jaminan',           // BPJS | Umum | Asuransi | Lainnya
+        'catatan_jaminan',   // detail jaminan dari admisi
         'keterangan',
         'No_MR',
         'No_Reg',
@@ -29,10 +34,9 @@ class IcuBookingExternal extends Model
         'alasan_tolak',
         'created_by',
         'confirmed_by',
-        'validated_by',
     ];
 
-    // ── Relasi ke data RS (setelah pasien tiba) ───────────────────────────
+    // ── Relasi ────────────────────────────────────────────────────────────
 
     public function pasien()
     {
@@ -54,36 +58,24 @@ class IcuBookingExternal extends Model
     public function statusLabel(): string
     {
         return match ($this->status) {
-            'booking_request'  => 'Booking Masuk',
-            'pending_icu'      => 'Menunggu Cek ICU',
-            'bed_confirmed'    => 'Bed Dikonfirmasi ICU',
-            'admisi_validated' => 'Divalidasi Admisi',
-            'pasien_tiba'      => 'Pasien Tiba di IGD',
-            'bed_verified'     => 'Bed Diverifikasi',
-            'di_icu'           => 'Di ICU',
-            'ditolak'          => 'Ditolak',
-            default            => $this->status,
+            'pending_icu'   => 'Menunggu ICU',
+            'bed_confirmed' => 'Bed Dikonfirmasi — Siap Antar',
+            'di_icu'        => 'Di ICU',
+            'ditolak'       => 'Ditolak',
+            'pulang'        => 'Pulang',
+            default         => $this->status,
         };
     }
 
     public function statusColor(): string
     {
         return match ($this->status) {
-            'booking_request'  => 'sky',
-            'pending_icu'      => 'amber',
-            'bed_confirmed'    => 'teal',
-            'admisi_validated' => 'teal',
-            'pasien_tiba'      => 'amber',
-            'bed_verified'     => 'teal',
-            'di_icu'           => 'green',
-            'ditolak'          => 'red',
-            default            => 'gray',
+            'pending_icu'   => 'amber',
+            'bed_confirmed' => 'teal',
+            'di_icu'        => 'green',
+            'ditolak'       => 'red',
+            'pulang'        => 'gray',
+            default         => 'gray',
         };
-    }
-
-    /** Apakah bisa di-link ke No_MR (pasien sudah tiba) */
-    public function bisaLinkNoMr(): bool
-    {
-        return in_array($this->status, ['admisi_validated']) && is_null($this->No_MR);
     }
 }
