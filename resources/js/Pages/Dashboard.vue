@@ -39,6 +39,8 @@ const props = defineProps({
     semuaKamar:       { type: Array,  default: () => [] },
     kamarKosong:      { type: Array,  default: () => [] },
     masterKelas:      { type: Array,  default: () => [] },
+    statsExternal:    { type: Object, default: () => ({ proses: 0, di_icu: 0 }) },
+    statsInternal:    { type: Object, default: () => ({ proses: 0, di_icu: 0 }) },
     flash:            { type: Object, default: () => ({}) },
 });
 
@@ -260,10 +262,10 @@ const icons = {
 
 // ── Quick nav links ────────────────────────────────────────
 const quickLinks = computed(() => [
-    { label: 'Pendaftaran', href: '/icu/pendaftaran', cnt: props.tahapDaftar.length,  icon: icons.user },
-    { label: 'IGD Triase',  href: '/icu/igd',         cnt: props.tahapIgd.length,    icon: icons.heart },
-    { label: 'SPRI',        href: '/icu/spri',        cnt: props.tahapSpri.length,   icon: icons.clock },
-    { label: 'Pasien ICU',  href: '/icu/pasien-icu',  cnt: props.tahapDiIcu.length,  icon: icons.bed },
+    { label: 'Booking External', href: '/icu/booking-external', cnt: props.statsExternal.proses, icon: icons.home,   color: '#4A90D9' },
+    { label: 'Surat Internal',   href: '/icu/spri-internal',    cnt: props.statsInternal.proses, icon: icons.user,   color: '#E0923A' },
+    { label: 'Alokasi Bed',      href: '/icu/alokasi-bed',      cnt: props.tahapNungguKamar.length + props.tahapBooking.length, icon: icons.bed, color: '#2DD9A4' },
+    { label: 'Pasien ICU',       href: '/icu/pasien-icu',       cnt: props.tahapDiIcu.length,    icon: icons.heart,  color: '#3DDB8A' },
 ]);
 
 // Stage label helper
@@ -356,30 +358,72 @@ const getStageLabel = (p) => {
                 <StatCard label="Wanita di ICU" :value="wanita"             sub="♀ Terisi"                    :icon="icons.heart" color="mint"  />
             </div>
 
-            <!-- ══ Denah Bed ════════════════════════════════ -->
-            <!-- <div class="card-dark p-5 sm:p-6">
-                <div class="flex items-center justify-between mb-5">
-                    <div>
-                        <p class="font-semibold text-sm" style="color:var(--text-primary); font-family:'Plus Jakarta Sans',sans-serif">Denah Bed ICU — Real-time</p>
-                        <p class="text-xs mt-0.5" style="color:var(--text-secondary)">Visualisasi status semua bed</p>
+            <!-- ══ ROW 3: Quick Links + Stats Jalur Baru ═════════ -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <!-- Booking External -->
+                <a href="/icu/booking-external" class="card-dark p-5 flex items-center gap-4 group cursor-pointer"
+                    style="text-decoration:none; border-color:rgba(74,144,217,0.2)">
+                    <div class="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+                        style="background:rgba(74,144,217,0.15)">
+                        <svg style="width:20px;height:20px;color:#4A90D9" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                            <path stroke-linecap="round" stroke-linejoin="round" :d="icons.home"/>
+                        </svg>
                     </div>
-                    <div class="flex items-center gap-4 flex-wrap">
-                        <span class="flex items-center gap-1.5 text-xs" style="color:var(--text-secondary)">
-                            <span class="w-3 h-3 rounded" style="background:#2DD9A4"></span>Kosong
-                        </span>
-                        <span class="flex items-center gap-1.5 text-xs" style="color:var(--text-secondary)">
-                            <span class="w-3 h-3 rounded" style="background:#4A90D9"></span>Pria
-                        </span>
-                        <span class="flex items-center gap-1.5 text-xs" style="color:var(--text-secondary)">
-                            <span class="w-3 h-3 rounded" style="background:#E07050"></span>Wanita
-                        </span>
-                        <span class="flex items-center gap-1.5 text-xs" style="color:var(--text-secondary)">
-                            <span class="w-3 h-3 rounded" style="background:#E0923A"></span>Booking
-                        </span>
+                    <div class="min-w-0">
+                        <p class="text-xs font-semibold" style="color:var(--text-secondary)">Booking External</p>
+                        <p class="text-2xl font-bold leading-tight" style="color:#4A90D9; font-family:'DM Mono',monospace">{{ statsExternal.proses }}</p>
+                        <p class="text-xs" style="color:var(--text-secondary)">Proses · {{ statsExternal.di_icu }} di ICU</p>
                     </div>
-                </div>
-                <BedGrid :kamar="semuaKamar"/>
-            </div> -->
+                </a>
+
+                <!-- Surat Permintaan Internal -->
+                <a href="/icu/spri-internal" class="card-dark p-5 flex items-center gap-4 cursor-pointer"
+                    style="text-decoration:none; border-color:rgba(224,146,58,0.2)">
+                    <div class="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+                        style="background:rgba(224,146,58,0.15)">
+                        <svg style="width:20px;height:20px;color:#E0923A" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                            <path stroke-linecap="round" stroke-linejoin="round" :d="icons.user"/>
+                        </svg>
+                    </div>
+                    <div class="min-w-0">
+                        <p class="text-xs font-semibold" style="color:var(--text-secondary)">Surat Permintaan Internal</p>
+                        <p class="text-2xl font-bold leading-tight" style="color:#E0923A; font-family:'DM Mono',monospace">{{ statsInternal.proses }}</p>
+                        <p class="text-xs" style="color:var(--text-secondary)">Proses · {{ statsInternal.di_icu }} di ICU</p>
+                    </div>
+                </a>
+
+                <!-- Alokasi Bed -->
+                <a href="/icu/alokasi-bed" class="card-dark p-5 flex items-center gap-4 cursor-pointer"
+                    style="text-decoration:none; border-color:rgba(45,217,164,0.2)">
+                    <div class="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+                        style="background:rgba(45,217,164,0.15)">
+                        <svg style="width:20px;height:20px;color:#2DD9A4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                            <path stroke-linecap="round" stroke-linejoin="round" :d="icons.bed"/>
+                        </svg>
+                    </div>
+                    <div class="min-w-0">
+                        <p class="text-xs font-semibold" style="color:var(--text-secondary)">Alokasi Bed</p>
+                        <p class="text-2xl font-bold leading-tight" style="color:#2DD9A4; font-family:'DM Mono',monospace">{{ tahapNungguKamar.length + tahapBooking.length }}</p>
+                        <p class="text-xs" style="color:var(--text-secondary)">Menunggu · {{ tahapBooking.length }} booking</p>
+                    </div>
+                </a>
+
+                <!-- Pasien ICU -->
+                <a href="/icu/pasien-icu" class="card-dark p-5 flex items-center gap-4 cursor-pointer"
+                    style="text-decoration:none; border-color:rgba(61,219,138,0.2)">
+                    <div class="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+                        style="background:rgba(61,219,138,0.15)">
+                        <svg style="width:20px;height:20px;color:#3DDB8A" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                            <path stroke-linecap="round" stroke-linejoin="round" :d="icons.heart"/>
+                        </svg>
+                    </div>
+                    <div class="min-w-0">
+                        <p class="text-xs font-semibold" style="color:var(--text-secondary)">Pasien di ICU</p>
+                        <p class="text-2xl font-bold leading-tight" style="color:#3DDB8A; font-family:'DM Mono',monospace">{{ tahapDiIcu.length }}</p>
+                        <p class="text-xs" style="color:var(--text-secondary)">♂ {{ pria }} · ♀ {{ wanita }}</p>
+                    </div>
+                </a>
+            </div>
 
             <!-- ══ Pasien Table ════════════════════════════ -->
             <div class="card-dark">

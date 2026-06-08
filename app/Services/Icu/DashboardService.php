@@ -3,12 +3,13 @@
 namespace App\Services\Icu;
 
 use App\Models\IcuAdmision;
+use App\Models\IcuBookingExternal;
+use App\Models\IcuSpriInternal;
 use App\Models\MKelas;
 use App\Models\StatusKamar;
 
 class DashboardService
 {
-    /** Eager load standar untuk semua query admision */
     private array $withAdmision = [
         'pasien',
         'pendaftaran',
@@ -18,9 +19,6 @@ class DashboardService
         'bed.ruang.kelas',
     ];
 
-    /**
-     * Ambil semua data yang dibutuhkan dashboard, sudah diformat untuk Inertia.
-     */
     public function getDashboardData(): array
     {
         $w = $this->withAdmision;
@@ -36,6 +34,11 @@ class DashboardService
         $kamarKosong = StatusKamar::with(['ruang.kelas', 'icuAdmision.pasien'])->where('Status', 'KOSONG')->get();
         $masterKelas = MKelas::all();
 
+        $bookingExternalAktif = IcuBookingExternal::whereNotIn('status', ['di_icu', 'ditolak'])->count();
+        $spriInternalAktif    = IcuSpriInternal::whereNotIn('status', ['di_icu', 'ditolak'])->count();
+        $bookingExternalDiIcu = IcuBookingExternal::where('status', 'di_icu')->count();
+        $spriInternalDiIcu    = IcuSpriInternal::where('status', 'di_icu')->count();
+
         return [
             'tahapDaftar'      => $tahapDaftar->map(fn($a) => $this->formatAdmision($a))->values(),
             'tahapIgd'         => $tahapIgd->map(fn($a) => $this->formatAdmision($a))->values(),
@@ -49,10 +52,17 @@ class DashboardService
                 'kode' => $k->Kode_Kelas,
                 'nama' => $k->Nama_Kelas,
             ])->values(),
+            'statsExternal' => [
+                'proses' => $bookingExternalAktif,
+                'di_icu' => $bookingExternalDiIcu,
+            ],
+            'statsInternal' => [
+                'proses' => $spriInternalAktif,
+                'di_icu' => $spriInternalDiIcu,
+            ],
         ];
     }
 
-    /** Format satu IcuAdmision menjadi array plain untuk Vue */
     public function formatAdmision(IcuAdmision $a): array
     {
         return [
@@ -64,7 +74,7 @@ class DashboardService
             'allocated_bed_id'  => $a->allocated_bed_id,
             'match_status'      => $a->match_status,
             'nama_pasien'       => $a->pasien?->Nama_Pasien ?? '-',
-            'jenis_kelamin'     => $a->pasien?->jenis_kelamin ?? null,   // ← L | P | null
+            'jenis_kelamin'     => $a->pasien?->jenis_kelamin ?? null,
             'diagnosis'         => $a->pendaftaran?->spriAktif?->Diagnosis ?? null,
             'indikasi'          => $a->pendaftaran?->spriAktif?->IndikasiRI ?? null,
             'nama_bed'          => $a->bed?->ruang?->Nama_RuangM ?? $a->allocated_bed_id,
@@ -72,13 +82,11 @@ class DashboardService
         ];
     }
 
-    /** Format satu StatusKamar menjadi array plain untuk Vue */
     public function formatKamar(StatusKamar $k): array
     {
-        // Ambil data pasien yang sedang menempati bed ini (status di_icu)
-        $admision       = $k->icuAdmision;
-        $pasien         = $admision?->pasien;
-        $jenisKelamin   = $pasien?->jenis_kelamin; // 'L' | 'P' | null
+        $admision     = $k->icuAdmision;
+        $pasien       = $admision?->pasien;
+        $jenisKelamin = $pasien?->jenis_kelamin;
 
         return [
             'Kode_Ruang'    => $k->Kode_Ruang,
