@@ -33,7 +33,7 @@ class BedService
             ]);
         }
 
-        $bed->update(['Status' => 'BOOKING']);
+        // $bed->update(['Status' => 'BOOKING']);
 
         $admision->update([
             'status'           => 'booking_icu',

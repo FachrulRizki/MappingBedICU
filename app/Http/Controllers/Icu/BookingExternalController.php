@@ -5,9 +5,9 @@ namespace App\Http\Controllers\Icu;
 use App\Http\Controllers\Controller;
 use App\Models\IcuBookingExternal;
 use App\Models\MKelas;
+use App\Models\MRuangMaster;
 use App\Models\StatusKamar;
-use App\Services\Icu\BookingExternalService;
-use Illuminate\Http\RedirectResponse;
+use App\Services\Icu\BookingExternalService;use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -30,20 +30,15 @@ class BookingExternalController extends Controller
             ->get()
             ->map(fn($b) => $this->format($b));
 
-        $kamarKosong = StatusKamar::with('ruang.kelas')
-            ->where('Status', 'KOSONG')
-            ->get()
-            ->map(fn($k) => [
-                'Kode_Ruang' => $k->Kode_Ruang,
-                'nama_ruang' => $k->ruang?->Nama_RuangM ?? $k->Kode_Ruang,
-                'kode_kelas' => $k->ruang?->Kode_Kelas ?? null,
-                'nama_kelas' => $k->ruang?->kelas?->Nama_Kelas ?? null,
-            ]);
+        // Gunakan join query sesuai DB RS:
+        // M_RUANG_MASTER ← M_KELAS ← STATUS_KAMAR WHERE Kode_Bangsal = 'ICU'
+        $kamarKosong = MRuangMaster::bedKosong();
+        $masterKelas = MRuangMaster::jenisIcuTersedia();
 
         return Inertia::render('Icu/BookingExternal', [
             'bookings'    => $bookings,
             'kamarKosong' => $kamarKosong,
-            'masterKelas' => MKelas::all()->map(fn($k) => ['kode' => $k->Kode_Kelas, 'nama' => $k->Nama_Kelas]),
+            'masterKelas' => $masterKelas,
             'flash'       => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
@@ -81,9 +76,12 @@ class BookingExternalController extends Controller
 
     public function konfirmasiIcu(Request $request, int $id): RedirectResponse
     {
+        $connKelas  = MKelas::connectionName() . '.' . MKelas::tableName('M_KELAS', 'm_kelas');
+        $connKamar  = StatusKamar::connectionName() . '.' . StatusKamar::tableName('STATUS_KAMAR', 'status_kamar');
+
         $validated = $request->validate([
-            'Kode_Ruang'    => 'required|exists:status_kamar,Kode_Ruang',
-            'kebutuhan_bed' => 'required|exists:m_kelas,Nama_Kelas',   // ICU tentukan jenis
+            'Kode_Ruang'    => "required|exists:{$connKamar},Kode_Ruang",
+            'kebutuhan_bed' => "required|exists:{$connKelas},Nama_Kelas",
         ]);
 
         $booking = $this->service->konfirmasiIcu($id, $validated['Kode_Ruang'], $validated['kebutuhan_bed'], $this->currentUser());

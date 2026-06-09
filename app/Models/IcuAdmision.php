@@ -35,9 +35,21 @@ class IcuAdmision extends Model
         return $this->belongsTo(RegistrasiPasien::class, 'No_MR', 'No_MR');
     }
 
-    public function bed()
+    // public function bed()
+    // {
+    //     return $this->belongsTo(StatusKamar::class, 'allocated_bed_id', 'Kode_Ruang');
+    // }
+
+    public function getBedAttribute()
     {
-        return $this->belongsTo(StatusKamar::class, 'allocated_bed_id', 'Kode_Ruang');
+        if (!$this->allocated_bed_id) {
+            return null;
+        }
+
+        return \App\Models\StatusKamar::on('sqlsrv_rsus')
+            ->with('ruang.kelas')
+            ->where('Kode_Ruang', $this->allocated_bed_id)
+            ->first();
     }
 
     // ─── Helper ──────────────────────────────────────────────

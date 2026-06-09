@@ -21,6 +21,9 @@ import { useTheme } from '@/composables/useTheme.js';
 const { theme } = useTheme();
 const isDark = computed(() => theme.value === 'dark');
 
+// Logo — gunakan BASE_URL Vite agar file dari public/ tidak di-bundle
+const logoUrl = `${import.meta.env.BASE_URL}images/logo-urip.png`;
+
 // Chart color helpers that react to theme
 const chartText  = computed(() => isDark.value ? '#8EA89E' : '#4A7A68');
 const chartGrid  = computed(() => isDark.value ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.06)');
@@ -305,7 +308,7 @@ const getStageLabel = (p) => {
                     <!-- Logo RS -->
                     <div class="hidden sm:flex flex-shrink-0 items-center justify-center w-28 h-28 rounded-2xl overflow-hidden"
                         style="background:rgba(45,217,164,0.06); border:1px solid rgba(45,217,164,0.2)">
-                        <img :src="`${$page.props.asset_url ?? ''}/images/logo-urip.png`"
+                        <img :src="logoUrl"
                             alt="Logo URIP"
                             class="w-24 h-24 object-contain"
                             style="filter: drop-shadow(0 2px 8px rgba(45,217,164,0.25))"

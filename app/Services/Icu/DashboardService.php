@@ -5,98 +5,176 @@ namespace App\Services\Icu;
 use App\Models\IcuAdmision;
 use App\Models\IcuBookingExternal;
 use App\Models\IcuSpriInternal;
-use App\Models\MKelas;
-use App\Models\StatusKamar;
+use App\Models\MRuangMaster;
+use App\Models\RegistrasiPasien;
 
 class DashboardService
 {
-    private array $withAdmision = [
-        'pasien',
-        'pendaftaran',
-        'pendaftaran.spriAktif',
-        'bed',
-        'bed.ruang',
-        'bed.ruang.kelas',
-    ];
-
     public function getDashboardData(): array
     {
-        $w = $this->withAdmision;
+        // ═══════════════════════════════════════════════════════════════
+        // 1. DATA ICU ADMISSION — jalur lama (MySQL)
+        // ═══════════════════════════════════════════════════════════════
+        $admissions = IcuAdmision::all();
 
-        $tahapDaftar      = IcuAdmision::with($w)->where('status', 'daftar')->get();
-        $tahapIgd         = IcuAdmision::with($w)->where('status', 'igd_periksa')->get();
-        $tahapSpri        = IcuAdmision::with($w)->where('status', 'spri_dibuat')->get();
-        $tahapNungguKamar = IcuAdmision::with($w)->where('status', 'waiting_icu')->get();
-        $tahapBooking     = IcuAdmision::with($w)->where('status', 'booking_icu')->get();
-        $tahapDiIcu       = IcuAdmision::with($w)->where('status', 'di_icu')->get();
+        $grouped = [
+            'daftar'      => [], 'igd_periksa' => [], 'spri_dibuat' => [],
+            'waiting_icu' => [], 'booking_icu' => [], 'di_icu'      => [],
+        ];
+        foreach ($admissions as $a) {
+            if (isset($grouped[$a->status])) $grouped[$a->status][] = $a;
+        }
 
-        $semuaKamar  = StatusKamar::with(['ruang.kelas', 'icuAdmision.pasien'])->get();
-        $kamarKosong = StatusKamar::with(['ruang.kelas', 'icuAdmision.pasien'])->where('Status', 'KOSONG')->get();
-        $masterKelas = MKelas::all();
+        // ═══════════════════════════════════════════════════════════════
+        // 2. PASIEN AKTIF DI ICU — gabungan semua jalur
+        //    Dipakai di dashboard stat + denah bed
+        // ═══════════════════════════════════════════════════════════════
+        $spriDiIcu = IcuSpriInternal::where('status', 'di_icu')
+            ->get(['id', 'No_MR', 'No_Reg', 'allocated_bed_id', 'kebutuhan_bed']);
+        $extDiIcu  = IcuBookingExternal::where('status', 'di_icu')
+            ->get(['id', 'No_MR', 'nama_pasien', 'allocated_bed_id', 'kebutuhan_bed', 'jenis_kelamin']);
 
-        $bookingExternalAktif = IcuBookingExternal::whereNotIn('status', ['di_icu', 'ditolak'])->count();
-        $spriInternalAktif    = IcuSpriInternal::whereNotIn('status', ['di_icu', 'ditolak'])->count();
-        $bookingExternalDiIcu = IcuBookingExternal::where('status', 'di_icu')->count();
-        $spriInternalDiIcu    = IcuSpriInternal::where('status', 'di_icu')->count();
+        // Kumpulkan semua No_MR untuk lookup nama pasien
+        $allNoMR = collect()
+            ->merge($admissions->pluck('No_MR'))
+            ->merge($spriDiIcu->pluck('No_MR'))
+            ->merge($extDiIcu->pluck('No_MR'))
+            ->filter()->unique()->values();
+
+        $pasienMap = RegistrasiPasien::whereIn('No_MR', $allNoMR)
+            ->get(['No_MR', 'Nama_Pasien', 'jenis_kelamin'])
+            ->keyBy('No_MR');
+
+        // ═══════════════════════════════════════════════════════════════
+        // 3. KAMAR ICU — join M_RUANG_MASTER + M_KELAS + STATUS_KAMAR
+        //    SELECT rm.Nama_RuangM, mk.Nama_Kelas, sk.Status
+        //    FROM M_RUANG_MASTER rm
+        //    LEFT JOIN M_KELAS mk ON rm.Kode_Kelas = mk.Kode_Kelas
+        //    LEFT JOIN STATUS_KAMAR sk ON rm.Kode_RuangM = sk.Kode_Ruang
+        //    WHERE rm.Kode_Bangsal = 'ICU'
+        // ═══════════════════════════════════════════════════════════════
+        $bedData    = MRuangMaster::bedIcuDenganStatus();
+        $bedMap     = $bedData->keyBy('Kode_RuangM');
+
+        // Peta bed → pasien aktif (dari semua jalur)
+        $bedPasienMap = collect();
+
+        // Dari IcuAdmision (jalur lama)
+        foreach ($admissions->where('status', 'di_icu') as $a) {
+            if ($a->allocated_bed_id) {
+                $bedPasienMap->put($a->allocated_bed_id, [
+                    'No_MR'         => $a->No_MR,
+                    'nama_pasien'   => $pasienMap[$a->No_MR]?->Nama_Pasien ?? '-',
+                    'jenis_kelamin' => $pasienMap[$a->No_MR]?->jenis_kelamin ?? null,
+                    'jenis_icu'     => $a->required_bed_type,
+                    'sumber'        => 'lama',
+                ]);
+            }
+        }
+
+        // Dari IcuSpriInternal (jalur internal)
+        foreach ($spriDiIcu as $s) {
+            if ($s->allocated_bed_id) {
+                $bedPasienMap->put($s->allocated_bed_id, [
+                    'No_MR'         => $s->No_MR,
+                    'nama_pasien'   => $pasienMap[$s->No_MR]?->Nama_Pasien ?? '-',
+                    'jenis_kelamin' => $pasienMap[$s->No_MR]?->jenis_kelamin ?? null,
+                    'jenis_icu'     => $s->kebutuhan_bed,
+                    'sumber'        => 'internal',
+                ]);
+            }
+        }
+
+        // Dari IcuBookingExternal (jalur external)
+        foreach ($extDiIcu as $b) {
+            if ($b->allocated_bed_id) {
+                $bedPasienMap->put($b->allocated_bed_id, [
+                    'No_MR'         => $b->No_MR,
+                    'nama_pasien'   => $pasienMap[$b->No_MR]?->Nama_Pasien ?? $b->nama_pasien,
+                    'jenis_kelamin' => $pasienMap[$b->No_MR]?->jenis_kelamin ?? $b->jenis_kelamin,
+                    'jenis_icu'     => $b->kebutuhan_bed,
+                    'sumber'        => 'external',
+                ]);
+            }
+        }
+
+        // Format semua kamar dengan enriched data pasien
+        $semuaKamar = $bedData->map(function ($row) use ($bedPasienMap) {
+            $pasienData = $bedPasienMap->get($row->Kode_RuangM);
+            return [
+                'Kode_Ruang'    => $row->Kode_RuangM,
+                'Status'        => $row->Status ?? 'KOSONG',
+                'nama_ruang'    => $row->Nama_RuangM,
+                'kode_kelas'    => $row->kelas_master ?? $row->Kode_Kelas,
+                'nama_kelas'    => $row->Nama_Kelas,
+                'No_MR'         => $pasienData['No_MR'] ?? ($row->No_MR ?? null),
+                'nama_pasien'   => $pasienData['nama_pasien'] ?? null,
+                'jenis_kelamin' => $pasienData['jenis_kelamin'] ?? null,
+                'jenis_icu'     => $pasienData['jenis_icu'] ?? null,
+                'sumber'        => $pasienData['sumber'] ?? null,
+            ];
+        })->values();
+
+        $kamarKosong = $semuaKamar->where('Status', 'KOSONG')->values();
+
+        // ═══════════════════════════════════════════════════════════════
+        // 4. PASIEN DI ICU untuk stat card dashboard
+        // ═══════════════════════════════════════════════════════════════
+        $totalDiIcu = $admissions->where('status', 'di_icu')->count()
+            + $spriDiIcu->count()
+            + $extDiIcu->count();
+
+        // tahapDiIcu untuk dashboard pipeline — jalur lama saja
+        // jalur baru ditampilkan di menu masing-masing (SpriInternal, BookingExternal)
+        $allNoReg = $admissions->pluck('No_Reg')->filter()->unique()->values();
+        $pendaftaranMap = \App\Models\Pendaftaran::whereIn('No_Reg', $allNoReg)
+            ->get()->keyBy('No_Reg');
 
         return [
-            'tahapDaftar'      => $tahapDaftar->map(fn($a) => $this->formatAdmision($a))->values(),
-            'tahapIgd'         => $tahapIgd->map(fn($a) => $this->formatAdmision($a))->values(),
-            'tahapSpri'        => $tahapSpri->map(fn($a) => $this->formatAdmision($a))->values(),
-            'tahapNungguKamar' => $tahapNungguKamar->map(fn($a) => $this->formatAdmision($a))->values(),
-            'tahapBooking'     => $tahapBooking->map(fn($a) => $this->formatAdmision($a))->values(),
-            'tahapDiIcu'       => $tahapDiIcu->map(fn($a) => $this->formatAdmision($a))->values(),
-            'semuaKamar'       => $semuaKamar->map(fn($k) => $this->formatKamar($k))->values(),
-            'kamarKosong'      => $kamarKosong->map(fn($k) => $this->formatKamar($k))->values(),
-            'masterKelas'      => $masterKelas->map(fn($k) => [
-                'kode' => $k->Kode_Kelas,
-                'nama' => $k->Nama_Kelas,
-            ])->values(),
+            // Pipeline jalur lama (IcuAdmision)
+            'tahapDaftar'      => $this->formatList($grouped['daftar'],      $pasienMap, $pendaftaranMap),
+            'tahapIgd'         => $this->formatList($grouped['igd_periksa'], $pasienMap, $pendaftaranMap),
+            'tahapSpri'        => $this->formatList($grouped['spri_dibuat'], $pasienMap, $pendaftaranMap),
+            'tahapNungguKamar' => $this->formatList($grouped['waiting_icu'], $pasienMap, $pendaftaranMap),
+            'tahapBooking'     => $this->formatList($grouped['booking_icu'], $pasienMap, $pendaftaranMap),
+            'tahapDiIcu'       => $this->formatList($grouped['di_icu'],      $pasienMap, $pendaftaranMap),
+
+            // Denah bed
+            'semuaKamar'  => $semuaKamar,
+            'kamarKosong' => $kamarKosong,
+
+            // Dropdown jenis ICU dari M_KELAS (via join)
+            'masterKelas' => MRuangMaster::jenisIcuTersedia(),
+
+            // Stats card
             'statsExternal' => [
-                'proses' => $bookingExternalAktif,
-                'di_icu' => $bookingExternalDiIcu,
+                'proses'  => IcuBookingExternal::whereNotIn('status', ['di_icu','ditolak','pulang'])->count(),
+                'di_icu'  => $extDiIcu->count(),
             ],
             'statsInternal' => [
-                'proses' => $spriInternalAktif,
-                'di_icu' => $spriInternalDiIcu,
+                'proses'  => IcuSpriInternal::whereNotIn('status', ['di_icu','ditolak','pulang'])->count(),
+                'di_icu'  => $spriDiIcu->count(),
             ],
+            'totalDiIcu'    => $totalDiIcu,
         ];
     }
 
-    public function formatAdmision(IcuAdmision $a): array
+    // ─────────────────────────────────────────────────────────────────
+    private function formatList($list, $pasienMap, $pendaftaranMap): \Illuminate\Support\Collection
     {
-        return [
-            'id'                => $a->id,
-            'No_Reg'            => $a->No_Reg,
-            'No_MR'             => $a->No_MR,
-            'status'            => $a->status,
-            'required_bed_type' => $a->required_bed_type,
-            'allocated_bed_id'  => $a->allocated_bed_id,
-            'match_status'      => $a->match_status,
-            'nama_pasien'       => $a->pasien?->Nama_Pasien ?? '-',
-            'jenis_kelamin'     => $a->pasien?->jenis_kelamin ?? null,
-            'diagnosis'         => $a->pendaftaran?->spriAktif?->Diagnosis ?? null,
-            'indikasi'          => $a->pendaftaran?->spriAktif?->IndikasiRI ?? null,
-            'nama_bed'          => $a->bed?->ruang?->Nama_RuangM ?? $a->allocated_bed_id,
-            'kode_kelas_bed'    => $a->bed?->ruang?->Kode_Kelas ?? null,
-        ];
-    }
-
-    public function formatKamar(StatusKamar $k): array
-    {
-        $admision     = $k->icuAdmision;
-        $pasien       = $admision?->pasien;
-        $jenisKelamin = $pasien?->jenis_kelamin;
-
-        return [
-            'Kode_Ruang'    => $k->Kode_Ruang,
-            'Status'        => $k->Status,
-            'No_MR'         => $k->No_MR,
-            'nama_ruang'    => $k->ruang?->Nama_RuangM ?? $k->Kode_Ruang,
-            'kode_kelas'    => $k->ruang?->Kode_Kelas ?? null,
-            'nama_kelas'    => $k->ruang?->kelas?->Nama_Kelas ?? null,
-            'nama_pasien'   => $pasien?->Nama_Pasien ?? null,
-            'jenis_kelamin' => $jenisKelamin,
-        ];
+        return collect($list)->map(function ($a) use ($pasienMap, $pendaftaranMap) {
+            $pasien = $pasienMap[$a->No_MR]  ?? null;
+            $daftar = $pendaftaranMap[$a->No_Reg] ?? null;
+            return [
+                'id'            => $a->id,
+                'No_Reg'        => $a->No_Reg,
+                'No_MR'         => $a->No_MR,
+                'status'        => $a->status,
+                'nama_pasien'   => $pasien?->Nama_Pasien ?? $a->nama_pasien_ext ?? '-',
+                'jenis_kelamin' => $pasien?->jenis_kelamin ?? null,
+                'diagnosis'     => $daftar?->Diagnosis   ?? null,
+                'indikasi'      => $daftar?->IndikasiRI  ?? null,
+            ];
+        })->values();
     }
 }

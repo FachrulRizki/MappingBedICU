@@ -3,13 +3,29 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Concerns\UsesRsusConnection;
 
+/**
+ * Model pasien.
+ *
+ * SQL Server: DB_RSUS.dbo.REGISTER_PASIEN
+ * MySQL lokal: registrasi_pasien (dari migration)
+ *
+ * Kolom utama disesuaikan dengan kolom di DB RS.
+ * Saat SQL Server aktif, pastikan nama kolom cocok dengan
+ * hasil query: SELECT TOP 1 * FROM REGISTER_PASIEN
+ */
 class RegistrasiPasien extends Model
 {
-    protected $table      = 'registrasi_pasien';
+    use UsesRsusConnection;
+
+    protected string $rsusTable  = 'REGISTER_PASIEN';
+    protected string $localTable = 'registrasi_pasien';
+
     protected $primaryKey = 'No_MR';
     public    $incrementing = false;
     protected $keyType    = 'string';
+    public    $timestamps = false;
 
     protected $fillable = [
         'No_MR',
@@ -25,13 +41,11 @@ class RegistrasiPasien extends Model
         'tgl_regist' => 'datetime',
     ];
 
-    /** Satu pasien bisa punya banyak kunjungan (pendaftaran) */
     public function pendaftarans()
     {
         return $this->hasMany(Pendaftaran::class, 'No_MR', 'No_MR');
     }
 
-    /** ICU admissions yang terkait dengan pasien ini */
     public function icuAdmisions()
     {
         return $this->hasMany(IcuAdmision::class, 'No_MR', 'No_MR');

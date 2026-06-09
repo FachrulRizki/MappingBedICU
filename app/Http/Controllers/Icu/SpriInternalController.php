@@ -5,10 +5,10 @@ namespace App\Http\Controllers\Icu;
 use App\Http\Controllers\Controller;
 use App\Models\IcuSpriInternal;
 use App\Models\MKelas;
+use App\Models\MRuangMaster;
 use App\Models\Pendaftaran;
 use App\Models\RegistrasiPasien;
-use App\Models\StatusKamar;
-use App\Services\Icu\SpriInternalService;
+use App\Models\StatusKamar;use App\Services\Icu\SpriInternalService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -28,25 +28,20 @@ class SpriInternalController extends Controller
             ->get()
             ->map(fn($s) => $this->format($s));
 
-        $kamarKosong = StatusKamar::with('ruang.kelas')
-            ->where('Status', 'KOSONG')
-            ->get()
-            ->map(fn($k) => [
-                'Kode_Ruang' => $k->Kode_Ruang,
-                'nama_ruang' => $k->ruang?->Nama_RuangM ?? $k->Kode_Ruang,
-                'kode_kelas' => $k->ruang?->Kode_Kelas ?? null,
-                'nama_kelas' => $k->ruang?->kelas?->Nama_Kelas ?? null,
-            ]);
+        // Gunakan join query sesuai DB RS:
+        // M_RUANG_MASTER ← M_KELAS ← STATUS_KAMAR WHERE Kode_Bangsal = 'ICU'
+        $kamarKosong = MRuangMaster::bedKosong();
+        $masterKelas = MRuangMaster::jenisIcuTersedia();
 
         return Inertia::render('Icu/SpriInternal', [
             'spriList'    => $spriList,
             'kamarKosong' => $kamarKosong,
-            'masterKelas' => MKelas::all()->map(fn($k) => ['kode' => $k->Kode_Kelas, 'nama' => $k->Nama_Kelas]),
+            'masterKelas' => $masterKelas,
             'flash'       => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 
-    // ── Lookup AJAX: cari pasien berdasarkan No_MR ───────────────────────
+    // ── Lookup AJAX: cari pasien + data klinis terakhir ─────────────────
 
     public function lookupPasien(Request $request): JsonResponse
     {
@@ -55,26 +50,53 @@ class SpriInternalController extends Controller
             return response()->json(['found' => false, 'message' => 'No_MR kosong.']);
         }
 
-        $pasien = RegistrasiPasien::where('No_MR', $noMr)->first();
-        if (! $pasien) {
-            return response()->json(['found' => false, 'message' => "Pasien dengan No_MR '{$noMr}' tidak ditemukan."]);
+        try {
+            $pasien = RegistrasiPasien::where('No_MR', $noMr)->first();
+        } catch (\Exception $e) {
+            // Jika koneksi gagal (driver tidak ada / network error), kembalikan error yang jelas
+            return response()->json([
+                'found'   => false,
+                'message' => 'Tidak dapat terhubung ke database RS. ' .
+                    (app()->hasDebugModeEnabled() ? $e->getMessage() : 'Hubungi administrator.'),
+            ]);
         }
 
-        // Ambil kunjungan aktif milik pasien ini
-        $kunjungans = Pendaftaran::where('No_MR', $noMr)
-            ->latest()
-            ->get(['No_Reg', 'Kode_Masuk', 'PermintaanDPJP', 'created_at'])
-            ->map(fn($r) => [
-                'No_Reg'       => $r->No_Reg,
-                'label'        => $r->No_Reg . ' — ' . ($r->Kode_Masuk ?? '-'),
-                'Dokter'       => $r->PermintaanDPJP ?? '',
+        if (! $pasien) {
+            return response()->json([
+                'found'   => false,
+                'message' => "Pasien dengan No_MR '{$noMr}' tidak ditemukan.",
             ]);
+        }
+
+        try {
+            $pendaftarans = Pendaftaran::where('No_MR', $noMr)->latest()->get();
+        } catch (\Exception $e) {
+            $pendaftarans = collect();
+        }
+
+        $kunjungans = $pendaftarans->map(fn($r) => [
+            'No_Reg'     => $r->No_Reg,
+            'label'      => $r->No_Reg . ' — ' . ($r->Kode_Masuk ?? '-'),
+            'Dokter'     => $r->PermintaanDPJP ?? '',
+            'asal_ruang' => $r->Kode_Asal ?? '',
+            'medis'      => $r->medis ?? '',
+        ]);
+
+        // Prefill dari SPRI terakhir pasien ini (jika ada)
+        $spriTerakhir = IcuSpriInternal::where('No_MR', $noMr)
+            ->latest()->first(['Diagnosis', 'IndikasiRI', 'asal_ruang', 'Dokter']);
 
         return response()->json([
             'found'       => true,
             'No_MR'       => $pasien->No_MR,
             'nama_pasien' => $pasien->Nama_Pasien,
             'kunjungans'  => $kunjungans,
+            'prefill'     => $spriTerakhir ? [
+                'Diagnosis'  => $spriTerakhir->Diagnosis,
+                'IndikasiRI' => $spriTerakhir->IndikasiRI,
+                'asal_ruang' => $spriTerakhir->asal_ruang,
+                'Dokter'     => $spriTerakhir->Dokter,
+            ] : null,
         ]);
     }
 
@@ -82,12 +104,15 @@ class SpriInternalController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        // Gunakan connection dan tabel yang sesuai (sqlsrv_rsus atau mysql lokal)
+        $connPasien = RegistrasiPasien::connectionName() . '.' . RegistrasiPasien::tableName('REGISTER_PASIEN', 'registrasi_pasien');
+        $connReg    = Pendaftaran::connectionName()      . '.' . Pendaftaran::tableName('PENDAFTARAN', 'pendaftaran');
+
         $validated = $request->validate([
-            'No_MR'      => 'required|exists:registrasi_pasien,No_MR',
-            'No_Reg'     => 'required|exists:pendaftaran,No_Reg',
+            'No_MR'      => "required|exists:{$connPasien},No_MR",
+            'No_Reg'     => "required|exists:{$connReg},No_Reg",
             'Diagnosis'  => 'required|string|max:255',
             'IndikasiRI' => 'required|string|max:255',
-            // kebutuhan_bed TIDAK diisi di sini — ICU yang tentukan saat booking bed
             'asal_ruang' => 'nullable|string|max:100',
             'Dokter'     => 'nullable|string|max:100',
             'spesialis'  => 'nullable|string|max:100',

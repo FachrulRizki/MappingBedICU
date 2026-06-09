@@ -3,17 +3,19 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Concerns\UsesRsusConnection;
 
-/**
- * Master jenis/kelas bed ICU.
- * Contoh data: ICUNV, HCU, ICU, CVCU, BPICU
- */
 class MKelas extends Model
 {
-    protected $table      = 'm_kelas';
+    use UsesRsusConnection;
+
+    protected string $rsusTable  = 'M_KELAS';
+    protected string $localTable = 'm_kelas';
+
     protected $primaryKey = 'Kode_Kelas';
     public    $incrementing = false;
     protected $keyType    = 'string';
+    public    $timestamps = false;
 
     protected $fillable = [
         'Kode_Kelas',
@@ -21,7 +23,6 @@ class MKelas extends Model
         'Kelas',
     ];
 
-    /** Semua ruangan yang masuk kelas ini */
     public function ruangMasters()
     {
         return $this->hasMany(MRuangMaster::class, 'Kode_Kelas', 'Kode_Kelas');

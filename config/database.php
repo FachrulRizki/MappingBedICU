@@ -114,6 +114,24 @@ return [
             // 'trust_server_certificate' => env('DB_TRUST_SERVER_CERTIFICATE', 'false'),
         ],
 
+        // ── Koneksi ke DB staging RS (SQL Server, read-only) ──────────────
+        // Untuk membaca tabel existing: REGISTER_PASIEN, PENDAFTARAN,
+        // STATUS_KAMAR, M_KELAS, M_RUANG_MASTER, dll.
+        // Tabel baru (ICU) tetap di koneksi mysql default.
+        'sqlsrv_rsus' => [
+            'driver'                  => 'sqlsrv',
+            'host'                    => env('DB_RSUS_HOST', '192.168.200.160'),
+            'port'                    => env('DB_RSUS_PORT', '1433'),
+            'database'                => env('DB_RSUS_DATABASE', 'DB_RSUS'),
+            'username'                => env('DB_RSUS_USERNAME', ''),
+            'password'                => env('DB_RSUS_PASSWORD', ''),
+            'charset'                 => 'utf8',
+            'prefix'                  => '',
+            'prefix_indexes'          => true,
+            'trust_server_certificate'=> env('DB_RSUS_TRUST_CERT', 'true'),
+            'encrypt'                 => 'false',
+        ],
+
     ],
 
     /*

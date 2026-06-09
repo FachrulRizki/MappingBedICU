@@ -72,6 +72,7 @@ const doLookup = async (noMr) => {
     kunjunganList.value = [];
     form.No_Reg         = '';
     form.Dokter         = '';
+    form.asal_ruang     = '';
     if (!noMr || noMr.length < 3) return;
 
     lookupLoading.value = true;
@@ -84,9 +85,20 @@ const doLookup = async (noMr) => {
         lookupResult.value = data;
         if (data.found) {
             kunjunganList.value = data.kunjungans ?? [];
+
+            // Auto-pilih kunjungan terakhir jika hanya satu
             if (kunjunganList.value.length === 1) {
-                form.No_Reg = kunjunganList.value[0].No_Reg;
-                form.Dokter = kunjunganList.value[0].Dokter ?? '';
+                form.No_Reg     = kunjunganList.value[0].No_Reg;
+                form.Dokter     = kunjunganList.value[0].Dokter ?? '';
+                form.asal_ruang = kunjunganList.value[0].asal_ruang ?? '';
+            }
+
+            // Pre-fill data klinis dari SPRI terakhir pasien (jika ada)
+            if (data.prefill) {
+                if (!form.Diagnosis)  form.Diagnosis  = data.prefill.Diagnosis  ?? '';
+                if (!form.IndikasiRI) form.IndikasiRI = data.prefill.IndikasiRI ?? '';
+                if (!form.asal_ruang) form.asal_ruang = data.prefill.asal_ruang ?? '';
+                if (!form.Dokter)     form.Dokter     = data.prefill.Dokter     ?? '';
             }
         } else {
             lookupError.value = data.message ?? 'Pasien tidak ditemukan.';
@@ -116,7 +128,10 @@ watch(() => form.No_MR, (val) => {
 
 const onKunjunganChange = (noReg) => {
     const k = kunjunganList.value.find(x => x.No_Reg === noReg);
-    if (k) form.Dokter = k.Dokter ?? '';
+    if (k) {
+        form.Dokter     = k.Dokter     ?? '';
+        form.asal_ruang = k.asal_ruang ?? '';
+    }
 };
 
 const submitForm = () => form.post(route('icu.spri_internal.store'), {
