@@ -290,24 +290,26 @@ const getStageLabel = (p) => {
                 <!-- Hero Banner — 2 cols -->
                 <div class="xl:col-span-2 hero-banner p-6 sm:p-8 flex items-center justify-between gap-4" style="min-height:160px">
                     <div class="flex-1 min-w-0">
-                        <p class="text-sm font-medium mb-2" style="color:rgba(255,255,255,0.7)">
+                        <p class="text-sm font-medium mb-2" style="color:rgba(255, 255, 255, 1)"> 
                             Selamat datang 👋
                         </p>
                         <h1 class="font-bold leading-tight mb-2"
-                            style="font-size:clamp(24px,3vw,36px); color:var(--text-primary); letter-spacing:-0.02em">
+                            style="font-size:clamp(24px,3vw,36px); color:rgba(255, 255, 255, 1); letter-spacing:-0.02em">
                             Monitor ICU Real-time
                         </h1>
-                        <p class="text-sm" style="color:rgba(255,255,255,0.6); max-width:360px; line-height:1.6">
+                        <p class="text-sm" style="color:rgba(255, 255, 255, 1); max-width:360px; line-height:1.6">
                             Pantau kondisi ruang ICU, alur pasien, dan hunian bed secara live — semua dalam satu layar.
                         </p>
                         
                     </div>
-                    <!-- Decorative icon -->
-                    <div class="hidden sm:flex flex-shrink-0 items-center justify-center w-28 h-28 rounded-2xl"
-                        style="background:rgba(45,217,164,0.1); border:1px solid rgba(45,217,164,0.2)">
-                        <svg style="width:52px;height:52px;color:#2DD9A4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.2">
-                            <path stroke-linecap="round" stroke-linejoin="round" :d="icons.bed"/>
-                        </svg>
+                    <!-- Logo RS -->
+                    <div class="hidden sm:flex flex-shrink-0 items-center justify-center w-28 h-28 rounded-2xl overflow-hidden"
+                        style="background:rgba(45,217,164,0.06); border:1px solid rgba(45,217,164,0.2)">
+                        <img :src="`${$page.props.asset_url ?? ''}/images/logo-urip.png`"
+                            alt="Logo URIP"
+                            class="w-24 h-24 object-contain"
+                            style="filter: drop-shadow(0 2px 8px rgba(45,217,164,0.25))"
+                            @error="$event.target.style.display='none'"/>
                     </div>
                 </div>
 

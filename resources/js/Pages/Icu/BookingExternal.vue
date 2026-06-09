@@ -176,10 +176,6 @@ const statusBadge = (status) => ({
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                     <h1 class="font-bold text-lg" style="color:var(--text-primary)">Booking ICU — Pasien Eksternal</h1>
-                    <p class="text-sm mt-0.5" style="color:var(--text-secondary)">
-                        Admisi: isi data & jaminan pasien →
-                        <span style="color:#2DD9A4">ICU: tentukan bed & konfirmasi masuk</span>
-                    </p>
                 </div>
                 <button v-if="canBuatBookingExternal" @click="showForm = !showForm"
                     class="flex items-center gap-2 text-sm font-semibold px-4 py-2.5 rounded-xl self-start sm:self-auto"
@@ -195,16 +191,12 @@ const statusBadge = (status) => ({
 
             <!-- ════════════════════════════════════════════════════════
                  FORM BOOKING BARU (Admisi)
-                 Tidak ada pilih bed — ICU yang tentukan
             ════════════════════════════════════════════════════════ -->
             <Transition enter-active-class="transition-all duration-200 ease-out"
                         enter-from-class="opacity-0 -translate-y-2" enter-to-class="opacity-100 translate-y-0">
                 <form v-if="showForm && canBuatBookingExternal" @submit.prevent="submitForm" class="card-dark overflow-hidden">
                     <div class="px-5 py-3" style="background:linear-gradient(90deg,#2DD9A4,#1A9E8F)">
                         <p class="text-sm font-bold" style="color:#0D1A17">Form Booking ICU — Pasien Eksternal</p>
-                        <p class="text-xs mt-0.5" style="color:#0D1A1799">
-                            Isi data pasien &amp; jaminan. Penentuan bed dilakukan oleh Petugas ICU.
-                        </p>
                     </div>
                     <div class="p-5 space-y-5">
 
@@ -226,10 +218,10 @@ const statusBadge = (status) => ({
                                     <div class="flex gap-2">
                                         <button type="button" @click="form.jenis_kelamin='L'"
                                             class="flex-1 py-2.5 rounded-xl text-sm font-semibold"
-                                            :style="form.jenis_kelamin==='L' ? 'background:#4A90D9;color:#fff;border:2px solid #4A90D9' : 'background:var(--bg-surface);color:var(--text-secondary);border:2px solid var(--border-default)'">♂</button>
+                                            :style="form.jenis_kelamin==='L' ? 'background:#4A90D9;color:#fff;border:2px solid #4A90D9' : 'background:var(--bg-surface);color:var(--text-secondary);border:2px solid var(--border-default)'">♂ Pria</button>
                                         <button type="button" @click="form.jenis_kelamin='P'"
                                             class="flex-1 py-2.5 rounded-xl text-sm font-semibold"
-                                            :style="form.jenis_kelamin==='P' ? 'background:#D9517A;color:#fff;border:2px solid #D9517A' : 'background:var(--bg-surface);color:var(--text-secondary);border:2px solid var(--border-default)'">♀</button>
+                                            :style="form.jenis_kelamin==='P' ? 'background:#D9517A;color:#fff;border:2px solid #D9517A' : 'background:var(--bg-surface);color:var(--text-secondary);border:2px solid var(--border-default)'">♀ Wanita</button>
                                     </div>
                                 </div>
                                 <div>

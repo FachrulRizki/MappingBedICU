@@ -198,24 +198,6 @@ const iconMoon = 'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003
                 </div>
             </nav>
 
-            <!-- User info di sidebar bottom -->
-            <div class="px-3 pb-3 flex-shrink-0" style="border-top:1px solid var(--border-default)">
-                <div class="flex items-center gap-2.5 px-2 py-2.5 rounded-xl" style="background:var(--bg-surface-2)">
-                    <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-sm"
-                        :style="`background:${authUser?.role_color ? authUser.role_color + '25' : 'rgba(45,217,164,0.15)'}; color:${authUser?.role_color ?? '#2DD9A4'}; font-family:'Plus Jakarta Sans',sans-serif`">
-                        {{ authUser?.name?.charAt(0)?.toUpperCase() ?? 'G' }}
-                    </div>
-                    <div class="min-w-0 flex-1">
-                        <p class="text-xs font-bold truncate" style="color:var(--text-primary); font-family:'Plus Jakarta Sans',sans-serif">
-                            {{ authUser?.name ?? 'Guest' }}
-                        </p>
-                        <p class="text-xs truncate font-semibold" style="font-size:10px; font-family:'DM Mono',monospace"
-                            :style="`color:${authUser?.role_color ?? '#8EA89E'}`">
-                            {{ authUser?.unit_kerja ?? authUser?.role_label ?? '' }}
-                        </p>
-                    </div>
-                </div>
-            </div>
             <div class="px-3 pb-4 flex-shrink-0">
                 <div class="promo-card">
                     <div class="flex items-start gap-2 mb-3">

@@ -233,11 +233,6 @@ const statusBadge = (status) => ({
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                     <h1 class="font-bold text-lg" style="color:var(--text-primary)">Surat Permintaan Rawat ICU</h1>
-                    <p class="text-sm mt-0.5" style="color:var(--text-secondary)">
-                        Petugas Ruang: buat surat →
-                        <span style="color:#4A90D9">Admisi: acc + catatan</span> →
-                        <span style="color:#2DD9A4">ICU: tentukan bed + konfirmasi masuk</span>
-                    </p>
                 </div>
                 <button v-if="canBuatSpriInternal" @click="showForm = !showForm"
                     class="flex items-center gap-2 text-sm font-semibold px-4 py-2.5 rounded-xl self-start sm:self-auto"
@@ -251,17 +246,12 @@ const statusBadge = (status) => ({
 
             <!-- ═══════════════════════════════════════════════════════
                  FORM BUAT SURAT (Petugas Ruang)
-                 No_MR → lookup otomatis → pilih kunjungan
-                 Tidak ada pilih bed → ICU yang tentukan
             ═══════════════════════════════════════════════════════ -->
             <Transition enter-active-class="transition-all duration-200 ease-out"
                         enter-from-class="opacity-0 -translate-y-2" enter-to-class="opacity-100 translate-y-0">
                 <form v-if="showForm && canBuatSpriInternal" @submit.prevent="submitForm" class="card-dark overflow-hidden">
                     <div class="px-5 py-3" style="background:linear-gradient(90deg,#4A90D9,#2DD9A4)">
                         <p class="text-sm font-bold text-white">Surat Permintaan Rawat ICU — Pasien Internal</p>
-                        <p class="text-xs mt-0.5 text-white/70">
-                            Isi No. MR untuk verifikasi pasien. Penentuan bed dilakukan Petugas ICU.
-                        </p>
                     </div>
                     <div class="p-5 space-y-5">
 
