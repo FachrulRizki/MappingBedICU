@@ -9,7 +9,6 @@ class Admission extends Model
 {
     use HasFactory;
 
-    // Pastikan 'allocated_bed' ada di dalam array ini
     protected $fillable = [
         'patient_name', 
         'status', 

@@ -17,9 +17,6 @@ class SpriController extends Controller
         private readonly SpriService $spriService
     ) {}
 
-    /**
-     * Halaman daftar IGD yang perlu dibuatkan SPRI + yang menunggu approval.
-     */
     public function index(): Response
     {
         $with = ['pasien', 'pendaftaran', 'pendaftaran.spriAktif'];
@@ -51,9 +48,6 @@ class SpriController extends Controller
         ]);
     }
 
-    /**
-     * Step 3 — Buat SPRI dan tentukan jenis bed ICU yang dibutuhkan.
-     */
     public function store(Request $request, int $id): RedirectResponse
     {
         $validated = $request->validate([
@@ -81,9 +75,6 @@ class SpriController extends Controller
         );
     }
 
-    /**
-     * Step 4 — Approve SPRI, pasien masuk daftar tunggu ICU.
-     */
     public function approve(int $id): RedirectResponse
     {
         $admision = $this->spriService->approveSpri($id);

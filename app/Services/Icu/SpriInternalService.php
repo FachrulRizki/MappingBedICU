@@ -6,28 +6,8 @@ use App\Models\IcuSpriInternal;
 use App\Models\StatusKamar;
 use Illuminate\Validation\ValidationException;
 
-/**
- * ALUR INTERNAL (Pasien dari ruang perawatan RS):
- *
- *  [Petugas Ruang] Buat SPRI
- *        ↓  status: pending_admisi
- *  [Admisi] Isi keterangan / catatan jaminan → approve
- *        ↓  status: pending_icu
- *  [Petugas ICU] Pilih bed → booking
- *        ↓  status: bed_booked   (bed → BOOKING)
- *  [Petugas ICU] Konfirmasi pasien masuk
- *        ↓  status: di_icu       (bed → ISI)
- *  [Petugas ICU] Pulangkan
- *        ↓  status: pulang       (bed → KOSONG)
- *
- *  Tidak ada step verifikasi admisi setelah ICU booking bed.
- */
 class SpriInternalService
 {
-    // ──────────────────────────────────────────────────────────────────────
-    // LANGKAH 1 — Petugas ruang buat Surat Permintaan Rawat ICU
-    // ──────────────────────────────────────────────────────────────────────
-
     public function buatSpri(array $data): IcuSpriInternal
     {
         return IcuSpriInternal::create([
@@ -44,11 +24,6 @@ class SpriInternalService
             'status'        => 'pending_admisi',
         ]);
     }
-
-    // ──────────────────────────────────────────────────────────────────────
-    // LANGKAH 2 — Admisi isi keterangan & approve
-    // Admisi HANYA mencatat keterangan/jaminan, tidak menentukan bed
-    // ──────────────────────────────────────────────────────────────────────
 
     public function approveAdmisi(int $id, string $approvedBy, ?string $catatanAdmisi = null): IcuSpriInternal
     {
@@ -79,11 +54,6 @@ class SpriInternalService
 
         return $spri->fresh();
     }
-
-    // ──────────────────────────────────────────────────────────────────────
-    // LANGKAH 3 — Petugas ICU pilih & booking bed
-    // Setelah ICU booking → langsung siap antar, tidak perlu verif admisi lagi
-    // ──────────────────────────────────────────────────────────────────────
 
     public function bookingBedIcu(int $id, string $kodeRuang, string $kebutuhanBed, string $bookedBy): IcuSpriInternal
     {
@@ -118,10 +88,6 @@ class SpriInternalService
         return $spri->fresh(['bed.ruang.kelas']);
     }
 
-    /**
-     * ICU bisa juga tetap submit tanpa bed (pasien masuk waiting list ICU).
-     * Tidak memblok alur — pasien tetap di pending_icu sambil tunggu bed kosong.
-     */
     public function catatTanpaBed(int $id, string $catatan, string $bookedBy): IcuSpriInternal
     {
         $spri = IcuSpriInternal::findOrFail($id);
@@ -153,11 +119,6 @@ class SpriInternalService
         return $spri->fresh();
     }
 
-    // ──────────────────────────────────────────────────────────────────────
-    // LANGKAH 4 — Petugas ICU konfirmasi pasien tiba & masuk ruangan
-    // Langsung dari bed_booked → di_icu (skip verif admisi)
-    // ──────────────────────────────────────────────────────────────────────
-
     public function konfirmasiMasuk(int $id): IcuSpriInternal
     {
         $spri = IcuSpriInternal::with('bed')->findOrFail($id);
@@ -178,10 +139,6 @@ class SpriInternalService
 
         return $spri->fresh(['bed.ruang', 'pasien']);
     }
-
-    // ──────────────────────────────────────────────────────────────────────
-    // LANGKAH 5 — Pulangkan pasien
-    // ──────────────────────────────────────────────────────────────────────
 
     public function pulangkan(int $id): IcuSpriInternal
     {

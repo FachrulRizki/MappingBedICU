@@ -7,11 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
 
-/**
- * Middleware cek role user.
- * Usage di route: ->middleware('role:admin,admisi')
- * Admin selalu lolos.
- */
+
 class CheckRole
 {
     public function handle(Request $request, Closure $next, string ...$roles): Response

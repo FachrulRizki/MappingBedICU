@@ -88,9 +88,11 @@ const doLookup = async (noMr) => {
 
             // Auto-pilih kunjungan terakhir jika hanya satu
             if (kunjunganList.value.length === 1) {
-                form.No_Reg     = kunjunganList.value[0].No_Reg;
-                form.Dokter     = kunjunganList.value[0].Dokter ?? '';
-                form.asal_ruang = kunjunganList.value[0].asal_ruang ?? '';
+                const k = kunjunganList.value[0];
+                form.No_Reg     = k.No_Reg;
+                form.Dokter     = k.Dokter     ?? '';
+                form.asal_ruang = k.asal_ruang ?? '';
+                if (!form.Diagnosis && k.Diagnosis) form.Diagnosis = k.Diagnosis;
             }
 
             // Pre-fill data klinis dari SPRI terakhir pasien (jika ada)
@@ -131,6 +133,8 @@ const onKunjunganChange = (noReg) => {
     if (k) {
         form.Dokter     = k.Dokter     ?? '';
         form.asal_ruang = k.asal_ruang ?? '';
+        // Auto-fill Diagnosis dari ASESMEN jika form masih kosong
+        if (!form.Diagnosis && k.Diagnosis) form.Diagnosis = k.Diagnosis;
     }
 };
 

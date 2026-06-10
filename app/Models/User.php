@@ -12,8 +12,8 @@ class User extends Authenticatable
 
     protected $fillable = [
         'name',
-        'username',       // login identifier
-        'email',          // opsional, untuk notifikasi
+        'username',
+        'email',
         'password',
         'role',
         'unit_kerja',

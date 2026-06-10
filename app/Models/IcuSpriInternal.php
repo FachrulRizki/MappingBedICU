@@ -23,7 +23,7 @@ class IcuSpriInternal extends Model
         'spesialis',
         'Keterangan',
         'NameUser',
-        'catatan_admisi',    // catatan dari admisi (bukan bed)
+        'catatan_admisi',
         'allocated_bed_id',
         'status',
         'alasan_tolak',

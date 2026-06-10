@@ -28,8 +28,6 @@ class SpriInternalController extends Controller
             ->get()
             ->map(fn($s) => $this->format($s));
 
-        // Gunakan join query sesuai DB RS:
-        // M_RUANG_MASTER ← M_KELAS ← STATUS_KAMAR WHERE Kode_Bangsal = 'ICU'
         $kamarKosong = MRuangMaster::bedKosong();
         $masterKelas = MRuangMaster::jenisIcuTersedia();
 
@@ -41,7 +39,7 @@ class SpriInternalController extends Controller
         ]);
     }
 
-    // ── Lookup AJAX: cari pasien + data klinis terakhir ─────────────────
+    // Lookup AJAX: cari pasien + data klinis
 
     public function lookupPasien(Request $request): JsonResponse
     {
@@ -53,7 +51,6 @@ class SpriInternalController extends Controller
         try {
             $pasien = RegistrasiPasien::where('No_MR', $noMr)->first();
         } catch (\Exception $e) {
-            // Jika koneksi gagal (driver tidak ada / network error), kembalikan error yang jelas
             return response()->json([
                 'found'   => false,
                 'message' => 'Tidak dapat terhubung ke database RS. ' .
@@ -69,20 +66,110 @@ class SpriInternalController extends Controller
         }
 
         try {
-            $pendaftarans = Pendaftaran::where('No_MR', $noMr)->latest()->get();
+            if (RegistrasiPasien::rsusAvailable()) {
+                try {
+                    $rows = \Illuminate\Support\Facades\DB::connection('sqlsrv_rsus')
+                        ->table('PENDAFTARAN as p')
+                        // Kode_Ruang di PENDAFTARAN → M_RUANG_MASTER.Kode_RuangM → Nama_RuangM
+                        ->leftJoin('M_RUANG_MASTER as rm', 'p.Kode_Ruang', '=', 'rm.Kode_RuangM')
+                        // Kode_Dokter → DOKTER.Kode_Dokter → Nama_Dokter
+                        ->leftJoin('DOKTER as d', 'p.Kode_Dokter', '=', 'd.Kode_Dokter')
+                        // Diagnosis dari ASESMEN_SURAT_PERMINTAAN_RI per No_Reg
+                        ->leftJoin(
+                            \Illuminate\Support\Facades\DB::raw(
+                                '(SELECT No_Reg, MAX(Diagnosis) as Diagnosis
+                                  FROM ASESMEN_SURAT_PERMINTAAN_RI
+                                  GROUP BY No_Reg) as asmt'
+                            ),
+                            'p.No_Reg', '=', 'asmt.No_Reg'
+                        )
+                        ->where('p.No_MR', $noMr)
+                        ->orderByDesc('p.Tanggal')
+                        ->select([
+                            'p.No_Reg',
+                            'p.Kode_Masuk',
+                            'p.Kode_Ruang',
+                            'p.PermintaanDPJP',
+                            'p.Kode_Dokter',
+                            \Illuminate\Support\Facades\DB::raw(
+                                "ISNULL(rm.Nama_RuangM, p.Kode_Ruang) as nama_asal_ruang"
+                            ),
+                            \Illuminate\Support\Facades\DB::raw(
+                                "ISNULL(d.Nama_Dokter, p.PermintaanDPJP) as nama_dokter"
+                            ),
+                            'asmt.Diagnosis',
+                        ])
+                        ->get();
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::warning('[lookupPasien] join DOKTER failed: ' . $e->getMessage());
+                    $rows = \Illuminate\Support\Facades\DB::connection('sqlsrv_rsus')
+                        ->table('PENDAFTARAN as p')
+                        ->leftJoin('M_RUANG_MASTER as rm', 'p.Kode_Ruang', '=', 'rm.Kode_RuangM')
+                        ->leftJoin(
+                            \Illuminate\Support\Facades\DB::raw(
+                                '(SELECT No_Reg, MAX(Diagnosis) as Diagnosis
+                                  FROM ASESMEN_SURAT_PERMINTAAN_RI
+                                  GROUP BY No_Reg) as asmt'
+                            ),
+                            'p.No_Reg', '=', 'asmt.No_Reg'
+                        )
+                        ->where('p.No_MR', $noMr)
+                        ->orderByDesc('p.Tanggal')
+                        ->select([
+                            'p.No_Reg',
+                            'p.Kode_Masuk',
+                            'p.Kode_Ruang',
+                            'p.PermintaanDPJP',
+                            'p.Kode_Dokter',
+                            \Illuminate\Support\Facades\DB::raw("ISNULL(rm.Nama_RuangM, p.Kode_Ruang) as nama_asal_ruang"),
+                            'p.PermintaanDPJP as nama_dokter',
+                            'asmt.Diagnosis',
+                        ])
+                        ->get();
+                }
+
+                $kunjungans = $rows->map(fn($r) => [
+                    'No_Reg'      => $r->No_Reg,
+                    'label'       => $r->No_Reg . ' — ' . ($r->Kode_Masuk ?? '-'),
+                    'Dokter'      => trim($r->nama_dokter    ?? $r->PermintaanDPJP ?? ''),
+                    'Kode_Dokter' => trim($r->Kode_Dokter   ?? ''),
+                    'asal_ruang'  => trim($r->nama_asal_ruang ?? $r->Kode_Ruang ?? ''),
+                    'Diagnosis'   => trim($r->Diagnosis     ?? ''),
+                ]);
+
+            } else {
+                // ── MySQL lokal fallback ───────────────────────────────────
+                $rows = \Illuminate\Support\Facades\DB::connection('mysql')
+                    ->table('pendaftaran as p')
+                    ->leftJoin('m_ruang_master as rm', 'p.Kode_Asal', '=', 'rm.Kode_RuangM')
+                    ->where('p.No_MR', $noMr)
+                    ->orderByDesc('p.created_at')
+                    ->select([
+                        'p.No_Reg',
+                        'p.Kode_Masuk',
+                        'p.Kode_Asal',
+                        \Illuminate\Support\Facades\DB::raw("COALESCE(p.PermintaanDPJP, '') as Dokter"),
+                        \Illuminate\Support\Facades\DB::raw("COALESCE(p.Kode_Dokter, '') as Kode_Dokter"),
+                        \Illuminate\Support\Facades\DB::raw("COALESCE(rm.Nama_RuangM, p.Kode_Asal, '') as nama_asal_ruang"),
+                        \Illuminate\Support\Facades\DB::raw("NULL as Diagnosis"),
+                    ])
+                    ->get();
+
+                $kunjungans = $rows->map(fn($r) => [
+                    'No_Reg'      => $r->No_Reg,
+                    'label'       => $r->No_Reg . ' — ' . ($r->Kode_Masuk ?? '-'),
+                    'Dokter'      => $r->Dokter          ?? '',
+                    'Kode_Dokter' => $r->Kode_Dokter     ?? '',
+                    'asal_ruang'  => $r->nama_asal_ruang ?? '',
+                    'Diagnosis'   => '',
+                ]);
+            }
         } catch (\Exception $e) {
-            $pendaftarans = collect();
+            \Illuminate\Support\Facades\Log::error('[lookupPasien] ' . $e->getMessage());
+            $kunjungans = collect();
         }
 
-        $kunjungans = $pendaftarans->map(fn($r) => [
-            'No_Reg'     => $r->No_Reg,
-            'label'      => $r->No_Reg . ' — ' . ($r->Kode_Masuk ?? '-'),
-            'Dokter'     => $r->PermintaanDPJP ?? '',
-            'asal_ruang' => $r->Kode_Asal ?? '',
-            'medis'      => $r->medis ?? '',
-        ]);
-
-        // Prefill dari SPRI terakhir pasien ini (jika ada)
+        // Prefill dari SPRI terakhir pasien ini (MySQL lokal)
         $spriTerakhir = IcuSpriInternal::where('No_MR', $noMr)
             ->latest()->first(['Diagnosis', 'IndikasiRI', 'asal_ruang', 'Dokter']);
 
@@ -100,8 +187,7 @@ class SpriInternalController extends Controller
         ]);
     }
 
-    // ── Petugas Ruang: buat SPRI ─────────────────────────────────────────
-
+    // Buat SPRI
     public function store(Request $request): RedirectResponse
     {
         // Gunakan connection dan tabel yang sesuai (sqlsrv_rsus atau mysql lokal)
@@ -128,7 +214,7 @@ class SpriInternalController extends Controller
         return back()->with('success', "SPRI untuk {$spri->pasien?->Nama_Pasien} berhasil dibuat.");
     }
 
-    // ── Admisi: approve + isi catatan (TIDAK menentukan bed) ─────────────
+    // Admisi
 
     public function approveAdmisi(Request $request, int $id): RedirectResponse
     {
@@ -156,7 +242,7 @@ class SpriInternalController extends Controller
         return back()->with('success', 'Surat Permintaan ditolak.');
     }
 
-    // ── Petugas ICU: pilih bed ───────────────────────────────────────────
+    // Petugas ICU
 
     public function bookingBedIcu(Request $request, int $id): RedirectResponse
     {
@@ -172,10 +258,6 @@ class SpriInternalController extends Controller
         return back()->with('success', "Bed {$namaBed} ({$validated['kebutuhan_bed']}) dipesan untuk {$nama}. Pasien siap diantar.");
     }
 
-    /**
-     * ICU catat bahwa belum ada bed — pasien tetap di waiting list.
-     * Tidak memblok alur, tidak menolak pasien.
-     */
     public function catatTanpaBed(Request $request, int $id): RedirectResponse
     {
         $validated = $request->validate([
@@ -198,9 +280,6 @@ class SpriInternalController extends Controller
         return back()->with('success', 'Permintaan bed ditolak oleh ICU.');
     }
 
-    // ── Petugas ICU: konfirmasi pasien masuk — LANGSUNG di_icu ──────────
-    // (skip verifikasi admisi — sesuai alur baru)
-
     public function konfirmasiMasuk(int $id): RedirectResponse
     {
         $spri    = $this->service->konfirmasiMasuk($id);
@@ -210,7 +289,7 @@ class SpriInternalController extends Controller
         return back()->with('success', "Pasien {$nama} masuk ke {$namaBed}. Bed terisi.");
     }
 
-    // ── Petugas ICU: pulangkan ───────────────────────────────────────────
+    // Petugas ICU
 
     public function pulangkan(int $id): RedirectResponse
     {

@@ -71,9 +71,7 @@ class BedController extends Controller
         ]);
     }
 
-    /**
-     * Step 5 — Alokasikan bed ICU yang cocok untuk pasien.
-     */
+    // mapping bed
     public function alokasi(Request $request, int $id): RedirectResponse
     {
         $validated = $request->validate([

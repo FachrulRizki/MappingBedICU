@@ -64,11 +64,11 @@ class MRuangMaster extends Model
     public static function bedIcuDenganStatus(): \Illuminate\Support\Collection
     {
         $instance = new static();
-        $conn     = $instance->getConnectionName();   // 'sqlsrv_rsus' atau 'mysql'
+        $conn     = $instance->getConnectionName();
 
-        $rm = $instance->getTable();                  // 'M_RUANG_MASTER' atau 'm_ruang_master'
-        $mk = (new MKelas())->getTable();             // 'M_KELAS' atau 'm_kelas'
-        $sk = (new StatusKamar())->getTable();        // 'STATUS_KAMAR' atau 'status_kamar'
+        $rm = $instance->getTable();
+        $mk = (new MKelas())->getTable();
+        $sk = (new StatusKamar())->getTable();
 
         try {
             return DB::connection($conn)

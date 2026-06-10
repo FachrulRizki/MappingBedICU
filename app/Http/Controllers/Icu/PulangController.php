@@ -12,9 +12,6 @@ class PulangController extends Controller
         private readonly PulangService $pulangService
     ) {}
 
-    /**
-     * Step 7 — Pulangkan pasien, bed kembali ke status KOSONG.
-     */
     public function pulangkan(int $id): RedirectResponse
     {
         $admision  = $this->pulangService->pulangkanPasien($id);

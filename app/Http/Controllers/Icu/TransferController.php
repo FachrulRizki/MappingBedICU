@@ -12,9 +12,6 @@ class TransferController extends Controller
         private readonly TransferService $transferService
     ) {}
 
-    /**
-     * Step 6 — Antar pasien ke ruangan ICU (bed berubah dari BOOKING → ISI).
-     */
     public function masukRuangan(int $id): RedirectResponse
     {
         $admision  = $this->transferService->masukRuangan($id);

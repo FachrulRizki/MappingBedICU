@@ -16,9 +16,6 @@ class PendaftaranController extends Controller
         private readonly PendaftaranService $pendaftaranService
     ) {}
 
-    /**
-     * Halaman daftar pasien pendaftaran.
-     */
     public function index(): Response
     {
         $with = ['pasien', 'pendaftaran'];
@@ -42,9 +39,6 @@ class PendaftaranController extends Controller
         ]);
     }
 
-    /**
-     * Step 1 — Daftarkan pasien baru ke sistem ICU.
-     */
     public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate([

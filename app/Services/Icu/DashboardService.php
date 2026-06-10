@@ -12,9 +12,6 @@ class DashboardService
 {
     public function getDashboardData(): array
     {
-        // ═══════════════════════════════════════════════════════════════
-        // 1. DATA ICU ADMISSION — jalur lama (MySQL)
-        // ═══════════════════════════════════════════════════════════════
         $admissions = IcuAdmision::all();
 
         $grouped = [
@@ -25,10 +22,6 @@ class DashboardService
             if (isset($grouped[$a->status])) $grouped[$a->status][] = $a;
         }
 
-        // ═══════════════════════════════════════════════════════════════
-        // 2. PASIEN AKTIF DI ICU — gabungan semua jalur
-        //    Dipakai di dashboard stat + denah bed
-        // ═══════════════════════════════════════════════════════════════
         $spriDiIcu = IcuSpriInternal::where('status', 'di_icu')
             ->get(['id', 'No_MR', 'No_Reg', 'allocated_bed_id', 'kebutuhan_bed']);
         $extDiIcu  = IcuBookingExternal::where('status', 'di_icu')
@@ -45,14 +38,6 @@ class DashboardService
             ->get(['No_MR', 'Nama_Pasien', 'jenis_kelamin'])
             ->keyBy('No_MR');
 
-        // ═══════════════════════════════════════════════════════════════
-        // 3. KAMAR ICU — join M_RUANG_MASTER + M_KELAS + STATUS_KAMAR
-        //    SELECT rm.Nama_RuangM, mk.Nama_Kelas, sk.Status
-        //    FROM M_RUANG_MASTER rm
-        //    LEFT JOIN M_KELAS mk ON rm.Kode_Kelas = mk.Kode_Kelas
-        //    LEFT JOIN STATUS_KAMAR sk ON rm.Kode_RuangM = sk.Kode_Ruang
-        //    WHERE rm.Kode_Bangsal = 'ICU'
-        // ═══════════════════════════════════════════════════════════════
         $bedData    = MRuangMaster::bedIcuDenganStatus();
         $bedMap     = $bedData->keyBy('Kode_RuangM');
 
@@ -117,9 +102,6 @@ class DashboardService
 
         $kamarKosong = $semuaKamar->where('Status', 'KOSONG')->values();
 
-        // ═══════════════════════════════════════════════════════════════
-        // 4. PASIEN DI ICU untuk stat card dashboard
-        // ═══════════════════════════════════════════════════════════════
         $totalDiIcu = $admissions->where('status', 'di_icu')->count()
             + $spriDiIcu->count()
             + $extDiIcu->count();
@@ -159,7 +141,6 @@ class DashboardService
         ];
     }
 
-    // ─────────────────────────────────────────────────────────────────
     private function formatList($list, $pasienMap, $pendaftaranMap): \Illuminate\Support\Collection
     {
         return collect($list)->map(function ($a) use ($pasienMap, $pendaftaranMap) {

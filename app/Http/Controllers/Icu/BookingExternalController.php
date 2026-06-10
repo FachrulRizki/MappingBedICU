@@ -30,8 +30,6 @@ class BookingExternalController extends Controller
             ->get()
             ->map(fn($b) => $this->format($b));
 
-        // Gunakan join query sesuai DB RS:
-        // M_RUANG_MASTER ← M_KELAS ← STATUS_KAMAR WHERE Kode_Bangsal = 'ICU'
         $kamarKosong = MRuangMaster::bedKosong();
         $masterKelas = MRuangMaster::jenisIcuTersedia();
 
@@ -43,8 +41,7 @@ class BookingExternalController extends Controller
         ]);
     }
 
-    // ── Admisi: buat booking request + form jaminan ──────────────────────
-    // Langsung masuk pending_icu, admisi tidak menentukan bed
+    // Admisi booking
 
     public function store(Request $request): RedirectResponse
     {
@@ -56,7 +53,6 @@ class BookingExternalController extends Controller
             'no_telp_keluarga' => 'nullable|string|max:20',
             'diagnosa'         => 'required|string|max:255',
             'rencana_tindakan' => 'required|string|max:255',
-            // kebutuhan_bed TIDAK diisi admisi — ICU yang tentukan saat konfirmasi bed
             'jaminan'          => 'required|in:BPJS,Umum,Asuransi,Lainnya',
             'catatan_jaminan'  => 'nullable|string|max:500',
             'keterangan'       => 'nullable|string|max:500',
@@ -71,9 +67,7 @@ class BookingExternalController extends Controller
         return back()->with('success', "Booking untuk {$booking->nama_pasien} berhasil dikirim ke ICU.");
     }
 
-    // ── Petugas ICU: pilih & konfirmasi bed ─────────────────────────────
-    // ICU satu-satunya penentu bed, langsung bed_confirmed
-
+    // Petugas ICU
     public function konfirmasiIcu(Request $request, int $id): RedirectResponse
     {
         $connKelas  = MKelas::connectionName() . '.' . MKelas::tableName('M_KELAS', 'm_kelas');
@@ -90,10 +84,6 @@ class BookingExternalController extends Controller
         return back()->with('success', "Bed {$namaBed} ({$validated['kebutuhan_bed']}) dikonfirmasi untuk {$booking->nama_pasien}. Pasien siap diantar.");
     }
 
-    /**
-     * ICU catat bahwa belum ada bed — pasien tetap di waiting list.
-     * Tidak menolak, tidak memblok. Status tetap pending_icu.
-     */
     public function catatTanpaBed(Request $request, int $id): RedirectResponse
     {
         $validated = $request->validate([
@@ -116,12 +106,8 @@ class BookingExternalController extends Controller
         return back()->with('success', 'Booking ditolak oleh ICU.');
     }
 
-    // ── Petugas ICU: konfirmasi pasien masuk — LANGSUNG di_icu ──────────
-    // (skip validasi admisi — sesuai alur baru)
-
     public function konfirmasiMasuk(Request $request, int $id): RedirectResponse
     {
-        // No_MR opsional — diisi jika pasien sudah terdaftar di sistem RS
         $validated = $request->validate([
             'No_MR'  => 'nullable|exists:registrasi_pasien,No_MR',
             'No_Reg' => 'nullable|exists:pendaftaran,No_Reg',
@@ -137,8 +123,6 @@ class BookingExternalController extends Controller
 
         return back()->with('success', "Pasien {$booking->nama_pasien} masuk ke {$namaBed}. Bed terisi.");
     }
-
-    // ── Petugas ICU: pulangkan ───────────────────────────────────────────
 
     public function pulangkan(int $id): RedirectResponse
     {

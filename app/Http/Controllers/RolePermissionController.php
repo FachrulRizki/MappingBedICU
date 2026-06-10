@@ -8,10 +8,7 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
-/**
- * Halaman Role & Permission — admin dapat melihat dan mengubah role user
- * sekaligus melihat matriks akses per role.
- */
+
 class RolePermissionController extends Controller
 {
     /** Definisi permission per role — single source of truth */

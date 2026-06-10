@@ -25,23 +25,16 @@ class PasienIcuController extends Controller
         private readonly SpriInternalService    $spriIntService,
     ) {}
 
-    /**
-     * Pasien aktif di ICU — gabungan dari semua jalur.
-     * Bed name diambil dari Nama_RuangM via join M_RUANG_MASTER.
-     */
     public function index(): Response
     {
-        // ── 1. Ambil data bed dari join DB RS ─────────────────────────────
         $bedMap = MRuangMaster::bedIcuDenganStatus()->keyBy('Kode_RuangM');
         $namaRuang = fn($kode) => $bedMap[$kode]?->Nama_RuangM ?? $kode ?? '-';
         $namaKelas = fn($kode) => $bedMap[$kode]?->Nama_Kelas  ?? null;
 
-        // ── 2. Ambil semua pasien di_icu dari 3 jalur ─────────────────────
         $adm  = IcuAdmision::where('status', 'di_icu')->get();
         $spri = IcuSpriInternal::where('status', 'di_icu')->get();
         $ext  = IcuBookingExternal::where('status', 'di_icu')->get();
 
-        // ── 3. Kumpulkan No_MR → lookup nama pasien dari REGISTER_PASIEN ──
         $noMRs = collect()
             ->merge($adm->pluck('No_MR'))
             ->merge($spri->pluck('No_MR'))
@@ -52,7 +45,6 @@ class PasienIcuController extends Controller
             ->get(['No_MR', 'Nama_Pasien', 'jenis_kelamin'])
             ->keyBy('No_MR');
 
-        // ── 4. Format pasien aktif ────────────────────────────────────────
         $pasienLama = $adm->map(fn($a) => [
             'id'               => 'adm_' . $a->id,
             'sumber'           => 'lama',
@@ -107,7 +99,6 @@ class PasienIcuController extends Controller
             ->sortByDesc('created_at')
             ->values();
 
-        // ── 5. Riwayat pulang (20 terakhir dari semua jalur) ──────────────
         $riwayatRaw = collect()
             ->merge(
                 IcuAdmision::where('status', 'pulang')->latest()->limit(10)->get()

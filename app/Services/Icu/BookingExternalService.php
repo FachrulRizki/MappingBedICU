@@ -6,30 +6,9 @@ use App\Models\IcuBookingExternal;
 use App\Models\StatusKamar;
 use Illuminate\Validation\ValidationException;
 
-/**
- * ALUR EXTERNAL (Pasien rujukan dari RS luar):
- *
- *  [Admisi] Buat booking request + isi info jaminan
- *        ↓  status: pending_icu
- *  [Petugas ICU] Pilih bed → booking
- *        ↓  status: bed_confirmed  (bed → BOOKING)
- *        ↓  (Jika tidak ada bed → tetap pending_icu, masuk waiting list)
- *  [Petugas ICU] Konfirmasi pasien tiba & masuk ruangan
- *        ↓  status: di_icu         (bed → ISI)
- *  [Petugas ICU] Pulangkan
- *        ↓  status: pulang         (bed → KOSONG)
- *
- *  Tidak ada step validasi admisi setelah ICU konfirmasi bed.
- *  Admisi hanya mengisi keterangan, bukan penentu bed.
- */
+
 class BookingExternalService
 {
-    // ──────────────────────────────────────────────────────────────────────
-    // LANGKAH 1 — Admisi buat booking request
-    // Admisi mengisi info pasien, jaminan, kebutuhan bed
-    // Langsung masuk ke antrian ICU (pending_icu)
-    // ──────────────────────────────────────────────────────────────────────
-
     public function buatBooking(array $data): IcuBookingExternal
     {
         return IcuBookingExternal::create([
@@ -48,12 +27,6 @@ class BookingExternalService
             'created_by'       => $data['created_by'] ?? null,
         ]);
     }
-
-    // ──────────────────────────────────────────────────────────────────────
-    // LANGKAH 2 — Petugas ICU pilih & konfirmasi bed
-    // ICU adalah satu-satunya yang menentukan bed
-    // Jika bed tidak ada → tidak wajib pilih, tetap di pending_icu (waiting)
-    // ──────────────────────────────────────────────────────────────────────
 
     public function konfirmasiIcu(int $id, string $kodeRuang, string $kebutuhanBed, string $confirmedBy): IcuBookingExternal
     {
@@ -87,10 +60,6 @@ class BookingExternalService
         return $booking->fresh(['bed.ruang.kelas']);
     }
 
-    /**
-     * ICU catat — tidak ada bed, pasien tetap di waiting list.
-     * Status tidak berubah, tinggal update keterangan.
-     */
     public function catatTanpaBed(int $id, string $catatan, string $confirmedBy): IcuBookingExternal
     {
         $booking = IcuBookingExternal::findOrFail($id);
@@ -123,11 +92,6 @@ class BookingExternalService
         return $booking->fresh();
     }
 
-    // ──────────────────────────────────────────────────────────────────────
-    // LANGKAH 3 — Petugas ICU konfirmasi pasien tiba & masuk ruangan
-    // Langsung dari bed_confirmed → di_icu (tanpa verif admisi lagi)
-    // ──────────────────────────────────────────────────────────────────────
-
     public function konfirmasiMasuk(int $id, ?string $noMr = null, ?string $noReg = null): IcuBookingExternal
     {
         $booking = IcuBookingExternal::with('bed')->findOrFail($id);
@@ -152,10 +116,6 @@ class BookingExternalService
 
         return $booking->fresh(['bed.ruang', 'pasien']);
     }
-
-    // ──────────────────────────────────────────────────────────────────────
-    // LANGKAH 4 — Pulangkan pasien
-    // ──────────────────────────────────────────────────────────────────────
 
     public function pulangkan(int $id): IcuBookingExternal
     {

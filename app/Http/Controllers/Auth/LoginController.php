@@ -30,7 +30,6 @@ class LoginController extends Controller
             'password' => 'required|string',
         ]);
 
-        // Cek user berdasarkan username
         $user = User::where('username', $request->username)->first();
 
         if (! $user) {

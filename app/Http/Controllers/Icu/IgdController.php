@@ -16,16 +16,10 @@ class IgdController extends Controller
         private readonly IgdService $igdService
     ) {}
 
-    /**
-     * Halaman IGD — 2 bagian:
-     * 1. Pasien status 'daftar'  → bisa dikirim ke IGD
-     * 2. Pasien status 'igd_periksa' → sedang di IGD, bisa dibuatkan SPRI
-     */
     public function index(): Response
     {
         $with = ['pasien', 'pendaftaran'];
 
-        // Pasien yang baru daftar, siap dikirim ke IGD
         $antrianDaftar = IcuAdmision::with($with)
             ->where('status', 'daftar')
             ->latest()
@@ -40,7 +34,6 @@ class IgdController extends Controller
                 'created_at'    => $a->created_at?->format('d/m/Y H:i'),
             ]);
 
-        // Pasien yang sudah masuk IGD, menunggu SPRI dibuat
         $diIgd = IcuAdmision::with($with)
             ->where('status', 'igd_periksa')
             ->latest()
@@ -66,9 +59,6 @@ class IgdController extends Controller
         ]);
     }
 
-    /**
-     * Step 2 — Kirim pasien dari pendaftaran ke IGD.
-     */
     public function kirimIgd(int $id): RedirectResponse
     {
         $admision = $this->igdService->kirimKeIgd($id);

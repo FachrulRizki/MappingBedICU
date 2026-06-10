@@ -24,8 +24,8 @@ class IcuBookingExternal extends Model
         'diagnosa',
         'rencana_tindakan',
         'kebutuhan_bed',
-        'jaminan',           // BPJS | Umum | Asuransi | Lainnya
-        'catatan_jaminan',   // detail jaminan dari admisi
+        'jaminan',
+        'catatan_jaminan',
         'keterangan',
         'No_MR',
         'No_Reg',
