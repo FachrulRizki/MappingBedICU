@@ -8,6 +8,10 @@ use Illuminate\Validation\ValidationException;
 
 class SpriInternalService
 {
+    public function __construct(
+        private readonly BedStatusService $bedStatus
+    ) {}
+
     public function buatSpri(array $data): IcuSpriInternal
     {
         return IcuSpriInternal::create([
@@ -15,12 +19,12 @@ class SpriInternalService
             'No_Reg'        => $data['No_Reg'],
             'Diagnosis'     => $data['Diagnosis'],
             'IndikasiRI'    => $data['IndikasiRI'],
-            'kebutuhan_bed' => $data['kebutuhan_bed'],
-            'asal_ruang'    => $data['asal_ruang']  ?? null,
-            'Dokter'        => $data['Dokter']       ?? null,
-            'spesialis'     => $data['spesialis']    ?? null,
-            'Keterangan'    => $data['Keterangan']   ?? null,
-            'NameUser'      => $data['NameUser']     ?? null,
+            'kebutuhan_bed' => $data['kebutuhan_bed'] ?? null,
+            'asal_ruang'    => $data['asal_ruang']   ?? null,
+            'Dokter'        => $data['Dokter']        ?? null,
+            'spesialis'     => $data['spesialis']     ?? null,
+            'Keterangan'    => $data['Keterangan']    ?? null,
+            'NameUser'      => $data['NameUser']      ?? null,
             'status'        => 'pending_admisi',
         ]);
     }
@@ -34,9 +38,9 @@ class SpriInternalService
         }
 
         $spri->update([
-            'status'          => 'pending_icu',
-            'approved_by'     => $approvedBy,
-            'catatan_admisi'  => $catatanAdmisi,  // catatan jaminan / kebutuhan dari admisi
+            'status'         => 'pending_icu',
+            'approved_by'    => $approvedBy,
+            'catatan_admisi' => $catatanAdmisi,
         ]);
 
         return $spri->fresh();
@@ -45,13 +49,7 @@ class SpriInternalService
     public function tolakAdmisi(int $id, string $alasan, string $approvedBy): IcuSpriInternal
     {
         $spri = IcuSpriInternal::findOrFail($id);
-
-        $spri->update([
-            'status'       => 'ditolak',
-            'alasan_tolak' => $alasan,
-            'approved_by'  => $approvedBy,
-        ]);
-
+        $spri->update(['status' => 'ditolak', 'alasan_tolak' => $alasan, 'approved_by' => $approvedBy]);
         return $spri->fresh();
     }
 
@@ -63,50 +61,40 @@ class SpriInternalService
             throw ValidationException::withMessages(['status' => 'Status tidak sesuai untuk booking bed.']);
         }
 
-        // ICU bebas memilih bed — tidak ada filter matching kebutuhan
-        // ICU yang paling tahu kondisi bed dan kebutuhan pasien
-        $bed = StatusKamar::with('ruang.kelas')
-            ->where('Kode_Ruang', $kodeRuang)
-            ->where('Status', 'KOSONG')
-            ->first();
-
-        if (! $bed) {
+        // Validasi bed masih KOSONG
+        $bed = StatusKamar::where('Kode_Ruang', $kodeRuang)->first();
+        if ($bed && strtoupper($bed->Status) !== 'KOSONG') {
             throw ValidationException::withMessages([
-                'Kode_Ruang' => 'Bed tidak tersedia atau sudah terisi.',
+                'Kode_Ruang' => 'Bed sudah tidak tersedia.',
             ]);
         }
 
-        $bed->update(['Status' => 'BOOKING']);
+        // Update status bed ke BOOKING — skip jika permission denied (staging)
+        $this->bedStatus->setBooking($kodeRuang, $bookedBy);
 
         $spri->update([
             'status'           => 'bed_booked',
-            'kebutuhan_bed'    => $kebutuhanBed,   // ICU tentukan jenis saat booking
+            'kebutuhan_bed'    => $kebutuhanBed,
             'allocated_bed_id' => $kodeRuang,
             'booked_by'        => $bookedBy,
-        ]);
-
-        return $spri->fresh(['bed.ruang.kelas']);
-    }
-
-    public function catatTanpaBed(int $id, string $catatan, string $bookedBy): IcuSpriInternal
-    {
-        $spri = IcuSpriInternal::findOrFail($id);
-
-        $spri->update([
-            'Keterangan' => $catatan,
-            'booked_by'  => $bookedBy,
-            // status tetap pending_icu — menunggu bed tersedia
         ]);
 
         return $spri->fresh();
     }
 
+    public function catatTanpaBed(int $id, string $catatan, string $bookedBy): IcuSpriInternal
+    {
+        $spri = IcuSpriInternal::findOrFail($id);
+        $spri->update(['Keterangan' => $catatan, 'booked_by' => $bookedBy]);
+        return $spri->fresh();
+    }
+
     public function tolakIcu(int $id, string $alasan, string $bookedBy): IcuSpriInternal
     {
-        $spri = IcuSpriInternal::with('bed')->findOrFail($id);
+        $spri = IcuSpriInternal::findOrFail($id);
 
-        if ($spri->bed && $spri->bed->Status === 'BOOKING') {
-            $spri->bed->update(['Status' => 'KOSONG']);
+        if ($spri->allocated_bed_id) {
+            $this->bedStatus->setKosong($spri->allocated_bed_id);
         }
 
         $spri->update([
@@ -121,35 +109,30 @@ class SpriInternalService
 
     public function konfirmasiMasuk(int $id): IcuSpriInternal
     {
-        $spri = IcuSpriInternal::with('bed')->findOrFail($id);
+        $spri = IcuSpriInternal::findOrFail($id);
 
-        // Terima dari bed_booked langsung (tidak perlu admisi_verified lagi)
         if ($spri->status !== 'bed_booked') {
             throw ValidationException::withMessages(['status' => 'Status tidak sesuai untuk konfirmasi masuk.']);
         }
 
-        if ($spri->bed) {
-            $spri->bed->update([
-                'Status' => 'ISI',
-                'No_MR'  => $spri->No_MR,
-            ]);
+        // Update bed ke ISI — skip jika permission denied
+        if ($spri->allocated_bed_id) {
+            $this->bedStatus->setTerisi($spri->allocated_bed_id, $spri->No_MR);
         }
 
         $spri->update(['status' => 'di_icu']);
-
-        return $spri->fresh(['bed.ruang', 'pasien']);
+        return $spri->fresh();
     }
 
     public function pulangkan(int $id): IcuSpriInternal
     {
-        $spri = IcuSpriInternal::with('bed')->findOrFail($id);
+        $spri = IcuSpriInternal::findOrFail($id);
 
-        if ($spri->bed) {
-            $spri->bed->update(['Status' => 'KOSONG', 'No_MR' => null]);
+        if ($spri->allocated_bed_id) {
+            $this->bedStatus->setKosong($spri->allocated_bed_id);
         }
 
         $spri->update(['status' => 'pulang', 'allocated_bed_id' => null]);
-
-        return $spri->fresh('pasien');
+        return $spri->fresh();
     }
 }

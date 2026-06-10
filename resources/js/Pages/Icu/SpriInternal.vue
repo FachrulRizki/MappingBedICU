@@ -304,22 +304,18 @@ const statusBadge = (status) => ({
                                         ✓ {{ lookupResult.nama_pasien }}
                                     </p>
                                 </div>
-                                <div>
+                               <div>
                                     <label class="block text-xs font-semibold mb-1" style="color:var(--text-primary)">
                                         No. Registrasi Kunjungan <span style="color:#E07050">*</span>
                                     </label>
-                                    <select v-model="form.No_Reg" required
-                                        :disabled="kunjunganList.length === 0"
-                                        @change="onKunjunganChange(form.No_Reg)"
-                                        class="w-full px-3 py-2.5 text-sm rounded-xl outline-none disabled:opacity-40"
-                                        :style="`border:1px solid ${form.errors.No_Reg ? '#E07050' : 'var(--border-default)'}; background:var(--bg-surface); color:var(--text-primary)`">
-                                        <option value="" disabled>
-                                            {{ lookupResult?.found ? '-- Pilih Kunjungan --' : 'Isi No. MR dulu' }}
-                                        </option>
-                                        <option v-for="k in kunjunganList" :key="k.No_Reg" :value="k.No_Reg">
-                                            {{ k.label }}
-                                        </option>
-                                    </select>
+                                    <input
+                                        type="text"
+                                        :value="form.No_Reg"
+                                        readonly
+                                        class="w-full px-3 py-2.5 text-sm rounded-xl outline-none opacity-70 cursor-not-allowed"
+                                        :style="`border:1px solid ${form.errors.No_Reg ? '#E07050' : 'var(--border-default)'}; background:var(--bg-surface); color:var(--text-primary)`"
+                                        :placeholder="!lookupResult?.found ? 'Isi No. MR dulu' : (kunjunganList.length === 0 ? 'Tidak ada kunjungan aktif' : '')"
+                                    />
                                     <p v-if="form.errors.No_Reg" class="text-xs mt-1" style="color:#E07050">{{ form.errors.No_Reg }}</p>
                                     <p v-else-if="lookupResult?.found && kunjunganList.length === 0" class="text-xs mt-1" style="color:#E0923A">
                                         Tidak ada kunjungan aktif untuk pasien ini.
@@ -352,13 +348,13 @@ const statusBadge = (status) => ({
                                 </div>
                                 <div>
                                     <label class="block text-xs font-semibold mb-1" style="color:var(--text-primary)">Asal Ruang</label>
-                                    <input v-model="form.asal_ruang" placeholder="Nama ruang asal pasien"
+                                    <input v-model="form.asal_ruang" placeholder="Nama ruang asal pasien" readonly
                                         class="w-full px-3 py-2.5 text-sm rounded-xl outline-none"
                                         style="border:1px solid var(--border-default); background:var(--bg-surface); color:var(--text-primary)"/>
                                 </div>
                                 <div>
                                     <label class="block text-xs font-semibold mb-1" style="color:var(--text-primary)">Dokter DPJP</label>
-                                    <input v-model="form.Dokter" placeholder="Dokter pengirim"
+                                    <input v-model="form.Dokter" placeholder="Dokter pengirim" readonly
                                         class="w-full px-3 py-2.5 text-sm rounded-xl outline-none"
                                         style="border:1px solid var(--border-default); background:var(--bg-surface); color:var(--text-primary)"/>
                                 </div>

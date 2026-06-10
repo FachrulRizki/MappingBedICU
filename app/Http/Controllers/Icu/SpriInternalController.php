@@ -246,9 +246,12 @@ class SpriInternalController extends Controller
 
     public function bookingBedIcu(Request $request, int $id): RedirectResponse
     {
+        $connKelas  = \App\Models\MKelas::connectionName() . '.' . \App\Models\MKelas::tableName('M_KELAS', 'm_kelas');
+        $connKamar  = \App\Models\StatusKamar::connectionName() . '.' . \App\Models\StatusKamar::tableName('STATUS_KAMAR', 'status_kamar');
+
         $validated = $request->validate([
-            'Kode_Ruang'    => 'required|exists:status_kamar,Kode_Ruang',
-            'kebutuhan_bed' => 'required|exists:m_kelas,Nama_Kelas',   // ICU tentukan jenis bed
+            'Kode_Ruang'    => "required|exists:{$connKamar},Kode_Ruang",
+            'kebutuhan_bed' => "required|exists:{$connKelas},Nama_Kelas",
         ]);
 
         $spri    = $this->service->bookingBedIcu($id, $validated['Kode_Ruang'], $validated['kebutuhan_bed'], auth()->user()?->name ?? 'icu');
