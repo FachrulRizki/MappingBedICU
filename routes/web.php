@@ -3,35 +3,33 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Icu\DashboardController;
-use App\Http\Controllers\Icu\PendaftaranController;
-use App\Http\Controllers\Icu\IgdController;
-use App\Http\Controllers\Icu\SpriController;
 use App\Http\Controllers\Icu\BedController;
 use App\Http\Controllers\Icu\PasienIcuController;
 use App\Http\Controllers\Icu\BookingExternalController;
 use App\Http\Controllers\Icu\SpriInternalController;
 use App\Http\Controllers\Icu\DenahBedController;
+use App\Http\Controllers\Icu\Icd10Controller;
 
-// ── Auth ──────────────────────────────────────────────────────────────────
+// Auth
 Route::get('/login',  [LoginController::class, 'showLogin'])->name('login')->middleware('guest');
 Route::post('/login', [LoginController::class, 'login'])->middleware('guest');
 Route::post('/logout',[LoginController::class, 'logout'])->name('logout')->middleware('auth');
 
-// ── Redirect root ─────────────────────────────────────────────────────────
+// Redirect root 
 Route::get('/', fn() => redirect()->route('icu.dashboard'));
 
-// ── Semua route ICU: wajib login ──────────────────────────────────────────
+// Semua route ICU: wajib login 
 Route::middleware('auth')->group(function () {
 
-    // ── Dashboard ─────────────────────────────────────────────────────────
+    // Dashboard 
     Route::get('/dashboard-icu', [DashboardController::class, 'index'])
         ->name('icu.dashboard');
 
-    // ── Denah Bed ─────────────────────────────────────────────────────────
+    // Denah Bed 
     Route::get('/icu/denah-bed', [DenahBedController::class, 'index'])
         ->name('icu.denah_bed');
 
-    // ── Pasien ICU ────────────────────────────────────────────────────────
+    // Pasien ICU
     Route::get('/icu/pasien-icu', [PasienIcuController::class, 'index'])
         ->name('icu.pasien_icu');
     Route::post('/icu/masuk-ruangan/{id}', [PasienIcuController::class, 'masukRuangan'])
@@ -39,10 +37,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/icu/pulangkan/{id}', [PasienIcuController::class, 'pulangkan'])
         ->name('icu.pulangkan')->middleware('role:petugas_icu');
 
-    // ══════════════════════════════════════════════════════════════════════
     // BOOKING EXTERNAL
-    // Alur: Admisi buat request (+ jaminan) → ICU pilih bed → ICU konfirmasi masuk
-    // ══════════════════════════════════════════════════════════════════════
     Route::get('/icu/booking-external', [BookingExternalController::class, 'index'])
         ->name('icu.booking_external.index');
 
@@ -70,10 +65,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/icu/booking-external/{id}/pulangkan', [BookingExternalController::class, 'pulangkan'])
         ->name('icu.booking_external.pulangkan')->middleware('role:petugas_icu');
 
-    // ══════════════════════════════════════════════════════════════════════
     // SURAT PERMINTAAN RAWAT ICU (INTERNAL)
-    // Alur: Petugas Ruang buat → Admisi approve+catat → ICU pilih bed → ICU konfirmasi masuk
-    // ══════════════════════════════════════════════════════════════════════
     Route::get('/icu/spri-internal', [SpriInternalController::class, 'index'])
         ->name('icu.spri_internal.index');
 
@@ -84,6 +76,10 @@ Route::middleware('auth')->group(function () {
     // Lookup pasien (AJAX) — semua role bisa akses
     Route::get('/icu/spri-internal/lookup-pasien', [SpriInternalController::class, 'lookupPasien'])
         ->name('icu.spri_internal.lookup_pasien');
+
+    // Search ICD10 (AJAX) — semua role bisa akses
+    Route::get('/icu/search-icd10', [Icd10Controller::class, 'search'])
+        ->name('icu.search_icd10');
 
     // Admisi — approve + isi catatan jaminan (TIDAK menentukan bed)
     Route::post('/icu/spri-internal/{id}/approve-admisi', [SpriInternalController::class, 'approveAdmisi'])
@@ -113,13 +109,13 @@ Route::middleware('auth')->group(function () {
     Route::post('/icu/spri-internal/{id}/pulangkan', [SpriInternalController::class, 'pulangkan'])
         ->name('icu.spri_internal.pulangkan')->middleware('role:petugas_icu');
 
-    // ── Alokasi Bed (legacy dashboard) ───────────────────────────────────
+    // Alokasi Bed (legacy dashboard)─
     Route::get('/icu/alokasi-bed', [BedController::class, 'index'])
         ->name('icu.alokasi_bed.index');
     Route::post('/icu/alokasi-bed/{id}', [BedController::class, 'alokasi'])
         ->name('icu.alokasi_bed')->middleware('role:petugas_icu');
 
-    // ── Settings: User Management (admin only) ───────────────────────────
+    // Settings: User Management (admin only)
     Route::get('/settings/users', [\App\Http\Controllers\UserController::class, 'index'])
         ->name('settings.users')->middleware('role:admin');
     Route::post('/settings/users', [\App\Http\Controllers\UserController::class, 'store'])
@@ -131,7 +127,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('/settings/users/{id}', [\App\Http\Controllers\UserController::class, 'destroy'])
         ->name('settings.users.destroy')->middleware('role:admin');
 
-    // ── Settings: Role & Permission (admin only) ─────────────────────────
+    // Settings: Role & Permission (admin only)
     Route::get('/settings/roles', [\App\Http\Controllers\RolePermissionController::class, 'index'])
         ->name('settings.roles')->middleware('role:admin');
     Route::post('/settings/roles/user/{id}', [\App\Http\Controllers\RolePermissionController::class, 'updateUserRole'])

@@ -39,8 +39,6 @@ class SpriInternalController extends Controller
         ]);
     }
 
-    // Lookup AJAX: cari pasien + data klinis
-
     public function lookupPasien(Request $request): JsonResponse
     {
         $noMr = trim($request->query('No_MR', ''));
@@ -130,7 +128,7 @@ class SpriInternalController extends Controller
 
                 $kunjungans = $rows->map(fn($r) => [
                     'No_Reg'      => $r->No_Reg,
-                    'label'       => $r->No_Reg . ' — ' . ($r->Kode_Masuk ?? '-'),
+                    // 'label'       => $r->No_Reg . ' — ' . ($r->Kode_Masuk ?? '-'),
                     'Dokter'      => trim($r->nama_dokter    ?? $r->PermintaanDPJP ?? ''),
                     'Kode_Dokter' => trim($r->Kode_Dokter   ?? ''),
                     'asal_ruang'  => trim($r->nama_asal_ruang ?? $r->Kode_Ruang ?? ''),
@@ -157,7 +155,7 @@ class SpriInternalController extends Controller
 
                 $kunjungans = $rows->map(fn($r) => [
                     'No_Reg'      => $r->No_Reg,
-                    'label'       => $r->No_Reg . ' — ' . ($r->Kode_Masuk ?? '-'),
+                    // 'label'       => $r->No_Reg . ' — ' . ($r->Kode_Masuk ?? '-'),
                     'Dokter'      => $r->Dokter          ?? '',
                     'Kode_Dokter' => $r->Kode_Dokter     ?? '',
                     'asal_ruang'  => $r->nama_asal_ruang ?? '',

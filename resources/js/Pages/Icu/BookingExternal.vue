@@ -4,6 +4,7 @@ import { router, useForm } from '@inertiajs/vue3';
 import AppLayout    from '@/Layouts/AppLayout.vue';
 import AlertModal   from '@/Components/AlertModal.vue';
 import ConfirmModal from '@/Components/ConfirmModal.vue';
+import Icd10Search  from '@/Components/Icd10Search.vue';
 import { useAuth }  from '@/composables/useAuth.js';
 
 const {
@@ -253,9 +254,13 @@ const statusBadge = (status) => ({
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
                                     <label class="block text-xs font-semibold mb-1" style="color:var(--text-primary)">Diagnosa <span style="color:#E07050">*</span></label>
-                                    <input v-model="form.diagnosa" required placeholder="Diagnosa masuk"
-                                        class="w-full px-3 py-2.5 text-sm rounded-xl outline-none"
-                                        style="border:1px solid var(--border-default); background:var(--bg-surface); color:var(--text-primary)"/>
+                                    <Icd10Search
+                                        v-model="form.diagnosa"
+                                        placeholder="Cari kode / keterangan ICD10"
+                                        :required="true"
+                                        :has-error="!!form.errors.diagnosa"
+                                    />
+                                    <p v-if="form.errors.diagnosa" class="text-xs mt-1" style="color:#E07050">{{ form.errors.diagnosa }}</p>
                                 </div>
                                 <div>
                                     <label class="block text-xs font-semibold mb-1" style="color:var(--text-primary)">Rencana Tindakan <span style="color:#E07050">*</span></label>
