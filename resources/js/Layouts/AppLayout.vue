@@ -199,29 +199,50 @@ const iconMoon = 'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003
             </nav>
 
             <div class="px-3 pb-4 flex-shrink-0">
-                <div class="promo-card">
-                    <div class="flex items-start gap-2 mb-3">
-                        <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-                            style="background:rgba(45,217,164,0.15)">
-                            <svg style="width:14px;height:14px;color:#2DD9A4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-                            </svg>
+                <div class="promo-card space-y-3">
+
+                    <!-- User Info -->
+                    <div class="flex items-center gap-3">
+                        
+                        <!-- Avatar -->
+                        <div
+                            class="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-sm"
+                            :style="`
+                                background:${authUser?.role_color ? authUser.role_color + '30' : 'rgba(45,217,164,0.2)'};
+                                color:${authUser?.role_color ?? '#2DD9A4'};
+                                border:2px solid ${authUser?.role_color ?? '#2DD9A4'}40;
+                                font-family:'Plus Jakarta Sans',sans-serif
+                            `">
+                            {{ authUser?.name?.charAt(0)?.toUpperCase() ?? 'G' }}
                         </div>
-                        <div>
-                            <p class="text-xs font-bold leading-tight"
-                                style="color:var(--text-primary); font-family:'Plus Jakarta Sans',sans-serif">ICU Live Mode</p>
-                            <p class="text-xs mt-0.5"
-                                style="color:var(--text-secondary); font-family:'DM Sans',sans-serif; line-height:1.4">
-                                Auto-refresh aktif setiap 30 detik
+
+                        <!-- Name & Role -->
+                        <div class="flex-1 min-w-0">
+                            <p class="text-xs font-bold truncate"
+                                style="color:var(--text-primary); font-family:'Plus Jakarta Sans',sans-serif">
+                                {{ authUser?.name ?? 'Guest' }}
+                            </p>
+                            <p class="text-[10px] font-semibold truncate"
+                                :style="`color:${authUser?.role_color ?? '#8EA89E'}; font-family:'DM Mono',monospace`">
+                                {{ authUser?.role_label ?? '-' }}
                             </p>
                         </div>
                     </div>
-                    <button @click="manualRefresh" class="btn-primary w-full justify-center text-xs">
+
+                    <!-- Logout Button -->
+                    <button
+                        @click="doLogout"
+                        class="w-full flex items-center justify-center gap-2 text-xs font-semibold py-2 rounded-lg transition-all"
+                        style="background:#FF6363; color:white">
+
                         <svg style="width:12px;height:12px" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M17 16l4-4m0 0l-4-4m4 4H7"/>
                         </svg>
-                        Refresh Sekarang
+
+                        Logout
                     </button>
+
                 </div>
             </div>
         </aside>
