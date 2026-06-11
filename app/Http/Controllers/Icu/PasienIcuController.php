@@ -142,7 +142,7 @@ class PasienIcuController extends Controller
         ]);
     }
 
-    // ── Jalur lama ────────────────────────────────────────────────────────
+    // Jalur lama
 
     public function masukRuangan(int $id): RedirectResponse
     {
@@ -157,7 +157,7 @@ class PasienIcuController extends Controller
         return back()->with('success', "Pasien {$nama} dipulangkan.");
     }
 
-    // ── Jalur external ────────────────────────────────────────────────────
+    // Jalur external 
 
     public function pulangkanExternal(int $id): RedirectResponse
     {
@@ -166,7 +166,7 @@ class PasienIcuController extends Controller
         return back()->with('success', "Pasien {$nama} dipulangkan.");
     }
 
-    // ── Jalur internal ────────────────────────────────────────────────────
+    // Jalur internal 
 
     public function pulangkanInternal(int $id): RedirectResponse
     {

@@ -6,11 +6,6 @@ use App\Models\IcuAdmision;
 
 class PulangService
 {
-    /**
-     * Pulangkan pasien dari ICU:
-     * - Kosongkan bed kembali
-     * - Update admision → pulang
-     */
     public function pulangkanPasien(int $admisionId): IcuAdmision
     {
         $admision = IcuAdmision::with('bed.ruang', 'pasien')->findOrFail($admisionId);

@@ -4,12 +4,6 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-/**
- * Tabel SPRI lama — digunakan oleh alur IcuAdmision (jalur legacy).
- * Jalur baru menggunakan icu_spri_internal.
- *
- * Status: 'draft' | 'approved' | 'rejected'
- */
 return new class extends Migration
 {
     public function up(): void

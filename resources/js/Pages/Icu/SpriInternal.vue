@@ -16,7 +16,6 @@ const props = defineProps({
     flash:       { type: Object, default: () => ({}) },
 });
 
-// ── Alert & Confirm ────────────────────────────────────────
 const alert   = ref({ show: false, type: 'success', title: '', message: '' });
 const confirm = ref({ show: false, action: null, title: '', message: '', danger: false });
 const showAlert   = (t, h, m) => { alert.value = { show: true, type: t, title: h, message: m }; };
@@ -28,7 +27,6 @@ watch(() => props.flash, (f) => {
     if (f?.error)   showAlert('error',   'Gagal!',    f.error);
 }, { immediate: true, deep: true });
 
-// ── Tabs ───────────────────────────────────────────────────
 const activeTab = ref('admisi');
 const statusGroups = {
     admisi:   ['pending_admisi'],
@@ -58,11 +56,8 @@ const tabCounts = computed(() => {
     return c;
 });
 
-// ─────────────────────────────────────────────────────────────────────────
-// LOOKUP PASIEN — validasi relasi No_MR & No_Reg sebelum submit
-// ─────────────────────────────────────────────────────────────────────────
 const lookupLoading = ref(false);
-const lookupResult  = ref(null);    // { found, nama_pasien, kunjungans }
+const lookupResult  = ref(null);
 const lookupError   = ref('');
 const kunjunganList = ref([]);
 
@@ -86,7 +81,6 @@ const doLookup = async (noMr) => {
         if (data.found) {
             kunjunganList.value = data.kunjungans ?? [];
 
-            // Auto-pilih kunjungan terakhir jika hanya satu
             if (kunjunganList.value.length === 1) {
                 const k = kunjunganList.value[0];
                 form.No_Reg     = k.No_Reg;
@@ -95,7 +89,6 @@ const doLookup = async (noMr) => {
                 if (!form.Diagnosis && k.Diagnosis) form.Diagnosis = k.Diagnosis;
             }
 
-            // Pre-fill data klinis dari SPRI terakhir pasien (jika ada)
             if (data.prefill) {
                 if (!form.Diagnosis)  form.Diagnosis  = data.prefill.Diagnosis  ?? '';
                 if (!form.IndikasiRI) form.IndikasiRI = data.prefill.IndikasiRI ?? '';
@@ -112,11 +105,6 @@ const doLookup = async (noMr) => {
     }
 };
 
-// ─────────────────────────────────────────────────────────────────────────
-// FORM BUAT SURAT (Petugas Ruang)
-// Tidak ada pilih bed — ICU yang tentukan
-// kebutuhan_bed = informasi klinis untuk ICU (Nama_Kelas)
-// ─────────────────────────────────────────────────────────────────────────
 const showForm = ref(false);
 const form = useForm({
     No_MR: '', No_Reg: '', Diagnosis: '', IndikasiRI: '',
@@ -133,7 +121,6 @@ const onKunjunganChange = (noReg) => {
     if (k) {
         form.Dokter     = k.Dokter     ?? '';
         form.asal_ruang = k.asal_ruang ?? '';
-        // Auto-fill Diagnosis dari ASESMEN jika form masih kosong
         if (!form.Diagnosis && k.Diagnosis) form.Diagnosis = k.Diagnosis;
     }
 };
@@ -146,9 +133,6 @@ const submitForm = () => form.post(route('icu.spri_internal.store'), {
     },
 });
 
-// ─────────────────────────────────────────────────────────────────────────
-// AKSI ADMISI: approve + catatan (tidak pilih bed)
-// ─────────────────────────────────────────────────────────────────────────
 const catatanAdmisiForm = ref({});
 const showCatatanForm   = ref({});
 const alasanTolak       = ref({});
@@ -173,15 +157,9 @@ const doTolakAdmisi = (s) => {
     });
 };
 
-// ─────────────────────────────────────────────────────────────────────────
-// AKSI ICU: tentukan bed, catat tanpa bed, tolak, konfirmasi masuk, pulang
-// kebutuhan_bed diisi ICU saat pilih bed (bukan dari Petugas Ruang)
-// ─────────────────────────────────────────────────────────────────────────
 const bedPilihan      = ref({});
 const kondisiPilihan  = ref({});   // ICU tentukan jenis ICU per record
-const bedCocok        = (kondisi) => kondisi
-    ? props.kamarKosong.filter(b => b.nama_kelas === kondisi)
-    : props.kamarKosong;   // jika belum pilih kondisi, tampil semua bed kosong
+const bedCocok        = (kondisi) => kondisi ? props.kamarKosong.filter(b => b.nama_kelas === kondisi) : props.kamarKosong;
 
 const doBookingBed = (s) => {
     const kode    = bedPilihan.value[s.id];
@@ -226,7 +204,6 @@ const doPulangkan = (s) => openConfirm({
     action: () => router.post(route('icu.spri_internal.pulangkan', s.id)),
 });
 
-// ── Helpers ────────────────────────────────────────────────
 const gBg   = (g) => g === 'L' ? 'rgba(74,144,217,0.15)' : g === 'P' ? 'rgba(217,81,122,0.15)' : 'var(--bg-input)';
 const gTxt  = (g) => g === 'L' ? '#4A90D9' : g === 'P' ? '#D9517A' : 'var(--text-secondary)';
 const gIcon = (g) => g === 'L' ? '♂' : g === 'P' ? '♀' : '?';
@@ -263,9 +240,7 @@ const statusBadge = (status) => ({
                 </button>
             </div>
 
-            <!-- ═══════════════════════════════════════════════════════
-                 FORM BUAT SURAT (Petugas Ruang)
-            ═══════════════════════════════════════════════════════ -->
+            <!-- form buat surat -->
             <Transition enter-active-class="transition-all duration-200 ease-out"
                         enter-from-class="opacity-0 -translate-y-2" enter-to-class="opacity-100 translate-y-0">
                 <form v-if="showForm && canBuatSpriInternal" @submit.prevent="submitForm" class="card-dark overflow-hidden">
@@ -273,8 +248,6 @@ const statusBadge = (status) => ({
                         <p class="text-sm font-bold text-white">Surat Permintaan Rawat ICU — Pasien Internal</p>
                     </div>
                     <div class="p-5 space-y-5">
-
-                        <!-- 1. Verifikasi Pasien (lookup) -->
                         <div>
                             <p class="text-xs font-bold uppercase tracking-wide mb-3" style="color:var(--text-accent)">
                                 1. Verifikasi Pasien
@@ -288,7 +261,6 @@ const statusBadge = (status) => ({
                                         <input v-model="form.No_MR" required placeholder="Ketik No. MR..."
                                             class="w-full px-3 py-2.5 text-sm rounded-xl outline-none font-mono pr-8"
                                             :style="`border:1px solid ${form.errors.No_MR || lookupError ? '#E07050' : lookupResult?.found ? '#2DD9A4' : 'var(--border-default)'}; background:var(--bg-surface); color:var(--text-primary)`"/>
-                                        <!-- Status lookup icon -->
                                         <div class="absolute right-2.5 top-1/2 -translate-y-1/2">
                                             <svg v-if="lookupLoading" class="w-4 h-4 animate-spin" style="color:var(--text-secondary)" fill="none" viewBox="0 0 24 24">
                                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
@@ -427,9 +399,6 @@ const statusBadge = (status) => ({
                 <p class="text-sm">Tidak ada data di tab ini</p>
             </div>
 
-            <!-- ═══════════════════════════════════════════════════════
-                 LIST SURAT PERMINTAAN
-            ═══════════════════════════════════════════════════════ -->
             <div v-else class="space-y-3">
                 <div v-for="s in filtered" :key="s.id" class="card-dark overflow-hidden">
 

@@ -106,8 +106,6 @@ class DashboardService
             + $spriDiIcu->count()
             + $extDiIcu->count();
 
-        // tahapDiIcu untuk dashboard pipeline — jalur lama saja
-        // jalur baru ditampilkan di menu masing-masing (SpriInternal, BookingExternal)
         $allNoReg = $admissions->pluck('No_Reg')->filter()->unique()->values();
         $pendaftaranMap = \App\Models\Pendaftaran::whereIn('No_Reg', $allNoReg)
             ->get()->keyBy('No_Reg');

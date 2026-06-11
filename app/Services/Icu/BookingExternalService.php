@@ -39,7 +39,6 @@ class BookingExternalService
             throw ValidationException::withMessages(['status' => 'Status tidak sesuai untuk konfirmasi ICU.']);
         }
 
-        // Validasi bed masih KOSONG (skip jika tidak bisa query)
         $bed = StatusKamar::where('Kode_Ruang', $kodeRuang)->first();
         if ($bed && strtoupper($bed->Status) !== 'KOSONG') {
             throw ValidationException::withMessages([
@@ -47,7 +46,6 @@ class BookingExternalService
             ]);
         }
 
-        // Update status bed — skip jika permission denied (staging read-only)
         $this->bedStatus->setBooking($kodeRuang, $confirmedBy);
 
         $booking->update([
@@ -71,7 +69,6 @@ class BookingExternalService
     {
         $booking = IcuBookingExternal::findOrFail($id);
 
-        // Kembalikan bed ke KOSONG jika sudah di-booking
         if ($booking->allocated_bed_id) {
             $this->bedStatus->setKosong($booking->allocated_bed_id);
         }
@@ -98,7 +95,6 @@ class BookingExternalService
         if ($noMr)  $updateData['No_MR']  = $noMr;
         if ($noReg) $updateData['No_Reg'] = $noReg;
 
-        // Update status bed ke ISI — skip jika permission denied
         if ($booking->allocated_bed_id) {
             $this->bedStatus->setTerisi(
                 $booking->allocated_bed_id,

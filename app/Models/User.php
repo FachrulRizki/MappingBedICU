@@ -31,7 +31,7 @@ class User extends Authenticatable
         ];
     }
 
-    // ── Role helpers ──────────────────────────────────────────
+    // Role helpers
 
     public function isAdmin(): bool        { return $this->role === 'admin'; }
     public function isAdmisi(): bool       { return $this->role === 'admisi'; }

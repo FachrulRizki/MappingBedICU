@@ -31,7 +31,7 @@ class IcuSpriInternal extends Model
         'booked_by',
     ];
 
-    // ── Relasi ────────────────────────────────────────────────────────────
+    // Relasi
 
     public function pasien()
     {
@@ -48,7 +48,7 @@ class IcuSpriInternal extends Model
         return $this->belongsTo(StatusKamar::class, 'allocated_bed_id', 'Kode_Ruang');
     }
 
-    // ── Status helpers ────────────────────────────────────────────────────
+    // Status helpers
 
     public function statusLabel(): string
     {

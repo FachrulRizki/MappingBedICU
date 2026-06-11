@@ -60,7 +60,7 @@ class BookingExternalController extends Controller
 
         $booking = $this->service->buatBooking([
             ...$validated,
-            'kebutuhan_bed' => null,   // diisi ICU saat konfirmasi bed
+            'kebutuhan_bed' => null,
             'created_by'    => $this->currentUser(),
         ]);
 

@@ -4,13 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-/**
- * Booking ICU jalur EXTERNAL.
- * Pasien dari luar RS — belum punya No_MR saat booking dibuat.
- *
- * Alur: pending_icu → bed_confirmed → di_icu → pulang
- * Admisi isi keterangan + jaminan, ICU yang tentukan bed.
- */
 class IcuBookingExternal extends Model
 {
     protected $table = 'icu_booking_external';
@@ -36,7 +29,7 @@ class IcuBookingExternal extends Model
         'confirmed_by',
     ];
 
-    // ── Relasi ────────────────────────────────────────────────────────────
+    // Relasi
 
     public function pasien()
     {
@@ -53,7 +46,7 @@ class IcuBookingExternal extends Model
         return $this->belongsTo(StatusKamar::class, 'allocated_bed_id', 'Kode_Ruang');
     }
 
-    // ── Status helpers ────────────────────────────────────────────────────
+    // Status helpers
 
     public function statusLabel(): string
     {

@@ -10,14 +10,6 @@ use Illuminate\Support\Str;
 
 class PendaftaranService
 {
-    /**
-     * Daftarkan pasien baru:
-     * 1. Buat RegistrasiPasien (No_MR baru)
-     * 2. Buat Pendaftaran (No_Reg baru)
-     * 3. Buat IcuAdmision dengan status 'daftar'
-     *
-     * @return array{pasien: RegistrasiPasien, admision: IcuAdmision}
-     */
     public function daftarkanPasien(
         string  $namaPasien,
         string  $noIdentitas,

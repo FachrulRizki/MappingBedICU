@@ -23,8 +23,7 @@ class IcuAdmision extends Model
         'match_status',
     ];
 
-    // ─── Relasi ──────────────────────────────────────────────
-
+    // Relasi
     public function pendaftaran()
     {
         return $this->belongsTo(Pendaftaran::class, 'No_Reg', 'No_Reg');
@@ -52,9 +51,7 @@ class IcuAdmision extends Model
             ->first();
     }
 
-    // ─── Helper ──────────────────────────────────────────────
-
-    /** Nama pasien: prioritaskan dari registrasi, fallback ke nama_pasien_ext */
+    // Helper
     public function getNamaPasienAttribute(): string
     {
         return $this->pasien?->Nama_Pasien ?? $this->nama_pasien_ext ?? '-';
@@ -65,11 +62,6 @@ class IcuAdmision extends Model
         return $this->jenis_pasien === 'external';
     }
 
-    /**
-     * Status yang menunggu aksi dari Petugas ICU:
-     *   - internal: waiting_icu (SPRI sudah diisi, admisi sudah catat keterangan)
-     *   - external: ext_waiting (admisi sudah input, menunggu ICU konfirmasi bed)
-     */
     public function isWaitingIcu(): bool
     {
         return in_array($this->status, ['waiting_icu', 'ext_waiting']);

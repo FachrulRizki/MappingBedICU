@@ -6,11 +6,6 @@ use App\Models\IcuAdmision;
 
 class TransferService
 {
-    /**
-     * Antar pasien ke ruangan ICU:
-     * - Tandai bed → ISI, isi No_MR
-     * - Update admision → di_icu
-     */
     public function masukRuangan(int $admisionId): IcuAdmision
     {
         $admision = IcuAdmision::with('bed.ruang', 'pasien')->findOrFail($admisionId);

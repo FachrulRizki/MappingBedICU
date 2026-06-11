@@ -5,16 +5,6 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Concerns\UsesRsusConnection;
 
-/**
- * Model pasien.
- *
- * SQL Server: DB_RSUS.dbo.REGISTER_PASIEN
- * MySQL lokal: registrasi_pasien (dari migration)
- *
- * Kolom utama disesuaikan dengan kolom di DB RS.
- * Saat SQL Server aktif, pastikan nama kolom cocok dengan
- * hasil query: SELECT TOP 1 * FROM REGISTER_PASIEN
- */
 class RegistrasiPasien extends Model
 {
     use UsesRsusConnection;

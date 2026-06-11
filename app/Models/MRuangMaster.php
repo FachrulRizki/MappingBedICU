@@ -7,10 +7,6 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use App\Models\Concerns\UsesRsusConnection;
 
-/**
- * Master ruangan/bed individual.
- * Tabel: M_RUANG_MASTER (SQL Server) / m_ruang_master (MySQL lokal)
- */
 class MRuangMaster extends Model
 {
     use UsesRsusConnection;
@@ -43,24 +39,6 @@ class MRuangMaster extends Model
         return $this->hasOne(StatusKamar::class, 'Kode_Ruang', 'Kode_RuangM');
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // Query join sesuai kebutuhan ICU:
-    //
-    //   SELECT rm.Nama_RuangM, rm.Kode_Kelas,
-    //          mk.Kode_Kelas AS kelas_master, mk.Nama_Kelas,
-    //          sk.Status
-    //   FROM   M_RUANG_MASTER rm
-    //   LEFT JOIN M_KELAS mk      ON rm.Kode_Kelas = mk.Kode_Kelas
-    //   LEFT JOIN STATUS_KAMAR sk ON rm.Kode_RuangM = sk.Kode_Ruang
-    //   WHERE  rm.Kode_Bangsal = 'ICU'
-    // ─────────────────────────────────────────────────────────────────────
-
-    /**
-     * Ambil semua bed ICU dengan info kelas + status kamar.
-     * Dikembalikan sebagai Collection of stdClass.
-     *
-     * @return \Illuminate\Support\Collection
-     */
     public static function bedIcuDenganStatus(): \Illuminate\Support\Collection
     {
         $instance = new static();
@@ -95,12 +73,6 @@ class MRuangMaster extends Model
         }
     }
 
-    /**
-     * Hanya bed KOSONG — untuk dropdown pilih bed di form ICU.
-     * Format: [Kode_Ruang, nama_ruang, kode_kelas, nama_kelas]
-     *
-     * @return \Illuminate\Support\Collection
-     */
     public static function bedKosong(): \Illuminate\Support\Collection
     {
         return static::bedIcuDenganStatus()
@@ -114,12 +86,6 @@ class MRuangMaster extends Model
             ->values();
     }
 
-    /**
-     * Daftar Nama_Kelas unik yang tersedia di ICU — untuk dropdown Jenis ICU.
-     * Format: [kode, nama]
-     *
-     * @return \Illuminate\Support\Collection
-     */
     public static function jenisIcuTersedia(): \Illuminate\Support\Collection
     {
         return static::bedIcuDenganStatus()
