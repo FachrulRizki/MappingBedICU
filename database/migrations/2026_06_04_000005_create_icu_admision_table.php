@@ -4,68 +4,67 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
+/**
+ * Tabel ICU_ADMISION — alur LEGACY (jalur lama).
+ *
+ * Menangani monitoring pasien ICU sebelum ada jalur baru.
+ * Jalur baru menggunakan:
+ *   - icu_spri_internal  → pasien internal (pindah dari ruang lain)
+ *   - icu_booking_external → pasien rujukan dari RS luar
+ *
+ * ALUR STATUS:
+ *   Internal: daftar → igd_periksa → spri_dibuat → waiting_icu → booking_icu → di_icu → pulang
+ *   External: ext_request → ext_waiting → booking_icu → di_icu → pulang
+ *
+ * Tabel ini tetap dipertahankan untuk data historis & controller yang masih aktif.
+ */
 return new class extends Migration
 {
-    /**
-     * Tabel ICUAdmision — inti alur monitoring pasien ICU.
-     *
-     * ALUR INTERNAL (dari ruang perawatan):
-     *   daftar → igd_periksa → spri_dibuat → waiting_icu
-     *   → [Petugas ICU pilih bed] → booking_icu → di_icu → pulang
-     *
-     * ALUR EXTERNAL (pasien rujukan dari RS luar):
-     *   ext_request → ext_waiting
-     *   → [Petugas ICU pilih bed] → booking_icu → di_icu → pulang
-     *
-     * Admisi hanya mengisi catatan/keterangan, tidak menentukan bed.
-     * Petugas ICU yang menentukan dan mengalokasikan bed.
-     */
     public function up(): void
     {
         Schema::create('icu_admision', function (Blueprint $table) {
             $table->id();
 
-            // FK ke pendaftaran & registrasi (nullable untuk external yg belum punya No_MR)
-            $table->string('No_Reg')->nullable();
-            $table->foreign('No_Reg')->references('No_Reg')->on('pendaftaran')->nullOnDelete();
-            $table->string('No_MR')->nullable();
-            $table->foreign('No_MR')->references('No_MR')->on('registrasi_pasien')->nullOnDelete();
+            // ── Referensi pasien (nullable untuk external sebelum linked ke MR) ─
+            $table->string('No_Reg', 20)->nullable();
+            $table->foreign('No_Reg')
+                  ->references('No_Reg')->on('pendaftaran')
+                  ->nullOnDelete();
+            $table->string('No_MR', 20)->nullable();
+            $table->foreign('No_MR')
+                  ->references('No_MR')->on('registrasi_pasien')
+                  ->nullOnDelete();
 
-            // Untuk pasien external yang belum punya No_MR di sistem
-            $table->string('nama_pasien_ext')->nullable();   // nama sementara sebelum linked ke MR
-            $table->string('asal_rs')->nullable();           // nama RS pengirim
-            $table->string('jaminan')->nullable();           // BPJS | Umum | Asuransi | dll
-            $table->text('catatan_jaminan')->nullable();     // detail jaminan/catatan tambahan
-            $table->string('jenis_pasien')->default('internal'); // internal | external
+            // ── Data pasien external (sebelum punya No_MR di sistem) ───────────
+            $table->string('nama_pasien_ext', 100)->nullable();
+            $table->string('asal_rs', 100)->nullable();
+            $table->string('jaminan', 50)->nullable();       // BPJS | Umum | Asuransi | dll.
+            $table->text('catatan_jaminan')->nullable();
+            $table->string('jenis_pasien', 20)->default('internal'); // internal | external
 
+            // ── Status alur ────────────────────────────────────────────────────
             $table->enum('status', [
-                // ── Internal ──────────────────────────
-                'daftar',           // baru didaftarkan
-                'igd_periksa',      // dikirim ke IGD
-                'spri_dibuat',      // SPRI dibuat oleh dokter/petugas ruang
-                'waiting_icu',      // menunggu konfirmasi & bed dari ICU
-                // ── External ──────────────────────────
-                'ext_request',      // permintaan bed masuk dari RS luar
-                'ext_waiting',      // admisi sudah input catatan, menunggu ICU
-                // ── Bersama (setelah ICU konfirmasi) ──
-                'booking_icu',      // ICU sudah tentukan bed, pasien dalam perjalanan
-                'di_icu',           // pasien sudah di ruangan ICU
-                'pulang',           // pasien keluar, bed kembali kosong
+                'daftar',
+                'igd_periksa',
+                'spri_dibuat',
+                'waiting_icu',
+                'ext_request',
+                'ext_waiting',
+                'booking_icu',
+                'di_icu',
+                'pulang',
             ])->default('daftar');
 
-            // Kebutuhan bed — diisi saat SPRI dibuat (internal) atau saat request (external)
-            // Nilainya = Kode_Kelas dari M_KELAS: ICUNV, HCU, ICU, CVCU, dst.
-            $table->string('required_bed_type')->nullable();
-
-            // Catatan dari Admisi (bukan alokasi bed — hanya keterangan kebutuhan)
+            // ── Kebutuhan & alokasi bed ────────────────────────────────────────
+            // required_bed_type: menyimpan Nama_Kelas (bukan Kode_Kelas)
+            // contoh: 'ICU Non Ventilator', 'HCU', 'CVCU'
+            $table->string('required_bed_type', 100)->nullable();
             $table->text('catatan_admisi')->nullable();
-
-            // Bed yang dipilih & dialokasikan oleh Petugas ICU
-            $table->string('allocated_bed_id')->nullable();
-            $table->foreign('allocated_bed_id')->references('Kode_Ruang')->on('status_kamar')->nullOnDelete();
-
-            // matched | waiting | rejected
-            $table->string('match_status')->nullable();
+            $table->string('allocated_bed_id', 20)->nullable();
+            $table->foreign('allocated_bed_id')
+                  ->references('Kode_Ruang')->on('status_kamar')
+                  ->nullOnDelete();
+            $table->string('match_status', 20)->nullable(); // waiting | matched | rejected
 
             $table->timestamps();
         });

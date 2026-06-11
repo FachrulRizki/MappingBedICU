@@ -4,23 +4,30 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
+/**
+ * Tabel SPRI lama — digunakan oleh alur IcuAdmision (jalur legacy).
+ * Jalur baru menggunakan icu_spri_internal.
+ *
+ * Status: 'draft' | 'approved' | 'rejected'
+ */
 return new class extends Migration
 {
     public function up(): void
     {
         Schema::create('spri', function (Blueprint $table) {
             $table->id();
-            $table->string('No_Reg');
-            $table->foreign('No_Reg')->references('No_Reg')->on('pendaftaran')->onDelete('cascade');
-            $table->string('Diagnosis')->nullable();
-            $table->string('IndikasiRI')->nullable();
-            $table->string('spesialis')->nullable();
-            $table->string('Dokter')->nullable();
-            $table->string('NameUser')->nullable();
-            $table->string('Perawatan')->nullable();
-            $table->string('Keterangan')->nullable();
-            // Status: 'draft', 'approved', 'rejected'
-            $table->string('Status')->default('draft');
+            $table->string('No_Reg', 20);
+            $table->foreign('No_Reg')
+                  ->references('No_Reg')->on('pendaftaran')
+                  ->onDelete('cascade');
+            $table->string('Diagnosis', 200)->nullable();
+            $table->string('IndikasiRI', 200)->nullable();
+            $table->string('spesialis', 100)->nullable();
+            $table->string('Dokter', 100)->nullable();
+            $table->string('NameUser', 50)->nullable();
+            $table->string('Perawatan', 50)->nullable();
+            $table->text('Keterangan')->nullable();
+            $table->string('Status', 20)->default('draft');  // draft | approved | rejected
             $table->timestamps();
         });
     }
