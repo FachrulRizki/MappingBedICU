@@ -1,11 +1,3 @@
-/**
- * useAuth — composable untuk akses data user + role checks.
- *
- * ALUR BARU (internal & external sama):
- *   Petugas Ruang/Admisi → buat request (tanpa pilih bed)
- *   Admisi → setujui + isi catatan jaminan (tanpa pilih bed)
- *   Petugas ICU → pilih bed + konfirmasi masuk (LANGSUNG di_icu, skip verif admisi)
- */
 import { computed } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 
@@ -21,27 +13,22 @@ export function useAuth() {
 
     const can = (...roles) => isAdmin.value || roles.includes(role.value);
 
-    // ── Booking External ──────────────────────────────────────────────
-    // Admisi: buat booking + isi jaminan (tanpa pilih bed)
-    const canBuatBookingExternal = computed(() => can('admisi'));
-    // ICU: satu-satunya penentu bed + konfirmasi masuk
-    const canKonfirmasiIcu       = computed(() => can('petugas_icu'));
-    const canKonfirmasiMasuk     = computed(() => can('petugas_icu'));
-    const canPulangkan           = computed(() => can('petugas_icu'));
-    // Dihapus: canValidasiAdmisi, canVerifikasiBed, canLinkPasien
-    // (tidak ada lagi step validasi admisi setelah ICU konfirmasi bed)
+    // ── Booking External ──────────────────────────────────────────────────
+    // Admisi: buat booking, verifikasi No_MR setelah pasien tiba
+    const canBuatBookingExternal  = computed(() => can('admisi'));
+    const canVerifikasiAdmisiExt  = computed(() => can('admisi'));
+    // ICU: konfirmasi bed, tolak
+    const canKonfirmasiIcu        = computed(() => can('petugas_icu'));
 
-    // ── SPRI Internal ─────────────────────────────────────────────────
-    // Petugas Ruang: buat surat (tanpa pilih bed)
-    const canBuatSpriInternal = computed(() => can('petugas_ruang'));
-    // Admisi: setujui + isi catatan (tanpa pilih bed)
-    const canApproveAdmisi    = computed(() => can('admisi'));
-    // ICU: satu-satunya penentu bed + konfirmasi masuk
-    const canBookingBedIcu    = computed(() => can('petugas_icu'));
-    // Dihapus: canVerifikasiAdmisi
-    // (tidak ada lagi step verifikasi admisi setelah ICU booking bed)
+    // ── SPRI Internal ─────────────────────────────────────────────────────
+    // Petugas Ruang: buat SPRI
+    const canBuatSpriInternal     = computed(() => can('petugas_ruang'));
+    // Admisi: approve/tolak, isi catatan jaminan
+    const canApproveAdmisi        = computed(() => can('admisi'));
+    // ICU: verifikasi bed, tolak
+    const canVerifikasiBedIcu     = computed(() => can('petugas_icu'));
 
-    // ── Settings ─────────────────────────────────────────────────────
+    // ── Settings ─────────────────────────────────────────────────────────
     const canManageUsers = computed(() => isAdmin.value);
 
     return {
@@ -50,13 +37,12 @@ export function useAuth() {
         can,
         // Booking External
         canBuatBookingExternal,
+        canVerifikasiAdmisiExt,
         canKonfirmasiIcu,
-        canKonfirmasiMasuk,
-        canPulangkan,
         // SPRI Internal
         canBuatSpriInternal,
         canApproveAdmisi,
-        canBookingBedIcu,
+        canVerifikasiBedIcu,
         // Settings
         canManageUsers,
     };

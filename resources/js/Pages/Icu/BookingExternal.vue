@@ -8,8 +8,11 @@ import Icd10Search  from '@/Components/Icd10Search.vue';
 import { useAuth }  from '@/composables/useAuth.js';
 
 const {
-    canBuatBookingExternal, canKonfirmasiIcu, canKonfirmasiMasuk,
-    canPulangkan, isAdmin, user: authUser,
+    canBuatBookingExternal,
+    canVerifikasiAdmisiExt,
+    canKonfirmasiIcu,
+    isAdmin,
+    user: authUser,
 } = useAuth();
 
 const props = defineProps({
@@ -19,7 +22,6 @@ const props = defineProps({
     flash:       { type: Object, default: () => ({}) },
 });
 
-// ── Alert & Confirm modal ──────────────────────────────────
 const alert   = ref({ show: false, type: 'success', title: '', message: '' });
 const confirm = ref({ show: false, action: null, title: '', message: '', danger: false });
 const showAlert   = (t, h, m) => { alert.value = { show: true, type: t, title: h, message: m }; };
@@ -31,81 +33,72 @@ watch(() => props.flash, (f) => {
     if (f?.error)   showAlert('error',   'Gagal!',    f.error);
 }, { immediate: true, deep: true });
 
-// ── Tab aktif ──────────────────────────────────────────────
+// ── Tabs ───────────────────────────────────────────────────
 const activeTab = ref('menunggu');
 
-// Status groups sesuai alur baru
-// pending_icu     → menunggu ICU tentukan bed
-// bed_confirmed   → ICU sudah pilih bed, pasien akan diantar
-// di_icu          → pasien di ruangan
-// ditolak / pulang
+// Alur: pending_icu → bed_confirmed → admisi_verified | ditolak
 const statusGroups = {
-    menunggu:  ['pending_icu'],
-    confirmed: ['bed_confirmed'],
-    aktif:     ['di_icu'],
-    selesai:   ['ditolak', 'pulang'],
+    menunggu:     ['pending_icu'],
+    bed_confirmed:['bed_confirmed'],
+    verified:     ['admisi_verified'],
+    selesai:      ['ditolak'],
 };
 
 const allTabs = [
-    { key:'menunggu',  label:'Menunggu ICU',   roles: ['admin','admisi','petugas_icu'] },
-    { key:'confirmed', label:'Siap Antar',      roles: ['admin','admisi','petugas_icu'] },
-    { key:'aktif',     label:'Di ICU',          roles: ['admin','admisi','petugas_icu'] },
-    { key:'selesai',   label:'Selesai/Tolak',   roles: ['admin','admisi','petugas_icu'] },
+    { key: 'menunggu',      label: 'Waiting ICU',    roles: ['admin','admisi','petugas_icu'] },
+    { key: 'bed_confirmed', label: 'Verifikasi Admisi', roles: ['admin','admisi','petugas_icu'] },
+    { key: 'verified',      label: 'Terverifikasi',    roles: ['admin','admisi','petugas_icu'] },
+    { key: 'selesai',       label: 'Ditolak',          roles: ['admin','admisi','petugas_icu'] },
 ];
+
 const visibleTabs = computed(() => allTabs.filter(t =>
     isAdmin.value || t.roles.includes(authUser.value?.role)
 ));
+
 const filtered = computed(() => {
     const keys = statusGroups[activeTab.value] ?? [];
     return keys.length ? props.bookings.filter(b => keys.includes(b.status)) : props.bookings;
 });
+
 const tabCounts = computed(() => {
     const c = {};
-    for (const [tab, statuses] of Object.entries(statusGroups)) {
+    for (const [tab, statuses] of Object.entries(statusGroups))
         c[tab] = props.bookings.filter(b => statuses.includes(b.status)).length;
-    }
     return c;
 });
 
 // ── Form booking baru (Admisi) ─────────────────────────────
-// Admisi mengisi: identitas, klinis, jaminan, keterangan
-// TIDAK ada field pilih bed — itu urusan ICU
 const showForm = ref(false);
 const form = useForm({
-    // Identitas
-    nama_pasien:      '',
-    jenis_kelamin:    '',
-    no_identitas:     '',
-    asal_rujukan:     '',
-    no_telp_keluarga: '',
-    // Klinis — keterangan pasien saja, tanpa pilih jenis ICU
-    diagnosa:         '',
-    rencana_tindakan: '',
-    // Jaminan
-    jaminan:          '',
-    catatan_jaminan:  '',
-    keterangan:       '',
+    nama_pasien: '', jenis_kelamin: '', no_identitas: '',
+    asal_rujukan: '', no_telp_keluarga: '',
+    diagnosa: '', rencana_tindakan: '',
+    jaminan: '', catatan_jaminan: '', keterangan: '',
 });
 const submitForm = () => form.post(route('icu.booking_external.store'), {
     onSuccess: () => { form.reset(); showForm.value = false; },
 });
 
-// ── Aksi ICU: pilih kondisi + bed ────────────────────────
-// kebutuhan_bed ditentukan ICU saat konfirmasi (bukan dari admisi)
+// ── Actions ICU: konfirmasi bed ────────────────────────────
+// Hanya mencatat referensi bed, TIDAK mengupdate status bed di RS
 const bedPilihan     = ref({});
 const kondisiPilihan = ref({});
 const alasanTolak    = ref({});
 const showTolakForm  = ref({});
 
+const bedCocok = (kondisi) => kondisi
+    ? props.kamarKosong.filter(b => b.nama_kelas === kondisi)
+    : props.kamarKosong;
+
 const doKonfirmasiIcu = (b) => {
     const kondisi = kondisiPilihan.value[b.id];
     const kode    = bedPilihan.value[b.id];
-    if (!kondisi) { showAlert('warning', 'Pilih Kondisi', 'Tentukan jenis ICU terlebih dahulu.'); return; }
-    if (!kode)    { showAlert('warning', 'Pilih Bed',     'Pilih bed terlebih dahulu.'); return; }
+    if (!kondisi) { showAlert('warning', 'Pilih Jenis ICU', 'Tentukan jenis ICU terlebih dahulu.'); return; }
+    if (!kode)    { showAlert('warning', 'Pilih Bed',       'Pilih bed terlebih dahulu.'); return; }
     const namaBed = props.kamarKosong.find(x => x.Kode_Ruang === kode)?.nama_ruang ?? kode;
     openConfirm({
         title:   'Konfirmasi Bed?',
-        message: `Alokasikan bed ${namaBed} (${kondisi}) untuk ${b.nama_pasien}? Pasien siap diantar.`,
+        message: `Bed ${namaBed} (${kondisi}) dicatat untuk ${b.nama_pasien}. Admisi akan diminta verifikasi No_MR pasien.`,
         danger:  false,
         action:  () => router.post(route('icu.booking_external.konfirmasi_icu', b.id), {
             Kode_Ruang:    kode,
@@ -113,13 +106,6 @@ const doKonfirmasiIcu = (b) => {
         }),
     });
 };
-
-const doCatatTanpaBed = (b) => openConfirm({
-    title: 'Belum Ada Bed?',
-    message: `${b.nama_pasien} akan tetap di daftar tunggu ICU sampai ada bed yang sesuai.`,
-    danger: false,
-    action: () => router.post(route('icu.booking_external.catat_tanpa_bed', b.id), { catatan: 'Belum ada bed tersedia saat ini.' }),
-});
 
 const doTolakIcu = (b) => {
     const alasan = alasanTolak.value[b.id];
@@ -132,37 +118,70 @@ const doTolakIcu = (b) => {
     });
 };
 
-// ── Aksi ICU: konfirmasi pasien masuk — LANGSUNG di_icu ───
-const doKonfirmasiMasuk = (b) => openConfirm({
-    title: 'Konfirmasi Pasien Masuk?',
-    message: `Pasien ${b.nama_pasien} masuk ke ${b.nama_bed ?? b.allocated_bed_id}. Bed akan terisi.`,
-    danger: false,
-    action: () => router.post(route('icu.booking_external.konfirmasi_masuk', b.id)),
-});
+// ── Actions Admisi: verifikasi No_MR setelah pasien tiba ──
+// Lookup dari DB RS (PENDAFTARAN) — sama seperti SPRI Internal
+const noMrVerifikasi   = ref({});
+const noRegVerifikasi  = ref({});
+const lookupExtLoading = ref({});
+const lookupExtResult  = ref({});   // { found, nama_pasien, kunjungans }
+const lookupExtError   = ref({});
 
-const doPulangkan = (b) => openConfirm({
-    title: 'Pulangkan Pasien?',
-    message: `${b.nama_pasien} akan dipulangkan. Bed kembali kosong.`,
-    danger: true,
-    action: () => router.post(route('icu.booking_external.pulangkan', b.id)),
-});
+const doLookupExt = async (bookingId, noMr) => {
+    lookupExtResult.value[bookingId] = null;
+    lookupExtError.value[bookingId]  = '';
+    noRegVerifikasi.value[bookingId] = '';
+    if (!noMr || noMr.trim().length < 3) return;
+
+    lookupExtLoading.value[bookingId] = true;
+    try {
+        const res  = await fetch(
+            route('icu.booking_external.lookup_pasien') + '?No_MR=' + encodeURIComponent(noMr.trim()),
+            { headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' } }
+        );
+        const data = await res.json();
+        lookupExtResult.value[bookingId] = data;
+        if (!data.found) {
+            lookupExtError.value[bookingId] = data.message ?? 'Pasien tidak ditemukan.';
+        } else if (data.kunjungans?.length === 1) {
+            noRegVerifikasi.value[bookingId] = data.kunjungans[0].No_Reg;
+        }
+    } catch {
+        lookupExtError.value[bookingId] = 'Gagal menghubungi server.';
+    } finally {
+        lookupExtLoading.value[bookingId] = false;
+    }
+};
+
+const doVerifikasiAdmisi = (b) => {
+    const noMr = noMrVerifikasi.value[b.id]?.trim();
+    if (!noMr) { showAlert('warning', 'Isi No. MR', 'No. MR pasien harus diisi.'); return; }
+    if (!lookupExtResult.value[b.id]?.found) {
+        showAlert('warning', 'Cari Dulu', 'Lakukan pencarian No. MR terlebih dahulu untuk verifikasi data.'); return;
+    }
+    const namaPasienMr = lookupExtResult.value[b.id]?.nama_pasien ?? noMr;
+    openConfirm({
+        title:   'Verifikasi Pasien?',
+        message: `Konfirmasi: ${namaPasienMr} (No. MR: ${noMr}) adalah pasien ${b.nama_pasien} yang sudah tiba di ICU.`,
+        danger:  false,
+        action:  () => router.post(route('icu.booking_external.verifikasi_admisi', b.id), {
+            No_MR:  noMr,
+            No_Reg: noRegVerifikasi.value[b.id] ?? null,
+        }),
+    });
+};
 
 // ── Helpers ────────────────────────────────────────────────
 const gBg   = (g) => g === 'L' ? 'rgba(74,144,217,0.15)' : g === 'P' ? 'rgba(217,81,122,0.15)' : 'var(--bg-input)';
 const gTxt  = (g) => g === 'L' ? '#4A90D9' : g === 'P' ? '#D9517A' : 'var(--text-secondary)';
 const gIcon = (g) => g === 'L' ? '♂' : g === 'P' ? '♀' : '?';
 
-const jaminanColor = (j) => {
-    const map = { BPJS: '#4A90D9', Umum: '#E0923A', Asuransi: '#2DD9A4', Lainnya: '#8EA89E' };
-    return map[j] ?? '#8EA89E';
-};
+const jaminanColor = (j) => ({ BPJS: '#4A90D9', Umum: '#E0923A', Asuransi: '#2DD9A4', Lainnya: '#8EA89E' }[j] ?? '#8EA89E');
 
 const statusBadge = (status) => ({
-    pending_icu:   { bg: 'rgba(224,146,58,0.15)',  color: '#E0923A'  },
-    bed_confirmed: { bg: 'rgba(45,217,164,0.15)',  color: '#2DD9A4'  },
-    di_icu:        { bg: 'rgba(61,219,138,0.15)',  color: '#3DDB8A'  },
-    ditolak:       { bg: 'rgba(224,112,80,0.15)',  color: '#E07050'  },
-    pulang:        { bg: 'rgba(142,168,158,0.15)', color: '#8EA89E'  },
+    pending_icu:     { bg: 'rgba(224,146,58,0.15)',  color: '#E0923A' },
+    bed_confirmed:   { bg: 'rgba(74,144,217,0.15)',  color: '#4A90D9' },
+    admisi_verified: { bg: 'rgba(45,217,164,0.15)',  color: '#2DD9A4' },
+    ditolak:         { bg: 'rgba(224,112,80,0.15)',  color: '#E07050' },
 }[status] ?? { bg: 'var(--bg-input)', color: 'var(--text-secondary)' });
 </script>
 
@@ -175,24 +194,21 @@ const statusBadge = (status) => ({
 
             <!-- Header -->
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                    <h1 class="font-bold text-lg" style="color:var(--text-primary)">Booking ICU — Pasien Eksternal</h1>
-                </div>
+                <h1 class="font-bold text-lg" style="color:var(--text-primary)">Booking ICU — Pasien Eksternal</h1>
                 <button v-if="canBuatBookingExternal" @click="showForm = !showForm"
                     class="flex items-center gap-2 text-sm font-semibold px-4 py-2.5 rounded-xl self-start sm:self-auto"
                     :style="showForm
                         ? 'background:var(--bg-main); color:var(--text-secondary); border:1px solid var(--border-default)'
                         : 'background:#2DD9A4; color:#0D1A17'">
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                        <path stroke-linecap="round" stroke-linejoin="round" :d="showForm ? 'M6 18L18 6M6 6l12 12' : 'M12 4v16m8-8H4'"/>
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            :d="showForm ? 'M6 18L18 6M6 6l12 12' : 'M12 4v16m8-8H4'"/>
                     </svg>
                     {{ showForm ? 'Tutup Form' : 'Booking Baru' }}
                 </button>
             </div>
 
-            <!-- ════════════════════════════════════════════════════════
-                 FORM BOOKING BARU (Admisi)
-            ════════════════════════════════════════════════════════ -->
+            <!-- ── Form Booking Baru (Admisi) ──────────────────────── -->
             <Transition enter-active-class="transition-all duration-200 ease-out"
                         enter-from-class="opacity-0 -translate-y-2" enter-to-class="opacity-100 translate-y-0">
                 <form v-if="showForm && canBuatBookingExternal" @submit.prevent="submitForm" class="card-dark overflow-hidden">
@@ -201,11 +217,9 @@ const statusBadge = (status) => ({
                     </div>
                     <div class="p-5 space-y-5">
 
-                        <!-- Identitas Pasien -->
+                        <!-- 1. Identitas -->
                         <div>
-                            <p class="text-xs font-bold uppercase tracking-wide mb-3" style="color:var(--text-accent)">
-                                1. Identitas Pasien
-                            </p>
+                            <p class="text-xs font-bold uppercase tracking-wide mb-3" style="color:var(--text-accent)">1. Identitas Pasien</p>
                             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div class="sm:col-span-2">
                                     <label class="block text-xs font-semibold mb-1" style="color:var(--text-primary)">Nama Pasien <span style="color:#E07050">*</span></label>
@@ -219,10 +233,18 @@ const statusBadge = (status) => ({
                                     <div class="flex gap-2">
                                         <button type="button" @click="form.jenis_kelamin='L'"
                                             class="flex-1 py-2.5 rounded-xl text-sm font-semibold"
-                                            :style="form.jenis_kelamin==='L' ? 'background:#4A90D9;color:#fff;border:2px solid #4A90D9' : 'background:var(--bg-surface);color:var(--text-secondary);border:2px solid var(--border-default)'">♂ Pria</button>
+                                            :style="form.jenis_kelamin==='L'
+                                                ? 'background:#4A90D9;color:#fff;border:2px solid #4A90D9'
+                                                : 'background:var(--bg-surface);color:var(--text-secondary);border:2px solid var(--border-default)'">
+                                            ♂ Pria
+                                        </button>
                                         <button type="button" @click="form.jenis_kelamin='P'"
                                             class="flex-1 py-2.5 rounded-xl text-sm font-semibold"
-                                            :style="form.jenis_kelamin==='P' ? 'background:#D9517A;color:#fff;border:2px solid #D9517A' : 'background:var(--bg-surface);color:var(--text-secondary);border:2px solid var(--border-default)'">♀ Wanita</button>
+                                            :style="form.jenis_kelamin==='P'
+                                                ? 'background:#D9517A;color:#fff;border:2px solid #D9517A'
+                                                : 'background:var(--bg-surface);color:var(--text-secondary);border:2px solid var(--border-default)'">
+                                            ♀ Wanita
+                                        </button>
                                     </div>
                                 </div>
                                 <div>
@@ -246,20 +268,14 @@ const statusBadge = (status) => ({
                             </div>
                         </div>
 
-                        <!-- Data Klinis -->
+                        <!-- 2. Data Klinis -->
                         <div>
-                            <p class="text-xs font-bold uppercase tracking-wide mb-3" style="color:var(--text-accent)">
-                                2. Data Klinis &amp; Keterangan Pasien
-                            </p>
+                            <p class="text-xs font-bold uppercase tracking-wide mb-3" style="color:var(--text-accent)">2. Data Klinis</p>
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
                                     <label class="block text-xs font-semibold mb-1" style="color:var(--text-primary)">Diagnosa <span style="color:#E07050">*</span></label>
-                                    <Icd10Search
-                                        v-model="form.diagnosa"
-                                        placeholder="Cari kode / keterangan ICD10"
-                                        :required="true"
-                                        :has-error="!!form.errors.diagnosa"
-                                    />
+                                    <Icd10Search v-model="form.diagnosa" placeholder="Cari kode / keterangan ICD10"
+                                        :required="true" :has-error="!!form.errors.diagnosa"/>
                                     <p v-if="form.errors.diagnosa" class="text-xs mt-1" style="color:#E07050">{{ form.errors.diagnosa }}</p>
                                 </div>
                                 <div>
@@ -271,30 +287,25 @@ const statusBadge = (status) => ({
                                 <div class="sm:col-span-2">
                                     <label class="block text-xs font-semibold mb-1" style="color:var(--text-secondary)">
                                         Keterangan Klinis
-                                        <span class="font-normal ml-1" style="color:var(--text-secondary)">(kondisi terkini, riwayat, catatan penting)</span>
+                                        <span class="font-normal">(kondisi terkini, riwayat, catatan dokter pengirim)</span>
                                     </label>
-                                    <textarea v-model="form.keterangan"
+                                    <textarea v-model="form.keterangan" rows="3"
                                         placeholder="Kondisi terkini pasien, riwayat penyakit, catatan dari dokter pengirim, dll..."
-                                        rows="3"
                                         class="w-full px-3 py-2.5 text-sm rounded-xl outline-none resize-none"
                                         style="border:1px solid var(--border-default); background:var(--bg-surface); color:var(--text-primary)"/>
                                     <p class="text-xs mt-1" style="color:var(--text-secondary)">
-                                        ℹ Jenis ICU dan bed akan ditentukan oleh Petugas ICU berdasarkan keterangan di atas
+                                        ℹ Jenis ICU dan bed akan ditentukan oleh Petugas ICU
                                     </p>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Form Jaminan -->
+                        <!-- 3. Jaminan -->
                         <div>
-                            <p class="text-xs font-bold uppercase tracking-wide mb-3" style="color:var(--text-accent)">
-                                3. Informasi Jaminan
-                            </p>
+                            <p class="text-xs font-bold uppercase tracking-wide mb-3" style="color:var(--text-accent)">3. Informasi Jaminan</p>
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
-                                    <label class="block text-xs font-semibold mb-1" style="color:var(--text-primary)">
-                                        Jenis Jaminan <span style="color:#E07050">*</span>
-                                    </label>
+                                    <label class="block text-xs font-semibold mb-1" style="color:var(--text-primary)">Jenis Jaminan <span style="color:#E07050">*</span></label>
                                     <div class="grid grid-cols-2 gap-2">
                                         <button v-for="j in ['BPJS','Umum','Asuransi','Lainnya']" :key="j"
                                             type="button" @click="form.jaminan = j"
@@ -308,49 +319,35 @@ const statusBadge = (status) => ({
                                     <p v-if="form.errors.jaminan" class="text-xs mt-1" style="color:#E07050">{{ form.errors.jaminan }}</p>
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-semibold mb-1" style="color:var(--text-primary)">
-                                        Catatan Jaminan
-                                        <span class="font-normal" style="color:var(--text-secondary)"> (no. BPJS / polis / dll)</span>
-                                    </label>
+                                    <label class="block text-xs font-semibold mb-1" style="color:var(--text-primary)">Catatan Jaminan</label>
                                     <textarea v-model="form.catatan_jaminan"
-                                        placeholder="Contoh: No. BPJS 0001234567890 (aktif) / No. Polis PRU-2024-001"
-                                        rows="3"
-                                        class="w-full px-3 py-2.5 text-sm rounded-xl outline-none resize-none"
+                                        placeholder="No. BPJS / No. Polis / keterangan lain"
+                                        rows="3" class="w-full px-3 py-2.5 text-sm rounded-xl outline-none resize-none"
                                         style="border:1px solid var(--border-default); background:var(--bg-surface); color:var(--text-primary)"/>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Errors & Submit -->
-                        <div class="pt-1" style="border-top:1px solid var(--border-default)">
-                            <div v-if="Object.keys(form.errors).length" class="mb-3 p-3 rounded-xl text-xs space-y-1"
-                                style="background:rgba(224,112,80,0.1); border:1px solid rgba(224,112,80,0.3)">
-                                <p class="font-bold" style="color:#E07050">Periksa field berikut:</p>
-                                <p v-for="(err, field) in form.errors" :key="field" style="color:#E07050">• {{ err }}</p>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <button type="submit"
-                                    :disabled="form.processing || !form.jenis_kelamin || !form.jaminan"
-                                    class="flex items-center gap-2 text-sm font-bold px-5 py-2.5 rounded-xl disabled:opacity-50"
-                                    style="background:#2DD9A4; color:#0D1A17">
-                                    <svg v-if="form.processing" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                                    </svg>
-                                    <svg v-else class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
-                                    </svg>
-                                    {{ form.processing ? 'Menyimpan...' : 'Kirim ke ICU' }}
-                                </button>
-                                <button type="button" @click="showForm=false; form.reset()"
-                                    class="px-5 py-2.5 text-sm rounded-xl"
-                                    style="background:var(--bg-main); color:var(--text-secondary); border:1px solid var(--border-default)">
-                                    Batal
-                                </button>
-                                <p v-if="!form.jenis_kelamin || !form.jaminan" class="text-xs" style="color:#E0923A">
-                                    ⚠ {{ !form.jenis_kelamin ? 'Pilih jenis kelamin' : 'Pilih jaminan' }}
-                                </p>
-                            </div>
+                        <!-- Submit -->
+                        <div class="pt-1 flex items-center gap-2" style="border-top:1px solid var(--border-default)">
+                            <button type="submit"
+                                :disabled="form.processing || !form.jenis_kelamin || !form.jaminan"
+                                class="flex items-center gap-2 text-sm font-bold px-5 py-2.5 rounded-xl disabled:opacity-50"
+                                style="background:#2DD9A4; color:#0D1A17">
+                                <svg v-if="form.processing" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                                </svg>
+                                {{ form.processing ? 'Menyimpan...' : 'Kirim ke ICU' }}
+                            </button>
+                            <button type="button" @click="showForm=false; form.reset()"
+                                class="px-5 py-2.5 text-sm rounded-xl"
+                                style="background:var(--bg-main); color:var(--text-secondary); border:1px solid var(--border-default)">
+                                Batal
+                            </button>
+                            <p v-if="!form.jenis_kelamin || !form.jaminan" class="text-xs" style="color:#E0923A">
+                                ⚠ {{ !form.jenis_kelamin ? 'Pilih jenis kelamin' : 'Pilih jaminan' }}
+                            </p>
                         </div>
                     </div>
                 </form>
@@ -358,8 +355,7 @@ const statusBadge = (status) => ({
 
             <!-- Tabs -->
             <div class="flex gap-1 p-1 rounded-xl overflow-x-auto" style="background:var(--bg-main); border:1px solid var(--border-default)">
-                <button v-for="tab in visibleTabs" :key="tab.key"
-                    @click="activeTab = tab.key"
+                <button v-for="tab in visibleTabs" :key="tab.key" @click="activeTab = tab.key"
                     class="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap flex items-center gap-1.5 transition-all"
                     :style="activeTab === tab.key
                         ? 'background:var(--bg-surface); color:#2DD9A4; box-shadow:0 1px 4px rgba(45,217,164,.15)'
@@ -382,9 +378,7 @@ const statusBadge = (status) => ({
                 <p class="text-sm">Tidak ada data di tab ini</p>
             </div>
 
-            <!-- ════════════════════════════════════════════════════════
-                 LIST BOOKING
-            ════════════════════════════════════════════════════════ -->
+            <!-- List Booking -->
             <div v-else class="space-y-3">
                 <div v-for="b in filtered" :key="b.id" class="card-dark overflow-hidden">
 
@@ -404,12 +398,10 @@ const statusBadge = (status) => ({
                             </div>
                         </div>
                         <div class="flex items-center gap-2 flex-shrink-0">
-                            <!-- Badge jaminan -->
                             <span v-if="b.jaminan" class="text-xs font-semibold px-2 py-0.5 rounded-full"
                                 :style="`background:${jaminanColor(b.jaminan)}20; color:${jaminanColor(b.jaminan)}`">
                                 {{ b.jaminan }}
                             </span>
-                            <!-- Badge status -->
                             <span class="text-xs font-semibold px-2.5 py-1 rounded-full"
                                 :style="`background:${statusBadge(b.status).bg}; color:${statusBadge(b.status).color}`">
                                 {{ b.status_label }}
@@ -440,13 +432,13 @@ const statusBadge = (status) => ({
                                 <span style="color:var(--text-secondary); min-width:120px">Catatan Jaminan</span>
                                 <span style="color:var(--text-primary)">{{ b.catatan_jaminan }}</span>
                             </div>
-                            <div v-if="b.nama_bed" class="flex gap-2 text-xs">
-                                <span style="color:var(--text-secondary); min-width:120px">Bed Dikonfirmasi</span>
-                                <span class="font-semibold" style="color:#2DD9A4">🏥 {{ b.nama_bed }}</span>
-                            </div>
                             <div v-if="b.keterangan" class="flex gap-2 text-xs">
                                 <span style="color:var(--text-secondary); min-width:120px">Keterangan</span>
                                 <span style="color:var(--text-secondary)">{{ b.keterangan }}</span>
+                            </div>
+                            <div v-if="b.nama_bed" class="flex gap-2 text-xs">
+                                <span style="color:var(--text-secondary); min-width:120px">Bed Dikonfirmasi</span>
+                                <span class="font-semibold" style="color:#2DD9A4">🏥 {{ b.nama_bed }}</span>
                             </div>
                             <div v-if="b.alasan_tolak" class="flex gap-2 text-xs">
                                 <span style="color:var(--text-secondary); min-width:120px">Alasan Tolak</span>
@@ -454,30 +446,22 @@ const statusBadge = (status) => ({
                             </div>
                         </div>
 
-                        <!-- ── Actions (sesuai status & role) ── -->
+                        <!-- Actions -->
                         <div class="flex flex-col gap-2">
 
-                            <!-- pending_icu: ICU tentukan kondisi + bed -->
+                            <!-- pending_icu: ICU tentukan jenis + bed -->
                             <template v-if="b.status === 'pending_icu'">
                                 <template v-if="canKonfirmasiIcu">
-                                    <p class="text-xs font-semibold" style="color:#E0923A">
-                                        ⏳ Menunggu Petugas ICU tentukan bed
-                                    </p>
-
-                                    <!-- Step 1: pilih kondisi ICU -->
+                                    <p class="text-xs font-semibold" style="color:#E0923A">⏳ Menunggu Petugas ICU</p>
                                     <div>
                                         <p class="text-xs font-semibold mb-1" style="color:var(--text-primary)">1. Jenis ICU:</p>
                                         <select v-model="kondisiPilihan[b.id]"
                                             class="w-full text-xs px-3 py-2 rounded-xl outline-none"
                                             style="border:1px solid var(--border-default); background:var(--bg-surface); color:var(--text-primary)">
-                                            <option value="" disabled>-- Pilih Kondisi ICU --</option>
-                                            <option v-for="k in masterKelas" :key="k.kode" :value="k.nama">
-                                                {{ k.nama }}
-                                            </option>
+                                            <option value="" disabled>-- Pilih Jenis ICU --</option>
+                                            <option v-for="k in masterKelas" :key="k.kode" :value="k.nama">{{ k.nama }}</option>
                                         </select>
                                     </div>
-
-                                    <!-- Step 2: pilih bed -->
                                     <div>
                                         <p class="text-xs font-semibold mb-1" style="color:var(--text-primary)">2. Pilih Bed:</p>
                                         <select v-model="bedPilihan[b.id]"
@@ -485,24 +469,21 @@ const statusBadge = (status) => ({
                                             class="w-full text-xs px-3 py-2 rounded-xl outline-none disabled:opacity-40"
                                             style="border:1px solid var(--border-default); background:var(--bg-surface); color:var(--text-primary)">
                                             <option value="" disabled>-- Pilih Bed --</option>
-                                            <option v-for="bed in props.kamarKosong" :key="bed.Kode_Ruang" :value="bed.Kode_Ruang">
-                                                {{ bed.nama_ruang }} ({{ bed.nama_kelas }})
+                                            <option v-for="bed in bedCocok(kondisiPilihan[b.id])" :key="bed.Kode_Ruang" :value="bed.Kode_Ruang">
+                                                {{ bed.nama_ruang }}<template v-if="!kondisiPilihan[b.id]"> ({{ bed.nama_kelas }})</template>
                                             </option>
                                         </select>
                                     </div>
-
-                                    <button v-if="props.kamarKosong.length > 0"
-                                        @click="doKonfirmasiIcu(b)"
-                                        class="text-xs font-bold py-2 rounded-xl"
-                                        style="background:#2DD9A4; color:#0D1A17">
+                                    <p v-if="props.kamarKosong.length === 0" class="text-xs"
+                                        style="color:#E0923A; background:rgba(224,146,58,0.1); padding:8px; border-radius:8px">
+                                        ⚠ Tidak ada bed kosong saat ini
+                                    </p>
+                                    <button @click="doKonfirmasiIcu(b)"
+                                        :disabled="props.kamarKosong.length === 0"
+                                        class="text-xs font-bold py-2 rounded-xl disabled:opacity-40"
+                                        style="background:#4A90D9; color:#fff">
                                         ✓ Konfirmasi Bed
                                     </button>
-                                    <button v-else @click="doCatatTanpaBed(b)"
-                                        class="text-xs font-semibold py-2 rounded-xl"
-                                        style="background:rgba(224,146,58,0.1); color:#E0923A; border:1px solid rgba(224,146,58,0.2)">
-                                        ⏳ Tetap Waiting List
-                                    </button>
-                                    <!-- Tolak -->
                                     <div v-if="!showTolakForm[b.id]">
                                         <button @click="showTolakForm[b.id] = true"
                                             class="w-full text-xs font-semibold py-2 rounded-xl"
@@ -511,68 +492,115 @@ const statusBadge = (status) => ({
                                         </button>
                                     </div>
                                     <div v-else class="space-y-1.5">
-                                        <input v-model="alasanTolak[b.id]" placeholder="Alasan penolakan *"
+                                        <input v-model="alasanTolak[b.id]" placeholder="Alasan *"
                                             class="w-full text-xs px-3 py-2 rounded-xl outline-none"
                                             style="border:1px solid rgba(224,112,80,0.3); background:var(--bg-surface); color:var(--text-primary)"/>
                                         <button @click="doTolakIcu(b)" class="w-full text-xs font-bold py-1.5 rounded-xl"
                                             style="background:#E07050; color:#fff">Konfirmasi Tolak</button>
                                     </div>
                                 </template>
-                                <span v-else class="text-xs text-center py-2 rounded-xl"
+                                <span v-else class="text-xs text-center py-2 rounded-xl block"
                                     style="background:rgba(224,146,58,0.1); color:#E0923A; border:1px solid rgba(224,146,58,0.2)">
                                     Menunggu konfirmasi ICU
                                 </span>
                             </template>
 
-                            <!-- bed_confirmed: ICU konfirmasi pasien masuk — LANGSUNG di_icu -->
+                            <!-- bed_confirmed: Admisi input No_MR untuk verifikasi -->
                             <template v-else-if="b.status === 'bed_confirmed'">
                                 <div class="p-2.5 rounded-xl text-xs space-y-1"
-                                    style="background:rgba(45,217,164,0.08); border:1px solid rgba(45,217,164,0.2)">
-                                    <p class="font-semibold" style="color:#2DD9A4">Bed Dikonfirmasi ICU:</p>
-                                    <p style="color:var(--text-primary)">🏥 {{ b.nama_bed }}</p>
-                                    <p class="mt-1 text-xs" style="color:var(--text-secondary)">
-                                        Pasien siap diantar ke ruangan
+                                    style="background:rgba(74,144,217,0.08); border:1px solid rgba(74,144,217,0.2)">
+                                    <p class="font-semibold" style="color:#4A90D9">🏥 Bed Dikonfirmasi ICU</p>
+                                    <p style="color:var(--text-primary)">{{ b.nama_bed }} · {{ b.kebutuhan_bed }}</p>
+                                    <p class="text-xs" style="color:var(--text-secondary)">oleh: {{ b.confirmed_by }}</p>
+                                </div>
+                                <template v-if="canVerifikasiAdmisiExt">
+                                    <p class="text-xs font-semibold" style="color:#4A90D9">📋 No. MR pasien:</p>
+
+                                    <!-- Input No_MR + live lookup -->
+                                    <div class="relative">
+                                        <input
+                                            :value="noMrVerifikasi[b.id]"
+                                            @input="e => { noMrVerifikasi[b.id] = e.target.value; doLookupExt(b.id, e.target.value); }"
+                                            placeholder="Ketik No. MR..."
+                                            class="w-full text-xs px-3 py-2 rounded-xl outline-none font-mono pr-7"
+                                            :style="`border:1px solid ${
+                                                lookupExtError[b.id] ? '#E07050'
+                                                : lookupExtResult[b.id]?.found ? '#2DD9A4'
+                                                : 'var(--border-default)'
+                                            }; background:var(--bg-surface); color:var(--text-primary)`"/>
+                                        <div class="absolute right-2 top-1/2 -translate-y-1/2 text-xs">
+                                            <svg v-if="lookupExtLoading[b.id]" class="w-3 h-3 animate-spin" style="color:var(--text-secondary)" fill="none" viewBox="0 0 24 24">
+                                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                                            </svg>
+                                            <span v-else-if="lookupExtResult[b.id]?.found" style="color:#2DD9A4">✓</span>
+                                            <span v-else-if="lookupExtError[b.id]" style="color:#E07050">✕</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Hasil lookup -->
+                                    <div v-if="lookupExtResult[b.id]?.found" class="text-xs space-y-1.5">
+                                        <p class="font-semibold" style="color:#2DD9A4">
+                                            ✓ {{ lookupExtResult[b.id].nama_pasien }}
+                                        </p>
+                                        <!-- Pilih kunjungan jika lebih dari 1 -->
+                                        <div v-if="lookupExtResult[b.id].kunjungans?.length > 1">
+                                            <p class="mb-1" style="color:var(--text-secondary)">Pilih kunjungan:</p>
+                                            <select v-model="noRegVerifikasi[b.id]"
+                                                class="w-full text-xs px-2 py-1.5 rounded-lg outline-none"
+                                                style="border:1px solid var(--border-default); background:var(--bg-surface); color:var(--text-primary)">
+                                                <option value="" disabled>-- Pilih No_Reg --</option>
+                                                <option v-for="k in lookupExtResult[b.id].kunjungans" :key="k.No_Reg" :value="k.No_Reg">
+                                                    {{ k.No_Reg }}{{ k.nama_ruang ? ' — ' + k.nama_ruang : '' }}
+                                                </option>
+                                            </select>
+                                        </div>
+                                        <p v-else-if="lookupExtResult[b.id].kunjungans?.length === 1" style="color:var(--text-secondary)">
+                                            Kunjungan: {{ lookupExtResult[b.id].kunjungans[0].No_Reg }}
+                                        </p>
+                                    </div>
+                                    <p v-else-if="lookupExtError[b.id]" class="text-xs" style="color:#E07050">
+                                        {{ lookupExtError[b.id] }}
                                     </p>
-                                </div>
-                                <button v-if="canKonfirmasiMasuk" @click="doKonfirmasiMasuk(b)"
-                                    class="text-xs font-bold py-2.5 rounded-xl"
-                                    style="background:#2DD9A4; color:#0D1A17">
-                                    ✓ Konfirmasi Pasien Masuk
-                                </button>
-                                <span v-else class="text-xs text-center py-2 rounded-xl"
-                                    style="background:var(--bg-input); color:var(--text-secondary)">
-                                    Menunggu konfirmasi ICU
+
+                                    <button @click="doVerifikasiAdmisi(b)"
+                                        :disabled="!lookupExtResult[b.id]?.found"
+                                        class="text-xs font-bold py-2 rounded-xl disabled:opacity-40"
+                                        style="background:#2DD9A4; color:#0D1A17">
+                                        ✓ Verifikasi Pasien Masuk
+                                    </button>
+                                </template>
+                                <span v-else class="text-xs text-center py-2 rounded-xl block"
+                                    style="background:rgba(74,144,217,0.1); color:#4A90D9; border:1px solid rgba(74,144,217,0.2)">
+                                    Menunggu verifikasi Admisi
                                 </span>
                             </template>
 
-                            <!-- di_icu: ICU bisa pulangkan -->
-                            <template v-else-if="b.status === 'di_icu'">
-                                <div class="p-2.5 rounded-xl text-xs"
-                                    style="background:rgba(61,219,138,0.08); border:1px solid rgba(61,219,138,0.2)">
-                                    <p class="font-semibold" style="color:#3DDB8A">✓ Pasien di ICU</p>
-                                    <p style="color:var(--text-primary)">🏥 {{ b.nama_bed }}</p>
+                            <!-- admisi_verified: selesai, tampilkan info -->
+                            <template v-else-if="b.status === 'admisi_verified'">
+                                <div class="p-2.5 rounded-xl text-xs space-y-1.5"
+                                    style="background:rgba(45,217,164,0.08); border:1px solid rgba(45,217,164,0.2)">
+                                    <p class="font-semibold" style="color:#2DD9A4">✓ Pasien Terverifikasi di ICU</p>
+                                    <p v-if="b.nama_bed" style="color:var(--text-primary)">🏥 {{ b.nama_bed }}</p>
+                                    <div class="pt-1 space-y-0.5" style="border-top:1px solid rgba(45,217,164,0.2)">
+                                        <p v-if="b.No_MR" class="font-mono" style="color:var(--text-secondary)">MR: {{ b.No_MR }}</p>
+                                        <p v-if="b.nama_pasien_mr" style="color:var(--text-secondary)">{{ b.nama_pasien_mr }}</p>
+                                        <p style="color:var(--text-secondary)">Verifikasi: {{ b.verified_by ?? '-' }}</p>
+                                    </div>
                                 </div>
-                                <button v-if="canPulangkan" @click="doPulangkan(b)"
-                                    class="text-xs font-semibold py-2 rounded-xl"
-                                    style="background:rgba(224,112,80,0.1); color:#E07050; border:1px solid rgba(224,112,80,0.25)">
-                                    Pulangkan Pasien
-                                </button>
                             </template>
 
-                            <!-- ditolak / pulang -->
-                            <template v-else-if="['ditolak','pulang'].includes(b.status)">
-                                <span class="text-xs text-center py-2 rounded-xl"
-                                    :style="b.status === 'ditolak'
-                                        ? 'background:rgba(224,112,80,0.1); color:#E07050'
-                                        : 'background:rgba(142,168,158,0.1); color:#8EA89E'">
-                                    {{ b.status === 'ditolak' ? '✕ Ditolak' : '✓ Selesai' }}
-                                </span>
+                            <!-- ditolak -->
+                            <template v-else-if="b.status === 'ditolak'">
+                                <span class="text-xs text-center py-2 rounded-xl block"
+                                    style="background:rgba(224,112,80,0.1); color:#E07050">✕ Ditolak</span>
                             </template>
 
                         </div>
                     </div>
                 </div>
             </div>
+
         </div>
     </AppLayout>
 </template>

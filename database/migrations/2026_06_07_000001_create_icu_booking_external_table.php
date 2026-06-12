@@ -11,41 +11,45 @@ return new class extends Migration
         Schema::create('icu_booking_external', function (Blueprint $table) {
             $table->id();
 
+            // ── Identitas pasien (sebelum punya No_MR)
             $table->string('nama_pasien', 100);
             $table->enum('jenis_kelamin', ['L', 'P'])->nullable();
             $table->string('no_identitas', 30)->nullable();
             $table->string('asal_rujukan', 100)->nullable();
             $table->string('no_telp_keluarga', 20)->nullable();
 
+            // ── Data klinis
             $table->string('diagnosa', 200);
             $table->string('rencana_tindakan', 200);
             $table->string('kebutuhan_bed', 100)->nullable();
 
-            $table->string('jaminan', 50)->nullable(); 
+            // ── Jaminan (diisi Admisi saat buat booking)
+            $table->string('jaminan', 50)->nullable();
             $table->text('catatan_jaminan')->nullable();
             $table->text('keterangan')->nullable();
 
+            // ── Link No_MR setelah pasien tiba (diisi Admisi saat verifikasi) ─
             $table->string('No_MR', 20)->nullable();
-            $table->foreign('No_MR')->references('No_MR')->on('registrasi_pasien')->nullOnDelete();
             $table->string('No_Reg', 20)->nullable();
-            $table->foreign('No_Reg')->references('No_Reg')->on('pendaftaran')->nullOnDelete();
 
+            // ── Bed referensi (diisi ICU, no FK)──────
             $table->string('allocated_bed_id', 20)->nullable();
-            $table->foreign('allocated_bed_id')
-                  ->references('Kode_Ruang')->on('status_kamar')
-                  ->nullOnDelete();
+            $table->string('nama_bed', 100)->nullable();
 
+            // ── Status alur────
             $table->enum('status', [
-                'pending_icu',   
-                'bed_confirmed', 
-                'di_icu',         
-                'ditolak',      
-                'pulang',       
+                'pending_icu',
+                'bed_confirmed',
+                'admisi_verified',
+                'ditolak',
             ])->default('pending_icu');
 
             $table->string('alasan_tolak', 200)->nullable();
+
+            // ── Tracking siapa yang aksi
             $table->string('created_by', 50)->nullable();
             $table->string('confirmed_by', 50)->nullable();
+            $table->string('verified_by', 50)->nullable(); 
 
             $table->timestamps();
         });

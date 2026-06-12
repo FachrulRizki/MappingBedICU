@@ -6,8 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\IcuBookingExternal;
 use App\Models\MKelas;
 use App\Models\MRuangMaster;
+use App\Models\Pendaftaran;
+use App\Models\RegistrasiPasien;
 use App\Models\StatusKamar;
-use App\Services\Icu\BookingExternalService;use Illuminate\Http\RedirectResponse;
+use App\Services\Icu\BookingExternalService;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -25,7 +28,7 @@ class BookingExternalController extends Controller
 
     public function index(): Response
     {
-        $bookings = IcuBookingExternal::with(['bed.ruang.kelas', 'pasien'])
+        $bookings = IcuBookingExternal::with('pasien')
             ->latest()
             ->get()
             ->map(fn($b) => $this->format($b));
@@ -41,7 +44,7 @@ class BookingExternalController extends Controller
         ]);
     }
 
-    // Admisi booking
+    // ── Admisi — buat booking ─────────────────────────────────────────────
 
     public function store(Request $request): RedirectResponse
     {
@@ -60,40 +63,39 @@ class BookingExternalController extends Controller
 
         $booking = $this->service->buatBooking([
             ...$validated,
-            'kebutuhan_bed' => null,
-            'created_by'    => $this->currentUser(),
+            'created_by' => $this->currentUser(),
         ]);
 
         return back()->with('success', "Booking untuk {$booking->nama_pasien} berhasil dikirim ke ICU.");
     }
 
-    // Petugas ICU
+    // ── Petugas ICU — konfirmasi bed ──────────────────────────────────────
+
     public function konfirmasiIcu(Request $request, int $id): RedirectResponse
     {
-        $connKelas  = MKelas::connectionName() . '.' . MKelas::tableName('M_KELAS', 'm_kelas');
-        $connKamar  = StatusKamar::connectionName() . '.' . StatusKamar::tableName('STATUS_KAMAR', 'status_kamar');
+        $connKamar = StatusKamar::connectionName() . '.' . StatusKamar::tableName('STATUS_KAMAR', 'status_kamar');
+        $connKelas = MKelas::connectionName() . '.' . MKelas::tableName('M_KELAS', 'm_kelas');
 
         $validated = $request->validate([
             'Kode_Ruang'    => "required|exists:{$connKamar},Kode_Ruang",
             'kebutuhan_bed' => "required|exists:{$connKelas},Nama_Kelas",
         ]);
 
-        $booking = $this->service->konfirmasiIcu($id, $validated['Kode_Ruang'], $validated['kebutuhan_bed'], $this->currentUser());
-        $namaBed = $booking->bed?->ruang?->Nama_RuangM ?? $validated['Kode_Ruang'];
+        $bed     = StatusKamar::with('ruang')->where('Kode_Ruang', $validated['Kode_Ruang'])->first();
+        $namaBed = $bed?->ruang?->Nama_RuangM ?? $validated['Kode_Ruang'];
 
-        return back()->with('success', "Bed {$namaBed} ({$validated['kebutuhan_bed']}) dikonfirmasi untuk {$booking->nama_pasien}. Pasien siap diantar.");
+        $booking = $this->service->konfirmasiIcu(
+            id:           $id,
+            kodeRuang:    $validated['Kode_Ruang'],
+            namaBed:      $namaBed,
+            kebutuhanBed: $validated['kebutuhan_bed'],
+            confirmedBy:  $this->currentUser(),
+        );
+
+        return back()->with('success', "Bed {$namaBed} ({$validated['kebutuhan_bed']}) dikonfirmasi untuk {$booking->nama_pasien}. Menunggu verifikasi Admisi.");
     }
 
-    public function catatTanpaBed(Request $request, int $id): RedirectResponse
-    {
-        $validated = $request->validate([
-            'catatan' => 'nullable|string|max:500',
-        ]);
-
-        $this->service->catatTanpaBed($id, $validated['catatan'] ?? 'Belum ada bed tersedia.', $this->currentUser());
-
-        return back()->with('success', 'Pasien tetap di daftar tunggu ICU.');
-    }
+    // ── Petugas ICU — tolak ────────────────────────────────────────────────
 
     public function tolakIcu(Request $request, int $id): RedirectResponse
     {
@@ -101,35 +103,110 @@ class BookingExternalController extends Controller
             'alasan_tolak' => 'required|string|max:255',
         ]);
 
-        $this->service->tolakIcu($id, $validated['alasan_tolak'], $this->currentUser());
+        $booking = $this->service->tolakIcu($id, $validated['alasan_tolak'], $this->currentUser());
 
-        return back()->with('success', 'Booking ditolak oleh ICU.');
+        return back()->with('success', "Booking {$booking->nama_pasien} ditolak.");
     }
 
-    public function konfirmasiMasuk(Request $request, int $id): RedirectResponse
+    // ── Admisi — lookup pasien dari DB RS (AJAX) ─────────────────────────
+
+    public function lookupPasienExternal(Request $request): \Illuminate\Http\JsonResponse
     {
+        $noMr = trim($request->query('No_MR', ''));
+        if (! $noMr) {
+            return response()->json(['found' => false, 'message' => 'No_MR kosong.']);
+        }
+
+        try {
+            $pasien = RegistrasiPasien::where('No_MR', $noMr)->first();
+        } catch (\Exception $e) {
+            return response()->json([
+                'found'   => false,
+                'message' => 'Tidak dapat terhubung ke database RS. ' .
+                    (app()->hasDebugModeEnabled() ? $e->getMessage() : 'Hubungi administrator.'),
+            ]);
+        }
+
+        if (! $pasien) {
+            return response()->json([
+                'found'   => false,
+                'message' => "Pasien dengan No_MR '{$noMr}' tidak ditemukan.",
+            ]);
+        }
+
+        // Ambil daftar kunjungan terbaru dari PENDAFTARAN
+        $kunjungans = collect();
+        try {
+            if (RegistrasiPasien::rsusAvailable()) {
+                $rows = \Illuminate\Support\Facades\DB::connection('sqlsrv_rsus')
+                    ->table('PENDAFTARAN as p')
+                    ->leftJoin('M_RUANG_MASTER as rm', 'p.Kode_Ruang', '=', 'rm.Kode_RuangM')
+                    ->where('p.No_MR', $noMr)
+                    ->orderByDesc('p.Tanggal')
+                    ->limit(10)
+                    ->select([
+                        'p.No_Reg',
+                        'p.Kode_Masuk',
+                        \Illuminate\Support\Facades\DB::raw("ISNULL(rm.Nama_RuangM, p.Kode_Ruang) as nama_ruang"),
+                    ])
+                    ->get();
+            } else {
+                $rows = \Illuminate\Support\Facades\DB::connection('mysql')
+                    ->table('pendaftaran as p')
+                    ->leftJoin('m_ruang_master as rm', 'p.Kode_Asal', '=', 'rm.Kode_RuangM')
+                    ->where('p.No_MR', $noMr)
+                    ->orderByDesc('p.created_at')
+                    ->limit(10)
+                    ->select([
+                        'p.No_Reg',
+                        'p.Kode_Masuk',
+                        \Illuminate\Support\Facades\DB::raw("COALESCE(rm.Nama_RuangM, p.Kode_Asal, '') as nama_ruang"),
+                    ])
+                    ->get();
+            }
+
+            $kunjungans = $rows->map(fn($r) => [
+                'No_Reg'     => $r->No_Reg,
+                'Kode_Masuk' => $r->Kode_Masuk ?? '',
+                'nama_ruang' => $r->nama_ruang  ?? '',
+            ]);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('[lookupPasienExternal] ' . $e->getMessage());
+        }
+
+        return response()->json([
+            'found'       => true,
+            'No_MR'       => $pasien->No_MR,
+            'nama_pasien' => $pasien->Nama_Pasien,
+            'kunjungans'  => $kunjungans,
+        ]);
+    }
+
+    // ── Admisi — verifikasi No_MR setelah pasien tiba ─────────────────────
+
+    public function verifikasiAdmisi(Request $request, int $id): RedirectResponse
+    {
+        $connPasien = RegistrasiPasien::connectionName() . '.' . RegistrasiPasien::tableName('REGISTER_PASIEN', 'registrasi_pasien');
+        $connReg    = Pendaftaran::connectionName() . '.' . Pendaftaran::tableName('PENDAFTARAN', 'pendaftaran');
+
         $validated = $request->validate([
-            'No_MR'  => 'nullable|exists:registrasi_pasien,No_MR',
-            'No_Reg' => 'nullable|exists:pendaftaran,No_Reg',
+            'No_MR'  => "required|exists:{$connPasien},No_MR",
+            'No_Reg' => "nullable|exists:{$connReg},No_Reg",
         ]);
 
-        $booking = $this->service->konfirmasiMasuk(
-            id:    $id,
-            noMr:  $validated['No_MR']  ?? null,
-            noReg: $validated['No_Reg'] ?? null,
+        $booking = $this->service->verifikasiAdmisi(
+            id:         $id,
+            noMr:       $validated['No_MR'],
+            noReg:      $validated['No_Reg'] ?? null,
+            verifiedBy: $this->currentUser(),
         );
 
-        $namaBed = $booking->bed?->ruang?->Nama_RuangM ?? '-';
+        $nama = $booking->pasien?->Nama_Pasien ?? $booking->nama_pasien;
 
-        return back()->with('success', "Pasien {$booking->nama_pasien} masuk ke {$namaBed}. Bed terisi.");
+        return back()->with('success', "Pasien {$nama} (No. MR: {$validated['No_MR']}) terverifikasi. Bed {$booking->nama_bed} aktif.");
     }
 
-    public function pulangkan(int $id): RedirectResponse
-    {
-        $booking = $this->service->pulangkan($id);
-
-        return back()->with('success', "Pasien {$booking->nama_pasien} dipulangkan. Bed kembali kosong.");
-    }
+    // ── Formatter ─────────────────────────────────────────────────────────
 
     private function format(IcuBookingExternal $b): array
     {
@@ -149,10 +226,15 @@ class BookingExternalController extends Controller
             'No_MR'            => $b->No_MR,
             'No_Reg'           => $b->No_Reg,
             'allocated_bed_id' => $b->allocated_bed_id,
-            'nama_bed'         => $b->bed?->ruang?->Nama_RuangM ?? null,
+            'nama_bed'         => $b->nama_bed,
             'status'           => $b->status,
             'status_label'     => $b->statusLabel(),
+            'status_color'     => $b->statusColor(),
             'alasan_tolak'     => $b->alasan_tolak,
+            'created_by'       => $b->created_by,
+            'confirmed_by'     => $b->confirmed_by,
+            'verified_by'      => $b->verified_by,
+            'nama_pasien_mr'   => $b->pasien?->Nama_Pasien,
             'created_at'       => $b->created_at?->format('d/m/Y H:i'),
         ];
     }

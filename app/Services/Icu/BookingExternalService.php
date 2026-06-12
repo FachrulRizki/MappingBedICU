@@ -3,15 +3,12 @@
 namespace App\Services\Icu;
 
 use App\Models\IcuBookingExternal;
-use App\Models\StatusKamar;
+use App\Models\RegistrasiPasien;
 use Illuminate\Validation\ValidationException;
 
 class BookingExternalService
 {
-    public function __construct(
-        private readonly BedStatusService $bedStatus
-    ) {}
-
+    /** Admisi — buat booking baru. */
     public function buatBooking(array $data): IcuBookingExternal
     {
         return IcuBookingExternal::create([
@@ -22,7 +19,7 @@ class BookingExternalService
             'no_telp_keluarga' => $data['no_telp_keluarga'] ?? null,
             'diagnosa'         => $data['diagnosa'],
             'rencana_tindakan' => $data['rencana_tindakan'],
-            'kebutuhan_bed'    => $data['kebutuhan_bed']    ?? null,
+            'kebutuhan_bed'    => null,   // ditentukan ICU
             'jaminan'          => $data['jaminan']          ?? null,
             'catatan_jaminan'  => $data['catatan_jaminan']  ?? null,
             'keterangan'       => $data['keterangan']       ?? null,
@@ -31,37 +28,29 @@ class BookingExternalService
         ]);
     }
 
-    public function konfirmasiIcu(int $id, string $kodeRuang, string $kebutuhanBed, string $confirmedBy): IcuBookingExternal
-    {
+    public function konfirmasiIcu(
+        int    $id,
+        string $kodeRuang,
+        string $namaBed,
+        string $kebutuhanBed,
+        string $confirmedBy
+    ): IcuBookingExternal {
         $booking = IcuBookingExternal::findOrFail($id);
 
         if ($booking->status !== 'pending_icu') {
-            throw ValidationException::withMessages(['status' => 'Status tidak sesuai untuk konfirmasi ICU.']);
-        }
-
-        $bed = StatusKamar::where('Kode_Ruang', $kodeRuang)->first();
-        if ($bed && strtoupper($bed->Status) !== 'KOSONG') {
             throw ValidationException::withMessages([
-                'Kode_Ruang' => 'Bed sudah tidak tersedia.',
+                'status' => 'Hanya booking dengan status Menunggu ICU yang bisa dikonfirmasi.',
             ]);
         }
-
-        $this->bedStatus->setBooking($kodeRuang, $confirmedBy);
 
         $booking->update([
             'status'           => 'bed_confirmed',
             'kebutuhan_bed'    => $kebutuhanBed,
             'allocated_bed_id' => $kodeRuang,
+            'nama_bed'         => $namaBed,
             'confirmed_by'     => $confirmedBy,
         ]);
 
-        return $booking->fresh();
-    }
-
-    public function catatTanpaBed(int $id, string $catatan, string $confirmedBy): IcuBookingExternal
-    {
-        $booking = IcuBookingExternal::findOrFail($id);
-        $booking->update(['keterangan' => $catatan, 'confirmed_by' => $confirmedBy]);
         return $booking->fresh();
     }
 
@@ -69,52 +58,50 @@ class BookingExternalService
     {
         $booking = IcuBookingExternal::findOrFail($id);
 
-        if ($booking->allocated_bed_id) {
-            $this->bedStatus->setKosong($booking->allocated_bed_id);
+        if ($booking->status !== 'pending_icu') {
+            throw ValidationException::withMessages([
+                'status' => 'Hanya booking yang menunggu ICU yang bisa ditolak.',
+            ]);
         }
 
         $booking->update([
-            'status'           => 'ditolak',
-            'alasan_tolak'     => $alasan,
-            'allocated_bed_id' => null,
-            'confirmed_by'     => $confirmedBy,
+            'status'       => 'ditolak',
+            'alasan_tolak' => $alasan,
+            'confirmed_by' => $confirmedBy,
         ]);
 
         return $booking->fresh();
     }
 
-    public function konfirmasiMasuk(int $id, ?string $noMr = null, ?string $noReg = null): IcuBookingExternal
-    {
+    public function verifikasiAdmisi(
+        int     $id,
+        string  $noMr,
+        ?string $noReg,
+        string  $verifiedBy
+    ): IcuBookingExternal {
         $booking = IcuBookingExternal::findOrFail($id);
 
         if ($booking->status !== 'bed_confirmed') {
-            throw ValidationException::withMessages(['status' => 'Status tidak sesuai untuk konfirmasi masuk.']);
+            throw ValidationException::withMessages([
+                'status' => 'Hanya booking yang sudah dikonfirmasi ICU yang bisa diverifikasi.',
+            ]);
         }
 
-        $updateData = ['status' => 'di_icu'];
-        if ($noMr)  $updateData['No_MR']  = $noMr;
-        if ($noReg) $updateData['No_Reg'] = $noReg;
-
-        if ($booking->allocated_bed_id) {
-            $this->bedStatus->setTerisi(
-                $booking->allocated_bed_id,
-                $noMr ?? $booking->No_MR,
-            );
+        // Validasi No_MR exists di DB RS
+        $pasien = RegistrasiPasien::where('No_MR', $noMr)->first();
+        if (! $pasien) {
+            throw ValidationException::withMessages([
+                'No_MR' => "No. MR '{$noMr}' tidak ditemukan di sistem.",
+            ]);
         }
 
-        $booking->update($updateData);
-        return $booking->fresh();
-    }
+        $booking->update([
+            'status'      => 'admisi_verified',
+            'No_MR'       => $noMr,
+            'No_Reg'      => $noReg,
+            'verified_by' => $verifiedBy,
+        ]);
 
-    public function pulangkan(int $id): IcuBookingExternal
-    {
-        $booking = IcuBookingExternal::findOrFail($id);
-
-        if ($booking->allocated_bed_id) {
-            $this->bedStatus->setKosong($booking->allocated_bed_id);
-        }
-
-        $booking->update(['status' => 'pulang', 'allocated_bed_id' => null]);
         return $booking->fresh();
     }
 }

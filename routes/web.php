@@ -3,133 +3,99 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Icu\DashboardController;
-use App\Http\Controllers\Icu\BedController;
-use App\Http\Controllers\Icu\PasienIcuController;
 use App\Http\Controllers\Icu\BookingExternalController;
 use App\Http\Controllers\Icu\SpriInternalController;
 use App\Http\Controllers\Icu\DenahBedController;
 use App\Http\Controllers\Icu\Icd10Controller;
 
-// Auth
 Route::get('/login',  [LoginController::class, 'showLogin'])->name('login')->middleware('guest');
 Route::post('/login', [LoginController::class, 'login'])->middleware('guest');
 Route::post('/logout',[LoginController::class, 'logout'])->name('logout')->middleware('auth');
-
-// Redirect root 
 Route::get('/', fn() => redirect()->route('icu.dashboard'));
 
-// Semua route ICU: wajib login 
 Route::middleware('auth')->group(function () {
 
-    // Dashboard 
-    Route::get('/dashboard-icu', [DashboardController::class, 'index'])
-        ->name('icu.dashboard');
+    Route::get('/dashboard-icu', [DashboardController::class, 'index'])->name('icu.dashboard');
+    Route::get('/icu/denah-bed', [DenahBedController::class, 'index'])->name('icu.denah_bed');
 
-    // Denah Bed 
-    Route::get('/icu/denah-bed', [DenahBedController::class, 'index'])
-        ->name('icu.denah_bed');
-
-    // Pasien ICU
-    Route::get('/icu/pasien-icu', [PasienIcuController::class, 'index'])
-        ->name('icu.pasien_icu');
-    Route::post('/icu/masuk-ruangan/{id}', [PasienIcuController::class, 'masukRuangan'])
-        ->name('icu.masuk_ruangan')->middleware('role:petugas_icu');
-    Route::post('/icu/pulangkan/{id}', [PasienIcuController::class, 'pulangkan'])
-        ->name('icu.pulangkan')->middleware('role:petugas_icu');
-
-    // BOOKING EXTERNAL
+    // ── Booking External ──────────────────────────────────────────────────
     Route::get('/icu/booking-external', [BookingExternalController::class, 'index'])
         ->name('icu.booking_external.index');
 
-    // Admisi — buat booking + form jaminan (langsung pending_icu)
+    // Admisi — buat booking baru
     Route::post('/icu/booking-external', [BookingExternalController::class, 'store'])
-        ->name('icu.booking_external.store')->middleware('role:admisi');
+        ->name('icu.booking_external.store')
+        ->middleware('role:admisi');
 
-    // Petugas ICU — pilih bed
+    // ICU — konfirmasi bed (pending_icu → bed_confirmed)
     Route::post('/icu/booking-external/{id}/konfirmasi-icu', [BookingExternalController::class, 'konfirmasiIcu'])
-        ->name('icu.booking_external.konfirmasi_icu')->middleware('role:petugas_icu');
+        ->name('icu.booking_external.konfirmasi_icu')
+        ->middleware('role:petugas_icu');
 
-    // Petugas ICU — belum ada bed, catat & tetap waiting
-    Route::post('/icu/booking-external/{id}/catat-tanpa-bed', [BookingExternalController::class, 'catatTanpaBed'])
-        ->name('icu.booking_external.catat_tanpa_bed')->middleware('role:petugas_icu');
-
-    // Petugas ICU — tolak
+    // ICU — tolak (pending_icu → ditolak)
     Route::post('/icu/booking-external/{id}/tolak-icu', [BookingExternalController::class, 'tolakIcu'])
-        ->name('icu.booking_external.tolak_icu')->middleware('role:petugas_icu');
+        ->name('icu.booking_external.tolak_icu')
+        ->middleware('role:petugas_icu');
 
-    // Petugas ICU — konfirmasi pasien masuk ruangan → langsung di_icu
-    Route::post('/icu/booking-external/{id}/konfirmasi-masuk', [BookingExternalController::class, 'konfirmasiMasuk'])
-        ->name('icu.booking_external.konfirmasi_masuk')->middleware('role:petugas_icu');
+    // Admisi — verifikasi No_MR setelah pasien tiba (bed_confirmed → admisi_verified)
+    Route::post('/icu/booking-external/{id}/verifikasi-admisi', [BookingExternalController::class, 'verifikasiAdmisi'])
+        ->name('icu.booking_external.verifikasi_admisi')
+        ->middleware('role:admisi');
 
-    // Petugas ICU — pulangkan
-    Route::post('/icu/booking-external/{id}/pulangkan', [BookingExternalController::class, 'pulangkan'])
-        ->name('icu.booking_external.pulangkan')->middleware('role:petugas_icu');
+    // Lookup pasien untuk verifikasi (AJAX — admisi role)
+    Route::get('/icu/booking-external/lookup-pasien', [BookingExternalController::class, 'lookupPasienExternal'])
+        ->name('icu.booking_external.lookup_pasien');
 
-    // SURAT PERMINTAAN RAWAT ICU (INTERNAL)
+    // ── SPRI Internal ─────────────────────────────────────────────────────
     Route::get('/icu/spri-internal', [SpriInternalController::class, 'index'])
         ->name('icu.spri_internal.index');
 
-    // Petugas Ruang — buat surat permintaan
+    // Petugas Ruang — buat SPRI (→ pending_admisi)
     Route::post('/icu/spri-internal', [SpriInternalController::class, 'store'])
-        ->name('icu.spri_internal.store')->middleware('role:petugas_ruang');
+        ->name('icu.spri_internal.store')
+        ->middleware('role:petugas_ruang');
 
-    // Lookup pasien (AJAX) — semua role bisa akses
+    // Lookup & ICD10 (semua role)
     Route::get('/icu/spri-internal/lookup-pasien', [SpriInternalController::class, 'lookupPasien'])
         ->name('icu.spri_internal.lookup_pasien');
-
-    // Search ICD10 (AJAX) — semua role bisa akses
     Route::get('/icu/search-icd10', [Icd10Controller::class, 'search'])
         ->name('icu.search_icd10');
 
-    // Admisi — approve + isi catatan jaminan (TIDAK menentukan bed)
+    // Admisi — approve + isi catatan (pending_admisi → pending_icu)
     Route::post('/icu/spri-internal/{id}/approve-admisi', [SpriInternalController::class, 'approveAdmisi'])
-        ->name('icu.spri_internal.approve_admisi')->middleware('role:admisi');
+        ->name('icu.spri_internal.approve_admisi')
+        ->middleware('role:admisi');
 
-    // Admisi — tolak
+    // Admisi — tolak (pending_admisi → ditolak)
     Route::post('/icu/spri-internal/{id}/tolak-admisi', [SpriInternalController::class, 'tolakAdmisi'])
-        ->name('icu.spri_internal.tolak_admisi')->middleware('role:admisi');
+        ->name('icu.spri_internal.tolak_admisi')
+        ->middleware('role:admisi');
 
-    // Petugas ICU — pilih bed
-    Route::post('/icu/spri-internal/{id}/booking-bed', [SpriInternalController::class, 'bookingBedIcu'])
-        ->name('icu.spri_internal.booking_bed')->middleware('role:petugas_icu');
+    // ICU — verifikasi bed (pending_icu → bed_verified)
+    Route::post('/icu/spri-internal/{id}/verifikasi-bed', [SpriInternalController::class, 'verifikasiBedIcu'])
+        ->name('icu.spri_internal.verifikasi_bed')
+        ->middleware('role:petugas_icu');
 
-    // Petugas ICU — belum ada bed, catat & tetap waiting
-    Route::post('/icu/spri-internal/{id}/catat-tanpa-bed', [SpriInternalController::class, 'catatTanpaBed'])
-        ->name('icu.spri_internal.catat_tanpa_bed')->middleware('role:petugas_icu');
-
-    // Petugas ICU — tolak
+    // ICU — tolak (pending_icu → ditolak)
     Route::post('/icu/spri-internal/{id}/tolak-icu', [SpriInternalController::class, 'tolakIcu'])
-        ->name('icu.spri_internal.tolak_icu')->middleware('role:petugas_icu');
+        ->name('icu.spri_internal.tolak_icu')
+        ->middleware('role:petugas_icu');
 
-    // Petugas ICU — konfirmasi pasien masuk ruangan → langsung di_icu
-    Route::post('/icu/spri-internal/{id}/konfirmasi-masuk', [SpriInternalController::class, 'konfirmasiMasuk'])
-        ->name('icu.spri_internal.konfirmasi_masuk')->middleware('role:petugas_icu');
-
-    // Petugas ICU — pulangkan
-    Route::post('/icu/spri-internal/{id}/pulangkan', [SpriInternalController::class, 'pulangkan'])
-        ->name('icu.spri_internal.pulangkan')->middleware('role:petugas_icu');
-
-    // Alokasi Bed (legacy dashboard)─
-    Route::get('/icu/alokasi-bed', [BedController::class, 'index'])
-        ->name('icu.alokasi_bed.index');
-    Route::post('/icu/alokasi-bed/{id}', [BedController::class, 'alokasi'])
-        ->name('icu.alokasi_bed')->middleware('role:petugas_icu');
-
-    // Settings: User Management (admin only)
-    Route::get('/settings/users', [\App\Http\Controllers\UserController::class, 'index'])
-        ->name('settings.users')->middleware('role:admin');
-    Route::post('/settings/users', [\App\Http\Controllers\UserController::class, 'store'])
-        ->name('settings.users.store')->middleware('role:admin');
-    Route::put('/settings/users/{id}', [\App\Http\Controllers\UserController::class, 'update'])
-        ->name('settings.users.update')->middleware('role:admin');
-    Route::post('/settings/users/{id}/reset-password', [\App\Http\Controllers\UserController::class, 'resetPassword'])
-        ->name('settings.users.reset_password')->middleware('role:admin');
-    Route::delete('/settings/users/{id}', [\App\Http\Controllers\UserController::class, 'destroy'])
-        ->name('settings.users.destroy')->middleware('role:admin');
-
-    // Settings: Role & Permission (admin only)
-    Route::get('/settings/roles', [\App\Http\Controllers\RolePermissionController::class, 'index'])
-        ->name('settings.roles')->middleware('role:admin');
-    Route::post('/settings/roles/user/{id}', [\App\Http\Controllers\RolePermissionController::class, 'updateUserRole'])
-        ->name('settings.roles.update_user')->middleware('role:admin');
+    // ── Settings (admin only) ─────────────────────────────────────────────
+    Route::middleware('role:admin')->group(function () {
+        Route::get('/settings/users', [\App\Http\Controllers\UserController::class, 'index'])
+            ->name('settings.users');
+        Route::post('/settings/users', [\App\Http\Controllers\UserController::class, 'store'])
+            ->name('settings.users.store');
+        Route::put('/settings/users/{id}', [\App\Http\Controllers\UserController::class, 'update'])
+            ->name('settings.users.update');
+        Route::post('/settings/users/{id}/reset-password', [\App\Http\Controllers\UserController::class, 'resetPassword'])
+            ->name('settings.users.reset_password');
+        Route::delete('/settings/users/{id}', [\App\Http\Controllers\UserController::class, 'destroy'])
+            ->name('settings.users.destroy');
+        Route::get('/settings/roles', [\App\Http\Controllers\RolePermissionController::class, 'index'])
+            ->name('settings.roles');
+        Route::post('/settings/roles/user/{id}', [\App\Http\Controllers\RolePermissionController::class, 'updateUserRole'])
+            ->name('settings.roles.update_user');
+    });
 });

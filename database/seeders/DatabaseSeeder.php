@@ -160,9 +160,8 @@ class DatabaseSeeder extends Seeder
         foreach ($admisions as $a) IcuAdmision::create($a);
 
         // ── 8. BOOKING EXTERNAL (alur baru) ──────────────────────────────
-        // Status enum: pending_icu | bed_confirmed | di_icu | ditolak | pulang
+        // Status: pending_icu | bed_confirmed | admisi_verified | ditolak
         $bookingExternals = [
-            // Baru masuk dari admisi → menunggu ICU tentukan bed
             [
                 'nama_pasien'      => 'Agus Purnomo',
                 'jenis_kelamin'    => 'L',
@@ -171,14 +170,13 @@ class DatabaseSeeder extends Seeder
                 'no_telp_keluarga' => '081234567890',
                 'diagnosa'         => 'Gagal Napas Akut',
                 'rencana_tindakan' => 'Pemasangan Ventilator Mekanik',
-                'kebutuhan_bed'    => 'ICU Non Ventilator',
+                'kebutuhan_bed'    => null,
                 'jaminan'          => 'BPJS',
                 'catatan_jaminan'  => 'No. BPJS: 0001234567001',
                 'keterangan'       => 'Pasien dirujuk emergency, saturasi 78%',
                 'status'           => 'pending_icu',
                 'created_by'       => 'admisi1',
             ],
-            // ICU sudah pilih bed CVCD1 → siap antar, skip verif admisi
             [
                 'nama_pasien'      => 'Sri Wahyuni',
                 'jenis_kelamin'    => 'P',
@@ -192,11 +190,11 @@ class DatabaseSeeder extends Seeder
                 'catatan_jaminan'  => 'Prudential - No. Polis: PRU-2024-001',
                 'keterangan'       => 'Riwayat PCI 2 tahun lalu',
                 'allocated_bed_id' => 'CVCD1',
+                'nama_bed'         => 'CVCU/ICCU D1',
                 'status'           => 'bed_confirmed',
                 'created_by'       => 'admisi1',
                 'confirmed_by'     => 'icu1',
             ],
-            // ICU sudah konfirmasi bed HC315 → menunggu pasien tiba & antar
             [
                 'nama_pasien'      => 'Bambang Susilo',
                 'jenis_kelamin'    => 'L',
@@ -209,24 +207,25 @@ class DatabaseSeeder extends Seeder
                 'jaminan'          => 'Umum',
                 'catatan_jaminan'  => 'Bayar mandiri - keluarga sudah konfirmasi',
                 'keterangan'       => 'Suhu 40C, kejang berulang, GCS 11',
+                'No_MR'            => 'MR-007',
                 'allocated_bed_id' => 'HC315',
-                'status'           => 'bed_confirmed',
+                'nama_bed'         => 'HIGH CARE UNIT 315',
+                'status'           => 'admisi_verified',
                 'created_by'       => 'admisi2',
                 'confirmed_by'     => 'icu1',
+                'verified_by'      => 'admisi1',
             ],
         ];
         foreach ($bookingExternals as $be) IcuBookingExternal::create($be);
 
         // ── 9. SPRI INTERNAL (alur baru) ──────────────────────────────────
-        // Status enum: pending_admisi | pending_icu | bed_booked | di_icu | ditolak | pulang
+        // Status: pending_admisi | pending_icu | bed_verified | ditolak
         $spriInternals = [
-            // Baru dibuat petugas ruang → menunggu admisi isi catatan
             [
                 'No_MR'         => 'MR-003',
                 'No_Reg'        => 'REG-2026-003',
                 'Diagnosis'     => 'Sepsis Berat + Disfungsi Multi Organ',
                 'IndikasiRI'    => 'Kondisi memburuk, perlu ICU segera',
-                'kebutuhan_bed' => 'ICU',
                 'asal_ruang'    => 'Poli Penyakit Dalam - Lantai 3',
                 'Dokter'        => 'dr. Citra Sp.PD',
                 'spesialis'     => 'Penyakit Dalam',
@@ -234,13 +233,11 @@ class DatabaseSeeder extends Seeder
                 'NameUser'      => 'poli.dalam',
                 'status'        => 'pending_admisi',
             ],
-            // Admisi sudah isi catatan → menunggu ICU tentukan bed
             [
                 'No_MR'          => 'MR-004',
                 'No_Reg'         => 'REG-2026-004',
                 'Diagnosis'      => 'Gagal Jantung Dekompensasi Akut',
                 'IndikasiRI'     => 'EF 20%, edema paru akut',
-                'kebutuhan_bed'  => 'CVCU',
                 'asal_ruang'     => 'Poli Jantung - Gedung B',
                 'Dokter'         => 'dr. Andi Sp.An',
                 'spesialis'      => 'Kardiologi',
@@ -250,7 +247,6 @@ class DatabaseSeeder extends Seeder
                 'approved_by'    => 'admisi1',
                 'status'         => 'pending_icu',
             ],
-            // ICU sudah pilih bed HC307 → langsung siap antar, skip verif admisi
             [
                 'No_MR'            => 'MR-001',
                 'No_Reg'           => 'REG-2026-001',
@@ -264,9 +260,10 @@ class DatabaseSeeder extends Seeder
                 'NameUser'         => 'poli.paru',
                 'catatan_admisi'   => 'BPJS kelas 1. Tidak ada tunggakan.',
                 'allocated_bed_id' => 'HC307',
+                'nama_bed'         => 'HIGH CARE UNIT 307',
                 'approved_by'      => 'admisi2',
-                'booked_by'        => 'icu1',
-                'status'           => 'bed_booked',
+                'verified_by'      => 'icu1',
+                'status'           => 'bed_verified',
             ],
         ];
         foreach ($spriInternals as $si) IcuSpriInternal::create($si);

@@ -11,9 +11,11 @@ return new class extends Migration
         Schema::create('icu_spri_internal', function (Blueprint $table) {
             $table->id();
 
+            // Referensi pasien (no FK — tabel ada di SQL Server RS)
             $table->string('No_MR', 20);
             $table->string('No_Reg', 20);
 
+            // Data klinis dari ruang asal
             $table->string('Diagnosis', 200);
             $table->string('IndikasiRI', 200);
             $table->string('kebutuhan_bed', 100)->nullable();
@@ -21,27 +23,28 @@ return new class extends Migration
             $table->string('Dokter', 100)->nullable();
             $table->string('spesialis', 100)->nullable();
             $table->text('Keterangan')->nullable();
-            $table->string('NameUser', 50)->nullable();  
+            $table->string('NameUser', 50)->nullable(); 
 
-            $table->text('catatan_admisi')->nullable();
+            // Catatan Admisi (diisi saat approve)
+            $table->text('catatan_admisi')->nullable();   
 
+            // Bed referensi (diisi ICU saat verifikasi, no FK─
             $table->string('allocated_bed_id', 20)->nullable();
-            $table->foreign('allocated_bed_id')
-                  ->references('Kode_Ruang')->on('status_kamar')
-                  ->nullOnDelete();
+            $table->string('nama_bed', 100)->nullable();
 
+            // Status alu─
             $table->enum('status', [
                 'pending_admisi', 
-                'pending_icu',   
-                'bed_booked',    
-                'di_icu',        
-                'ditolak',       
-                'pulang',       
+                'pending_icu',    
+                'bed_verified',   
+                'ditolak',
             ])->default('pending_admisi');
 
             $table->string('alasan_tolak', 200)->nullable();
-            $table->string('approved_by', 50)->nullable();  
-            $table->string('booked_by', 50)->nullable();     
+
+            // Tracking siapa yang aks─
+            $table->string('approved_by', 50)->nullable();
+            $table->string('verified_by', 50)->nullable();
 
             $table->timestamps();
         });

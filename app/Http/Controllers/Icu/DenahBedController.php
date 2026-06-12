@@ -3,11 +3,7 @@
 namespace App\Http\Controllers\Icu;
 
 use App\Http\Controllers\Controller;
-use App\Models\IcuAdmision;
-use App\Models\IcuBookingExternal;
-use App\Models\IcuSpriInternal;
 use App\Models\MRuangMaster;
-use App\Models\RegistrasiPasien;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -16,69 +12,15 @@ class DenahBedController extends Controller
     public function index(): Response
     {
         $bedData = MRuangMaster::bedIcuDenganStatus();
-        $bedTerisi = collect();
 
-        // Jalur lama (IcuAdmision)
-        IcuAdmision::where('status', 'di_icu')
-            ->whereNotNull('allocated_bed_id')
-            ->get(['No_MR', 'allocated_bed_id', 'required_bed_type'])
-            ->each(fn($a) => $bedTerisi->put($a->allocated_bed_id, [
-                'No_MR'      => $a->No_MR,
-                'sumber'     => 'lama',
-                'jenis_icu'  => $a->required_bed_type,
-            ]));
-
-        // Jalur internal (IcuSpriInternal)
-        IcuSpriInternal::where('status', 'di_icu')
-            ->whereNotNull('allocated_bed_id')
-            ->get(['No_MR', 'allocated_bed_id', 'kebutuhan_bed'])
-            ->each(fn($s) => $bedTerisi->put($s->allocated_bed_id, [
-                'No_MR'      => $s->No_MR,
-                'sumber'     => 'internal',
-                'jenis_icu'  => $s->kebutuhan_bed,
-            ]));
-
-        // Jalur external (IcuBookingExternal)
-        IcuBookingExternal::where('status', 'di_icu')
-            ->whereNotNull('allocated_bed_id')
-            ->get(['No_MR', 'nama_pasien', 'allocated_bed_id', 'kebutuhan_bed', 'jenis_kelamin'])
-            ->each(fn($b) => $bedTerisi->put($b->allocated_bed_id, [
-                'No_MR'          => $b->No_MR,
-                'nama_pasien_ext'=> $b->nama_pasien,
-                'jenis_kelamin'  => $b->jenis_kelamin,
-                'sumber'         => 'external',
-                'jenis_icu'      => $b->kebutuhan_bed,
-            ]));
-
-        $noMRs      = $bedTerisi->pluck('No_MR')->filter()->unique()->values();
-        $pasienMap  = RegistrasiPasien::whereIn('No_MR', $noMRs)
-            ->get(['No_MR', 'Nama_Pasien', 'jenis_kelamin'])
-            ->keyBy('No_MR');
-
-        $semuaKamar = $bedData->map(function ($row) use ($bedTerisi, $pasienMap) {
-            $admisiData  = $bedTerisi->get($row->Kode_RuangM);
-            $pasien      = $admisiData ? ($pasienMap[$admisiData['No_MR'] ?? ''] ?? null) : null;
-
-            $namaPasien  = $pasien?->Nama_Pasien
-                ?? $admisiData['nama_pasien_ext']
-                ?? null;
-            $jenisKelamin = $pasien?->jenis_kelamin
-                ?? $admisiData['jenis_kelamin']
-                ?? null;
-
-            return [
-                'Kode_Ruang'    => $row->Kode_RuangM,
-                'nama_ruang'    => $row->Nama_RuangM,
-                'kode_kelas'    => $row->kelas_master ?? $row->Kode_Kelas,
-                'nama_kelas'    => $row->Nama_Kelas,
-                'Status'        => $row->Status ?? 'KOSONG',
-                'No_MR'         => $admisiData['No_MR'] ?? $row->No_MR ?? null,
-                'nama_pasien'   => $namaPasien,
-                'jenis_kelamin' => $jenisKelamin,
-                'jenis_icu'     => $admisiData['jenis_icu'] ?? null,
-                'sumber'        => $admisiData['sumber'] ?? null,
-            ];
-        })->values();
+        $semuaKamar = $bedData->map(fn($row) => [
+            'Kode_Ruang'  => $row->Kode_RuangM,
+            'nama_ruang'  => $row->Nama_RuangM,
+            'kode_kelas'  => $row->kelas_master ?? $row->Kode_Kelas,
+            'nama_kelas'  => $row->Nama_Kelas,
+            'Status'      => $row->Status ?? 'KOSONG',
+            'No_MR'       => $row->No_MR ?? null,
+        ])->values();
 
         $summary = [
             'total'   => $semuaKamar->count(),
