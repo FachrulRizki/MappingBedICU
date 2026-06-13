@@ -219,39 +219,6 @@ const av = (i) => avatarPalette[i % avatarPalette.length];
                                 </p>
                             </div>
                         </div>
-
-                        <!-- Tengah: stats besar -->
-                        <div class="flex items-center gap-6 sm:gap-10">
-                            <div class="text-center">
-                                <p class="text-white/60 text-xs uppercase tracking-widest">Kosong</p>
-                                <p class="font-bold text-white leading-none mt-1"
-                                    style="font-size:clamp(36px,5vw,64px); font-family:'DM Mono',monospace;
-                                        text-shadow:0 0 30px rgba(45,217,164,0.4)">
-                                    {{ bedKosong }}
-                                </p>
-                                <p class="text-white/50 text-xs mt-1">dari {{ totalBed }} bed</p>
-                            </div>
-                            <div class="w-px h-16 rounded-full opacity-20" style="background:white"></div>
-                            <div class="text-center">
-                                <p class="text-white/60 text-xs uppercase tracking-widest">Terisi</p>
-                                <p class="font-bold leading-none mt-1"
-                                    style="font-size:clamp(36px,5vw,64px); font-family:'DM Mono',monospace;
-                                        color:#FF0505; text-shadow:0 0 30px rgba(74, 193, 217, 0.4)">
-                                    {{ bedTerisi }}
-                                </p>
-                                <p class="text-white/50 text-xs mt-1">hunian {{ occupancy }}%</p>
-                            </div>
-                            <div class="w-px h-16 rounded-full opacity-20" style="background:white"></div>
-                            <div class="text-center">
-                                <p class="text-white/60 text-xs uppercase tracking-widest">Booking</p>
-                                <p class="font-bold leading-none mt-1"
-                                    style="font-size:clamp(36px,5vw,64px); font-family:'DM Mono',monospace;
-                                        color:#F2FF00; text-shadow:0 0 30px rgba(224,146,58,0.4)">
-                                    {{ bedBooking }}
-                                </p>
-                                <p class="text-white/50 text-xs mt-1">menunggu transfer</p>
-                            </div>
-                        </div>
                     </div>
 
                     <!-- Ticker berjalan di bawah hero -->

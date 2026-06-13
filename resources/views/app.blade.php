@@ -6,6 +6,7 @@
     <meta name="theme-color" content="#0D1A17" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="icon" type="image/png" href="{{ asset('images/logo-urip.png') }}">
     <title>{{ config('app.name', 'ICU Monitoring') }}</title>
     {{-- Prevent theme flash: apply saved theme before CSS loads --}}
     <script>
