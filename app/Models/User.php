@@ -18,6 +18,10 @@ class User extends Authenticatable
         'role',
         'unit_kerja',
         'is_active',
+        // SSO Keycloak
+        'keycloak_id',
+        'keycloak_username',
+        'auth_provider',    // 'local' | 'keycloak'
     ];
 
     protected $hidden = ['password', 'remember_token'];
@@ -31,7 +35,19 @@ class User extends Authenticatable
         ];
     }
 
-    // Role helpers
+    // ── Auth provider helpers ──────────────────────────────────────────────
+
+    public function isKeycloakUser(): bool
+    {
+        return $this->auth_provider === 'keycloak';
+    }
+
+    public function isLocalUser(): bool
+    {
+        return $this->auth_provider === 'local' || $this->auth_provider === null;
+    }
+
+    // ── Role helpers ───────────────────────────────────────────────────────
 
     public function isAdmin(): bool        { return $this->role === 'admin'; }
     public function isAdmisi(): bool       { return $this->role === 'admisi'; }

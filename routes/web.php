@@ -2,86 +2,95 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Icu\DashboardController;
 use App\Http\Controllers\Icu\BookingExternalController;
 use App\Http\Controllers\Icu\SpriInternalController;
 use App\Http\Controllers\Icu\DenahBedController;
 use App\Http\Controllers\Icu\Icd10Controller;
 
+// ── Auth — Lokal ──────────────────────────────────────────────────────────────
 Route::get('/login',  [LoginController::class, 'showLogin'])->name('login')->middleware('guest');
 Route::post('/login', [LoginController::class, 'login'])->middleware('guest');
-Route::post('/logout',[LoginController::class, 'logout'])->name('logout')->middleware('auth');
+
+// ── Auth — SSO Keycloak ───────────────────────────────────────────────────────
+// Redirect ke Keycloak login page (aktif hanya jika Keycloak reachable)
+Route::get('/auth/keycloak', [AuthController::class, 'redirectToKeycloak'])
+    ->name('auth.keycloak')
+    ->middleware('guest');
+
+// Callback dari Keycloak setelah user login berhasil
+Route::get('/auth/keycloak/callback', [AuthController::class, 'handleCallback'])
+    ->name('auth.keycloak.callback');
+
+// ── Logout — handle keycloak + lokal ─────────────────────────────────────────
+Route::post('/logout', [AuthController::class, 'logout'])
+    ->name('logout')
+    ->middleware('auth');
+
+// Redirect root ke dashboard
 Route::get('/', fn() => redirect()->route('icu.dashboard'));
 
+// ── ICU (wajib login) ─────────────────────────────────────────────────────────
 Route::middleware('auth')->group(function () {
 
     Route::get('/dashboard-icu', [DashboardController::class, 'index'])->name('icu.dashboard');
     Route::get('/icu/denah-bed', [DenahBedController::class, 'index'])->name('icu.denah_bed');
 
-    // ── Booking External ──────────────────────────────────────────────────
+    // ── Booking External ──────────────────────────────────────────────────────
     Route::get('/icu/booking-external', [BookingExternalController::class, 'index'])
         ->name('icu.booking_external.index');
 
-    // Admisi — buat booking baru
     Route::post('/icu/booking-external', [BookingExternalController::class, 'store'])
         ->name('icu.booking_external.store')
         ->middleware('role:admisi');
 
-    // ICU — konfirmasi bed (pending_icu → bed_confirmed)
     Route::post('/icu/booking-external/{id}/konfirmasi-icu', [BookingExternalController::class, 'konfirmasiIcu'])
         ->name('icu.booking_external.konfirmasi_icu')
         ->middleware('role:petugas_icu');
 
-    // ICU — tolak (pending_icu → ditolak)
     Route::post('/icu/booking-external/{id}/tolak-icu', [BookingExternalController::class, 'tolakIcu'])
         ->name('icu.booking_external.tolak_icu')
         ->middleware('role:petugas_icu');
 
-    // Admisi — verifikasi No_MR setelah pasien tiba (bed_confirmed → admisi_verified)
     Route::post('/icu/booking-external/{id}/verifikasi-admisi', [BookingExternalController::class, 'verifikasiAdmisi'])
         ->name('icu.booking_external.verifikasi_admisi')
         ->middleware('role:admisi');
 
-    // Lookup pasien untuk verifikasi (AJAX — admisi role)
     Route::get('/icu/booking-external/lookup-pasien', [BookingExternalController::class, 'lookupPasienExternal'])
         ->name('icu.booking_external.lookup_pasien');
 
-    // ── SPRI Internal ─────────────────────────────────────────────────────
+    // ── SPRI Internal ─────────────────────────────────────────────────────────
     Route::get('/icu/spri-internal', [SpriInternalController::class, 'index'])
         ->name('icu.spri_internal.index');
 
-    // Petugas Ruang — buat SPRI (→ pending_admisi)
     Route::post('/icu/spri-internal', [SpriInternalController::class, 'store'])
         ->name('icu.spri_internal.store')
         ->middleware('role:petugas_ruang');
 
-    // Lookup & ICD10 (semua role)
     Route::get('/icu/spri-internal/lookup-pasien', [SpriInternalController::class, 'lookupPasien'])
         ->name('icu.spri_internal.lookup_pasien');
+
     Route::get('/icu/search-icd10', [Icd10Controller::class, 'search'])
         ->name('icu.search_icd10');
 
-    // Admisi — approve + isi catatan (pending_admisi → pending_icu)
     Route::post('/icu/spri-internal/{id}/approve-admisi', [SpriInternalController::class, 'approveAdmisi'])
         ->name('icu.spri_internal.approve_admisi')
         ->middleware('role:admisi');
 
-    // Admisi — tolak (pending_admisi → ditolak)
     Route::post('/icu/spri-internal/{id}/tolak-admisi', [SpriInternalController::class, 'tolakAdmisi'])
         ->name('icu.spri_internal.tolak_admisi')
         ->middleware('role:admisi');
 
-    // ICU — verifikasi bed (pending_icu → bed_verified)
     Route::post('/icu/spri-internal/{id}/verifikasi-bed', [SpriInternalController::class, 'verifikasiBedIcu'])
         ->name('icu.spri_internal.verifikasi_bed')
         ->middleware('role:petugas_icu');
 
-    // ICU — tolak (pending_icu → ditolak)
     Route::post('/icu/spri-internal/{id}/tolak-icu', [SpriInternalController::class, 'tolakIcu'])
         ->name('icu.spri_internal.tolak_icu')
         ->middleware('role:petugas_icu');
 
-    // ── Settings (admin only) ─────────────────────────────────────────────
+    // ── Settings (admin only) ─────────────────────────────────────────────────
     Route::middleware('role:admin')->group(function () {
         Route::get('/settings/users', [\App\Http\Controllers\UserController::class, 'index'])
             ->name('settings.users');

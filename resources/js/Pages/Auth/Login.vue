@@ -3,7 +3,9 @@ import { ref, watch } from 'vue';
 import { useForm } from '@inertiajs/vue3';
 
 const props = defineProps({
-    flash: { type: Object, default: () => ({}) },
+    flash:               { type: Object,  default: () => ({}) },
+    keycloakAvailable:   { type: Boolean, default: false },
+    keycloakRedirectUrl: { type: String,  default: '' },
 });
 
 const form = useForm({
@@ -12,8 +14,9 @@ const form = useForm({
     remember: false,
 });
 
-const showPass = ref(false);
-const errorMsg = ref('');
+const showPass  = ref(false);
+const errorMsg  = ref('');
+const ssoLoading = ref(false);
 
 watch(() => props.flash, (f) => {
     if (f?.error) errorMsg.value = f.error;
@@ -22,8 +25,17 @@ watch(() => props.flash, (f) => {
 const submit = () => {
     errorMsg.value = '';
     form.post(route('login'), {
-        onError: () => { errorMsg.value = form.errors.username || form.errors.password || 'Login gagal.'; },
+        onError: () => {
+            errorMsg.value = form.errors.username || form.errors.password || 'Login gagal.';
+        },
     });
+};
+
+// Redirect ke Keycloak — gunakan window.location agar tidak lewat Inertia
+const loginSSO = () => {
+    if (! props.keycloakRedirectUrl) return;
+    ssoLoading.value = true;
+    window.location.href = props.keycloakRedirectUrl;
 };
 </script>
 
@@ -31,7 +43,6 @@ const submit = () => {
     <div class="min-h-screen flex items-center justify-center p-4"
         style="background:var(--bg-main); font-family:'Plus Jakarta Sans',sans-serif">
 
-        <!-- Card -->
         <div class="w-full max-w-sm">
 
             <!-- Logo + Title -->
@@ -42,48 +53,82 @@ const submit = () => {
                         <path d="M19 8H15V4H9v4H5v6h4v4h6v-4h4V8z"/>
                     </svg>
                 </div>
-                <h1 class="text-2xl font-bold" style="color:var(--text-primary); letter-spacing:-0.02em">ICU Monitor</h1>
+                <h1 class="text-2xl font-bold" style="color:var(--text-primary); letter-spacing:-0.02em">
+                    ICU Monitor
+                </h1>
                 <p class="text-sm mt-1" style="color:var(--text-secondary)">Sistem Monitoring Bed ICU</p>
             </div>
 
             <!-- Form Card -->
-            <div class="card-dark p-6 sm:p-8">
-                <!-- Error banner -->
+            <div class="card-dark p-6 sm:p-8 space-y-5">
+
+                <!-- ── SSO Button (hanya tampil jika Keycloak bisa dijangkau) ── -->
+                <div v-if="keycloakAvailable" class="space-y-3">
+                    <button @click="loginSSO" :disabled="ssoLoading"
+                        class="w-full flex items-center justify-center gap-3 py-3 rounded-xl text-sm font-bold transition-all disabled:opacity-60"
+                        style="background:linear-gradient(135deg,#1a6fde,#0f4f9e); color:white;
+                               box-shadow:0 4px 16px rgba(26,111,222,0.3)">
+                        <!-- Keycloak lock icon -->
+                        <svg v-if="!ssoLoading" class="w-5 h-5" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                        </svg>
+                        <svg v-else class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                        </svg>
+                        {{ ssoLoading ? 'Menghubungkan ke SSO...' : 'Login dengan SSO Rumah Sakit' }}
+                    </button>
+
+                    <!-- Divider -->
+                    <div class="flex items-center gap-3">
+                        <div class="flex-1 h-px" style="background:var(--border-default)"></div>
+                        <span class="text-xs" style="color:var(--text-secondary)">atau login lokal</span>
+                        <div class="flex-1 h-px" style="background:var(--border-default)"></div>
+                    </div>
+                </div>
+
+                <!-- ── Error Banner ──────────────────────────────────────── -->
                 <div v-if="errorMsg"
-                    class="flex items-center gap-2 px-3 py-2.5 rounded-xl mb-4 text-sm"
+                    class="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm"
                     style="background:rgba(224,112,80,0.1); border:1px solid rgba(224,112,80,0.3); color:#E07050">
-                    <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
                     </svg>
                     {{ errorMsg }}
                 </div>
 
+                <!-- ── Form Login Lokal ───────────────────────────────────── -->
                 <form @submit.prevent="submit" class="space-y-4">
+
+                    <!-- Label login lokal -->
+                    <p v-if="!keycloakAvailable" class="text-xs text-center"
+                        style="color:var(--text-secondary)">
+                        Login menggunakan akun lokal
+                    </p>
+                    <p v-else class="text-xs" style="color:var(--text-secondary)">
+                        Admin / akun lokal:
+                    </p>
+
                     <!-- Username -->
                     <div>
                         <label class="block text-xs font-semibold mb-1.5" style="color:var(--text-primary)">
                             Username
                         </label>
                         <div class="relative">
-                            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style="color:var(--text-secondary)"
+                            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
+                                style="color:var(--text-secondary)"
                                 fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
                             </svg>
-                            <input
-                                v-model="form.username"
-                                type="text"
-                                required
-                                autocomplete="username"
-                                placeholder="username anda"
-                                class="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl outline-none transition-all"
-                                :style="`
-                                    border: 1px solid ${form.errors.username ? 'rgba(224,112,80,0.5)' : 'var(--border-default)'};
-                                    background: var(--bg-input);
-                                    color: var(--text-primary);
-                                `"
-                                @focus="$el.style.borderColor='var(--border-input-focus)'"
-                                @blur="$el.style.borderColor=form.errors.username?'rgba(224,112,80,0.5)':'var(--border-default)'"
-                            />
+                            <input v-model="form.username" type="text" required
+                                autocomplete="username" placeholder="username"
+                                class="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl outline-none"
+                                :style="`border:1px solid ${form.errors.username ? 'rgba(224,112,80,0.5)' : 'var(--border-default)'}; background:var(--bg-input); color:var(--text-primary)`"/>
                         </div>
                     </div>
 
@@ -93,35 +138,28 @@ const submit = () => {
                             Password
                         </label>
                         <div class="relative">
-                            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style="color:var(--text-secondary)"
+                            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
+                                style="color:var(--text-secondary)"
                                 fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
                             </svg>
-                            <input
-                                v-model="form.password"
-                                :type="showPass ? 'text' : 'password'"
-                                required
-                                autocomplete="current-password"
-                                placeholder="••••••••"
-                                class="w-full pl-10 pr-10 py-2.5 text-sm rounded-xl outline-none transition-all"
-                                :style="`
-                                    border: 1px solid ${form.errors.password ? 'rgba(224,112,80,0.5)' : 'var(--border-default)'};
-                                    background: var(--bg-input);
-                                    color: var(--text-primary);
-                                `"
-                                @focus="$el.style.borderColor='var(--border-input-focus)'"
-                                @blur="$el.style.borderColor=form.errors.password?'rgba(224,112,80,0.5)':'var(--border-default)'"
-                            />
-                            <!-- Toggle show/hide -->
+                            <input v-model="form.password" :type="showPass ? 'text' : 'password'"
+                                required autocomplete="current-password" placeholder="••••••••"
+                                class="w-full pl-10 pr-10 py-2.5 text-sm rounded-xl outline-none"
+                                :style="`border:1px solid ${form.errors.password ? 'rgba(224,112,80,0.5)' : 'var(--border-default)'}; background:var(--bg-input); color:var(--text-primary)`"/>
                             <button type="button" @click="showPass = !showPass"
-                                class="absolute right-3 top-1/2 -translate-y-1/2 transition-opacity"
-                                style="color:var(--text-secondary); opacity:0.6"
-                                @mouseenter="$el.style.opacity='1'" @mouseleave="$el.style.opacity='0.6'">
-                                <svg v-if="!showPass" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                class="absolute right-3 top-1/2 -translate-y-1/2"
+                                style="color:var(--text-secondary); opacity:0.6">
+                                <svg v-if="!showPass" class="w-4 h-4" fill="none" viewBox="0 0 24 24"
+                                    stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
                                 </svg>
-                                <svg v-else class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
+                                <svg v-else class="w-4 h-4" fill="none" viewBox="0 0 24 24"
+                                    stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
                                 </svg>
                             </button>
                         </div>
@@ -135,7 +173,8 @@ const submit = () => {
                                 :style="form.remember
                                     ? 'background:#2DD9A4; border-color:#2DD9A4'
                                     : 'background:var(--bg-input); border-color:var(--border-default)'">
-                                <svg v-if="form.remember" class="w-3 h-3 mx-auto mt-0.5" fill="none" viewBox="0 0 24 24" stroke="#0D1A17" stroke-width="3">
+                                <svg v-if="form.remember" class="w-3 h-3 mx-auto mt-0.5"
+                                    fill="none" viewBox="0 0 24 24" stroke="#0D1A17" stroke-width="3">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
                                 </svg>
                             </div>
@@ -143,22 +182,28 @@ const submit = () => {
                         <span class="text-xs" style="color:var(--text-secondary)">Ingat saya</span>
                     </label>
 
-                    <!-- Submit -->
-                    <button
-                        type="submit"
-                        :disabled="form.processing"
+                    <!-- Submit lokal -->
+                    <button type="submit" :disabled="form.processing"
                         class="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all disabled:opacity-60"
                         style="background:#2DD9A4; color:#0D1A17">
                         <svg v-if="form.processing" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
                             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                         </svg>
-                        <svg v-else class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/>
+                        <svg v-else class="w-4 h-4" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor" stroke-width="2.5">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/>
                         </svg>
                         {{ form.processing ? 'Memproses...' : 'Masuk' }}
                     </button>
                 </form>
+
+                <!-- Info offline mode -->
+                <p v-if="!keycloakAvailable" class="text-center text-xs"
+                    style="color:var(--text-secondary); opacity:0.6">
+                    🔒 Mode offline — SSO tidak tersedia
+                </p>
             </div>
         </div>
     </div>
