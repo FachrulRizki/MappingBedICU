@@ -35,9 +35,4 @@ class RegistrasiPasien extends Model
     {
         return $this->hasMany(Pendaftaran::class, 'No_MR', 'No_MR');
     }
-
-    public function icuAdmisions()
-    {
-        return $this->hasMany(IcuAdmision::class, 'No_MR', 'No_MR');
-    }
 }

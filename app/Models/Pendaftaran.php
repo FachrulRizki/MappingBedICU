@@ -33,19 +33,4 @@ class Pendaftaran extends Model
     {
         return $this->belongsTo(RegistrasiPasien::class, 'No_MR', 'No_MR');
     }
-
-    public function spris()
-    {
-        return $this->hasMany(Spri::class, 'No_Reg', 'No_Reg');
-    }
-
-    public function spriAktif()
-    {
-        return $this->hasOne(Spri::class, 'No_Reg', 'No_Reg')->latestOfMany();
-    }
-
-    public function icuAdmision()
-    {
-        return $this->hasOne(IcuAdmision::class, 'No_Reg', 'No_Reg');
-    }
 }

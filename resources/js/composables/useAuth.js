@@ -13,37 +13,29 @@ export function useAuth() {
 
     const can = (...roles) => isAdmin.value || roles.includes(role.value);
 
-    // ── Booking External ──────────────────────────────────────────────────
-    // Admisi: buat booking, verifikasi No_MR setelah pasien tiba
-    const canBuatBookingExternal  = computed(() => can('admisi'));
-    const canVerifikasiAdmisiExt  = computed(() => can('admisi'));
-    // ICU: konfirmasi bed, tolak
-    const canKonfirmasiIcu        = computed(() => can('petugas_icu'));
+    // ── Menu ICU (petugas_icu) ────────────────────────────────────────────
+    const canKonfirmasiIcu = computed(() => can('petugas_icu'));
 
-    // ── SPRI Internal ─────────────────────────────────────────────────────
-    // Petugas Ruang: buat SPRI
-    const canBuatSpriInternal     = computed(() => can('petugas_ruang'));
-    // Admisi: approve/tolak, isi catatan jaminan
-    const canApproveAdmisi        = computed(() => can('admisi'));
-    // ICU: verifikasi bed, tolak
-    const canVerifikasiBedIcu     = computed(() => can('petugas_icu'));
+    // ── Menu Admisi (admisi) ──────────────────────────────────────────────
+    const canBuatBookingExternal = computed(() => can('admisi'));
+    const canVerifikasiAdmisiExt = computed(() => can('admisi'));
+    const canApproveAdmisi       = computed(() => can('admisi'));
 
-    // ── Settings ─────────────────────────────────────────────────────────
+    // ── Menu Petugas Ruang ────────────────────────────────────────────────
+    const canBuatSpriInternal = computed(() => can('petugas_ruang'));
+
+    // ── Settings ──────────────────────────────────────────────────────────
     const canManageUsers = computed(() => isAdmin.value);
 
     return {
         user, role,
         isAdmin, isAdmisi, isIcu, isPetugasRuang,
         can,
-        // Booking External
+        canKonfirmasiIcu,
         canBuatBookingExternal,
         canVerifikasiAdmisiExt,
-        canKonfirmasiIcu,
-        // SPRI Internal
-        canBuatSpriInternal,
         canApproveAdmisi,
-        canVerifikasiBedIcu,
-        // Settings
+        canBuatSpriInternal,
         canManageUsers,
     };
 }

@@ -33,23 +33,6 @@ class StatusKamar extends Model
         return $this->belongsTo(MRuangMaster::class, 'Kode_Ruang', 'Kode_RuangM');
     }
 
-    public function kelas()
-    {
-        return $this->hasOneThrough(
-            MKelas::class,
-            MRuangMaster::class,
-            'Kode_RuangM',
-            'Kode_Kelas',
-            'Kode_Ruang',
-            'Kode_Kelas'
-        );
-    }
-
-    // public function icuAdmision()
-    // {
-    //     return $this->hasOne(IcuAdmision::class, 'allocated_bed_id', 'Kode_Ruang');
-    // }
-
     public function getNamaKelasAttribute(): string
     {
         return $this->ruang?->kelas?->Nama_Kelas ?? $this->KelasBPJS ?? '-';
