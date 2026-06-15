@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Icu;
 
 use App\Http\Controllers\Controller;
 use App\Models\IcuBookingExternal;
+use App\Models\MCaraBayar;
 use App\Models\MKelas;
 use App\Models\MRuangMaster;
 use App\Models\Pendaftaran;
@@ -35,11 +36,13 @@ class BookingExternalController extends Controller
 
         $kamarKosong = MRuangMaster::bedKosong();
         $masterKelas = MRuangMaster::jenisIcuTersedia();
+        $caraBayar   = MCaraBayar::list();
 
         return Inertia::render('Icu/BookingExternal', [
             'bookings'    => $bookings,
             'kamarKosong' => $kamarKosong,
             'masterKelas' => $masterKelas,
+            'caraBayar'   => $caraBayar,
             'flash'       => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
@@ -56,7 +59,7 @@ class BookingExternalController extends Controller
             'no_telp_keluarga' => 'nullable|string|max:20',
             'diagnosa'         => 'required|string|max:255',
             'rencana_tindakan' => 'required|string|max:255',
-            'jaminan'          => 'required|in:BPJS,Umum,Asuransi,Lainnya',
+            'jaminan'          => 'required|string|max:50',
             'catatan_jaminan'  => 'nullable|string|max:500',
             'keterangan'       => 'nullable|string|max:500',
         ]);
