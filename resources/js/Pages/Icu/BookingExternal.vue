@@ -19,6 +19,7 @@ const props = defineProps({
     bookings:    { type: Array,  default: () => [] },
     kamarKosong: { type: Array,  default: () => [] },
     masterKelas: { type: Array,  default: () => [] },
+    caraBayar:   { type: Array,  default: () => [] },
     flash:       { type: Object, default: () => ({}) },
 });
 
@@ -306,16 +307,14 @@ const statusBadge = (status) => ({
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
                                     <label class="block text-xs font-semibold mb-1" style="color:var(--text-primary)">Jenis Jaminan <span style="color:#E07050">*</span></label>
-                                    <div class="grid grid-cols-2 gap-2">
-                                        <button v-for="j in ['BPJS','Umum','Asuransi','Lainnya']" :key="j"
-                                            type="button" @click="form.jaminan = j"
-                                            class="py-2 rounded-xl text-xs font-semibold"
-                                            :style="form.jaminan === j
-                                                ? `background:${jaminanColor(j)}20; color:${jaminanColor(j)}; border:2px solid ${jaminanColor(j)}`
-                                                : 'background:var(--bg-surface); color:var(--text-secondary); border:2px solid var(--border-default)'">
-                                            {{ j }}
-                                        </button>
-                                    </div>
+                                    <select v-model="form.jaminan" required
+                                        class="w-full px-3 py-2.5 text-sm rounded-xl outline-none"
+                                        :style="`border:1px solid ${form.errors.jaminan ? '#E07050' : 'var(--border-default)'}; background:var(--bg-surface); color:${form.jaminan ? 'var(--text-primary)' : 'var(--text-secondary)'}`">
+                                        <option value="" disabled>-- Pilih Jenis Jaminan --</option>
+                                        <option v-for="cb in caraBayar" :key="cb.kode" :value="cb.kode">
+                                            {{ cb.nama }}
+                                        </option>
+                                    </select>
                                     <p v-if="form.errors.jaminan" class="text-xs mt-1" style="color:#E07050">{{ form.errors.jaminan }}</p>
                                 </div>
                                 <div>
@@ -346,7 +345,7 @@ const statusBadge = (status) => ({
                                 Batal
                             </button>
                             <p v-if="!form.jenis_kelamin || !form.jaminan" class="text-xs" style="color:#E0923A">
-                                ⚠ {{ !form.jenis_kelamin ? 'Pilih jenis kelamin' : 'Pilih jaminan' }}
+                                ⚠ {{ !form.jenis_kelamin ? 'Pilih jenis kelamin' : 'Pilih jenis jaminan' }}
                             </p>
                         </div>
                     </div>
@@ -400,7 +399,7 @@ const statusBadge = (status) => ({
                         <div class="flex items-center gap-2 flex-shrink-0">
                             <span v-if="b.jaminan" class="text-xs font-semibold px-2 py-0.5 rounded-full"
                                 :style="`background:${jaminanColor(b.jaminan)}20; color:${jaminanColor(b.jaminan)}`">
-                                {{ b.jaminan }}
+                                {{ caraBayar.find(c => c.kode === b.jaminan)?.nama ?? b.jaminan }}
                             </span>
                             <span class="text-xs font-semibold px-2.5 py-1 rounded-full"
                                 :style="`background:${statusBadge(b.status).bg}; color:${statusBadge(b.status).color}`">
