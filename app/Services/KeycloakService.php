@@ -5,23 +5,8 @@ namespace App\Services;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
-/**
- * KeycloakService — utilitas untuk SSO Keycloak.
- *
- * Menangani:
- *   1. Cek apakah Keycloak bisa dijangkau (untuk dual-mode login)
- *   2. Mapping Realm Roles Keycloak → role lokal aplikasi
- *   3. Decode JWT payload tanpa verifikasi signature
- *      (hanya untuk baca claims — Socialite sudah verifikasi token-nya)
- */
 class KeycloakService
 {
-    /**
-     * Cek apakah Keycloak server bisa dijangkau.
-     *
-     * Hasil di-cache 30 detik agar tidak ada request HTTP di setiap page load.
-     * Endpoint yang dicek: /.well-known/openid-configuration (ringan, tidak butuh auth).
-     */
     public function isReachable(): bool
     {
         // Jika KEYCLOAK_ENABLED=false di .env, nonaktifkan SSO tanpa cek jaringan
@@ -40,10 +25,6 @@ class KeycloakService
         });
     }
 
-    /**
-     * Ping endpoint openid-configuration Keycloak.
-     * Timeout 2 detik — tidak akan block UI jika server tidak bisa dijangkau.
-     */
     private function pingKeycloak(): bool
     {
         $baseUrl = rtrim(config('services.keycloak.base_url', ''), '/');
@@ -60,7 +41,7 @@ class KeycloakService
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_CONNECTTIMEOUT => 2,
                 CURLOPT_TIMEOUT        => 2,
-                CURLOPT_NOBODY         => true,     // HEAD request — tidak download body
+                CURLOPT_NOBODY         => true,
                 CURLOPT_FOLLOWLOCATION => false,
             ]);
             curl_exec($ch);
@@ -80,17 +61,6 @@ class KeycloakService
         }
     }
 
-    /**
-     * Mapping Realm Roles dari Keycloak → role lokal aplikasi.
-     *
-     * Keycloak realm roles ada di JWT claim: realm_access.roles[]
-     * Prioritas: jika user punya lebih dari satu role, ambil yang paling tinggi.
-     *
-     * Nama role di Keycloak bisa disesuaikan di sini tanpa ubah kode lain.
-     *
-     * @param  array  $realmRoles  — dari $tokenPayload['realm_access']['roles']
-     * @return string              — role lokal ('admin'|'admisi'|'petugas_icu'|'petugas_ruang')
-     */
     public function mapRole(array $realmRoles): string
     {
         // Mapping: nama role di Keycloak → role lokal
@@ -140,16 +110,6 @@ class KeycloakService
         return 'petugas_ruang';
     }
 
-    /**
-     * Decode JWT payload tanpa verifikasi signature.
-     *
-     * Aman digunakan di sini karena token sudah divalidasi oleh Socialite
-     * saat exchange authorization code → access token.
-     * Kita hanya butuh baca claims (realm_access, preferred_username, dll).
-     *
-     * @param  string  $token  — raw JWT access token dari Socialite
-     * @return array           — decoded payload, atau [] jika gagal
-     */
     public function decodeJwtPayload(string $token): array
     {
         $parts = explode('.', $token);

@@ -11,18 +11,6 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Laravel\Socialite\Facades\Socialite;
 
-/**
- * AuthController — menangani SSO Keycloak.
- *
- * Dual-mode login:
- *   - Jaringan RS (Keycloak reachable) → SSO via Keycloak
- *   - Lokal / offline                  → form username + password (LoginController)
- *
- * Alur SSO:
- *   /auth/keycloak          → redirect ke Keycloak login page
- *   /auth/keycloak/callback → terima code, exchange token, upsert user, Auth::login
- *   /auth/keycloak/logout   → revoke session + redirect ke Keycloak logout
- */
 class AuthController extends Controller
 {
     public function __construct(
@@ -43,15 +31,6 @@ class AuthController extends Controller
         return Socialite::driver('keycloak')->redirect();
     }
 
-    /**
-     * Handle callback dari Keycloak setelah user login.
-     *
-     * 1. Exchange authorization code → access token (Socialite)
-     * 2. Decode JWT payload → ambil realm_access.roles
-     * 3. Map role Keycloak → role lokal
-     * 4. Upsert user lokal berdasarkan keycloak_id
-     * 5. Auth::login → redirect ke dashboard
-     */
     public function handleCallback(Request $request): RedirectResponse
     {
         // Keycloak mengirim error saat user cancel login
@@ -103,14 +82,6 @@ class AuthController extends Controller
         return redirect()->intended(route('icu.dashboard'));
     }
 
-    /**
-     * Logout — dari session Laravel + revoke SSO session di Keycloak.
-     *
-     * Jika login via Keycloak: redirect ke Keycloak logout endpoint
-     * agar session SSO di semua aplikasi di realm ikut di-terminate.
-     *
-     * Jika login lokal: langsung redirect ke /login.
-     */
     public function logout(Request $request): RedirectResponse
     {
         $authVia = $request->session()->get('auth_via', 'local');

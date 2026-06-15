@@ -8,6 +8,9 @@ use App\Http\Controllers\Icu\BookingExternalController;
 use App\Http\Controllers\Icu\SpriInternalController;
 use App\Http\Controllers\Icu\DenahBedController;
 use App\Http\Controllers\Icu\Icd10Controller;
+use App\Http\Controllers\Icu\MenuIcuController;
+use App\Http\Controllers\Icu\MenuAdmisiController;
+use App\Http\Controllers\Icu\MenuPetugasController;
 
 // ── Auth — Lokal ──────────────────────────────────────────────────────────────
 Route::get('/login',  [LoginController::class, 'showLogin'])->name('login')->middleware('guest');
@@ -73,6 +76,55 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/icu/search-icd10', [Icd10Controller::class, 'search'])
         ->name('icu.search_icd10');
+
+    // ── Menu ICU ──────────────────────────────────────────────────────────────
+    Route::get('/icu/menu-icu', [MenuIcuController::class, 'index'])
+        ->name('icu.menu_icu');
+
+    Route::post('/icu/menu-icu/ext/{id}/konfirmasi', [MenuIcuController::class, 'konfirmasiExt'])
+        ->name('icu.menu_icu.ext.konfirmasi')
+        ->middleware('role:petugas_icu');
+
+    Route::post('/icu/menu-icu/ext/{id}/tolak', [MenuIcuController::class, 'tolakExt'])
+        ->name('icu.menu_icu.ext.tolak')
+        ->middleware('role:petugas_icu');
+
+    Route::post('/icu/menu-icu/int/{id}/verifikasi', [MenuIcuController::class, 'verifikasiInt'])
+        ->name('icu.menu_icu.int.verifikasi')
+        ->middleware('role:petugas_icu');
+
+    Route::post('/icu/menu-icu/int/{id}/tolak', [MenuIcuController::class, 'tolakInt'])
+        ->name('icu.menu_icu.int.tolak')
+        ->middleware('role:petugas_icu');
+
+    // ── Menu Admisi ───────────────────────────────────────────────────────────
+    Route::get('/icu/menu-admision', [MenuAdmisiController::class, 'index'])
+        ->name('icu.menu_admisi');
+
+    Route::post('/icu/menu-admisi/int/{id}/approve', [MenuAdmisiController::class, 'approveInt'])
+        ->name('icu.menu_admisi.int.approve')
+        ->middleware('role:admisi');
+
+    Route::post('/icu/menu-admisi/int/{id}/tolak', [MenuAdmisiController::class, 'tolakInt'])
+        ->name('icu.menu_admisi.int.tolak')
+        ->middleware('role:admisi');
+
+    Route::post('/icu/menu-admisi/ext/{id}/verifikasi', [MenuAdmisiController::class, 'verifikasiExt'])
+        ->name('icu.menu_admisi.ext.verifikasi')
+        ->middleware('role:admisi');
+
+    // Tambah Booking dari Menu Admisi
+    Route::post('/icu/menu-admisi/booking', [MenuAdmisiController::class, 'storeBooking'])
+        ->name('icu.menu_admisi.booking.store')
+        ->middleware('role:admisi');
+
+    // ── Menu Petugas Internal (petugas_ruang) ─────────────────────────────
+    Route::get('/icu/menu-petugas', [\App\Http\Controllers\Icu\MenuPetugasController::class, 'index'])
+        ->name('icu.menu_petugas');
+
+    Route::post('/icu/menu-petugas/spri', [\App\Http\Controllers\Icu\MenuPetugasController::class, 'storeSpri'])
+        ->name('icu.menu_petugas.spri.store')
+        ->middleware('role:petugas_ruang');
 
     Route::post('/icu/spri-internal/{id}/approve-admisi', [SpriInternalController::class, 'approveAdmisi'])
         ->name('icu.spri_internal.approve_admisi')
