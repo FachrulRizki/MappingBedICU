@@ -22,25 +22,85 @@ class MenuPetugasController extends Controller
         return auth()->user()?->name ?? 'petugas_ruang';
     }
 
+    // public function index(Request $request): Response
+    // {
+    //     $fNama = trim($request->query('nama', ''));
+    //     $fTgl  = $request->query('tgl', '');
+    //     $fStatus = $request->query('status', '');
+
+    //     $q = IcuSpriInternal::with('pasien')
+    //         ->where('NameUser', $this->actor());
+
+    //     if ($fStatus) $q->where('status', $fStatus);
+    //     if ($fNama) {
+    //         $q->where(function ($qq) use ($fNama) {
+    //             $qq->whereHas('pasien', fn ($p) => $p->where('Nama_Pasien', 'like', "%{$fNama}%"))
+    //                ->orWhere('No_MR', 'like', "%{$fNama}%");
+    //         });
+    //     }
+    //     if ($fTgl) $q->whereDate('created_at', $fTgl);
+
+    //     $spriList = $q->latest()->get()->map(fn ($s) => $this->format($s));
+
+    //     $summary = [
+    //         'total'        => $spriList->count(),
+    //         'pending'      => $spriList->filter(fn ($i) => in_array($i['status'], ['pending_admisi', 'pending_icu']))->count(),
+    //         'bed_verified' => $spriList->filter(fn ($i) => $i['status'] === 'bed_verified')->count(),
+    //         'ditolak'      => $spriList->filter(fn ($i) => $i['status'] === 'ditolak')->count(),
+    //     ];
+
+    //     return Inertia::render('Icu/MenuPetugas', [
+    //         'spriList'    => $spriList,
+    //         'summary'     => $summary,
+    //         'filters'     => compact('fNama', 'fTgl', 'fStatus'),
+    //         'kamarKosong' => MRuangMaster::bedKosong(),
+    //         'masterKelas' => MRuangMaster::jenisIcuTersedia(),
+    //         'flash'       => [
+    //             'success' => session('success'),
+    //             'error'   => session('error'),
+    //         ],
+    //     ]);
+    // }
+
     public function index(Request $request): Response
     {
-        $fNama = trim($request->query('nama', ''));
-        $fTgl  = $request->query('tgl', '');
+        $fNama   = trim($request->query('nama', ''));
+        $fTgl    = $request->query('tgl', '');
         $fStatus = $request->query('status', '');
 
-        $q = IcuSpriInternal::with('pasien')
+        $q = IcuSpriInternal::query()
             ->where('NameUser', $this->actor());
 
-        if ($fStatus) $q->where('status', $fStatus);
+        if ($fStatus) {
+            $q->where('status', $fStatus);
+        }
+
         if ($fNama) {
-            $q->where(function ($qq) use ($fNama) {
-                $qq->whereHas('pasien', fn ($p) => $p->where('Nama_Pasien', 'like', "%{$fNama}%"))
-                   ->orWhere('No_MR', 'like', "%{$fNama}%");
+            // ambil dari SQL Server
+            $pasienIds = \App\Models\RegistrasiPasien::query()
+                ->where('Nama_Pasien', 'like', "%{$fNama}%")
+                ->pluck('No_MR')
+                ->toArray();
+
+            $q->where(function ($qq) use ($fNama, $pasienIds) {
+                $qq->whereIn('No_MR', $pasienIds)
+                ->orWhere('No_MR', 'like', "%{$fNama}%");
             });
         }
-        if ($fTgl) $q->whereDate('created_at', $fTgl);
 
-        $spriList = $q->latest()->get()->map(fn ($s) => $this->format($s));
+        if ($fTgl) {
+            $q->whereDate('created_at', $fTgl);
+        }
+
+        $data = $q->latest()->get();
+
+        $pasienMap = \App\Models\RegistrasiPasien::whereIn('No_MR', $data->pluck('No_MR'))
+            ->get()
+            ->keyBy('No_MR');
+
+        $spriList = $data->map(function ($s) use ($pasienMap) {
+            return $this->format($s, $pasienMap);
+        });
 
         $summary = [
             'total'        => $spriList->count(),
@@ -55,10 +115,6 @@ class MenuPetugasController extends Controller
             'filters'     => compact('fNama', 'fTgl', 'fStatus'),
             'kamarKosong' => MRuangMaster::bedKosong(),
             'masterKelas' => MRuangMaster::jenisIcuTersedia(),
-            'flash'       => [
-                'success' => session('success'),
-                'error'   => session('error'),
-            ],
         ]);
     }
 

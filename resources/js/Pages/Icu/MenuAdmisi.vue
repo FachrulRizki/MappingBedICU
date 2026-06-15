@@ -70,7 +70,7 @@ const gColor = (g) => g === 'L' ? '#4A90D9' : g === 'P' ? '#D9517A' : 'var(--tex
 
 // ── Summary cards ──────────────────────────────────────────
 const CARDS = computed(() => [
-    { key:'',               label:'Total',           val: props.summary.total         ?? 0, color:'#8EA89E' },
+    { key:'',               label:'Total',           val: props.summary.total        ?? 0, color:'#8EA89E' },
     { key:'pending_admisi', label:'Menunggu Admisi',  val: props.antrian.filter(a=>a.status==='pending_admisi').length, color:'#F5A623' },
     { key:'bed_confirmed',  label:'Perlu Verifikasi', val: props.antrian.filter(a=>a.status==='bed_confirmed').length,  color:'#4A90D9' },
     { key:'admisi_verified',label:'Selesai',          val: props.summary.verified      ?? 0, color:'#2DD9A4' },
@@ -84,8 +84,8 @@ const actionsOf = (item) => {
     if (!canAct.value) return [];
     const acts = [];
     if (item.sumber === 'internal' && item.status === 'pending_admisi') {
-        acts.push({ id:'approve', label:'Setujui', color:'#2DD9A4', bg:'rgba(45,217,164,.12)', border:'rgba(45,217,164,.3)' });
-        acts.push({ id:'tolak',   label:'Tolak',   color:'#E07050', bg:'rgba(224,112,80,.08)', border:'rgba(224,112,80,.25)' });
+        acts.push({ id:'approve', label:'Setujui SPRI', color:'#2DD9A4', bg:'rgba(45,217,164,.12)', border:'rgba(45,217,164,.3)' });
+        acts.push({ id:'tolak',   label:'Tolak SPRI',   color:'#E07050', bg:'rgba(224,112,80,.08)', border:'rgba(224,112,80,.25)' });
     }
     if (item.sumber === 'external' && item.status === 'bed_confirmed') {
         acts.push({ id:'verifikasi', label:'Verifikasi Pasien', color:'#2DD9A4', bg:'rgba(45,217,164,.12)', border:'rgba(45,217,164,.3)' });
@@ -230,10 +230,10 @@ const jenisOptions = [
         <div class="flex items-center justify-between gap-3 flex-wrap">
             <div>
                 <h1 class="font-bold text-xl" style="color:var(--text-primary)">Menu Admisi</h1>
-                <p class="text-xs mt-0.5" style="color:var(--text-secondary)">Booking Eksternal & SPRI Internal — semua dalam satu tampilan</p>
+                <p class="text-xs mt-0.5" style="color:var(--text-secondary)">Booking Eksternal & SPRI Internal</p>
             </div>
             <button v-if="canBuatBookingExternal" @click="openModal('booking')"
-                class="flex items-center gap-2 text-sm font-bold px-4 py-2.5 rounded-xl"
+                class="flex items-center gap-2 text-sm font-bold px-4 py-2.5 rounded-xl hover:brightness-110 transition-all"
                 style="background:#2DD9A4; color:#0D1A17">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
@@ -246,18 +246,18 @@ const jenisOptions = [
         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             <button v-for="c in CARDS" :key="c.key"
                 @click="fStatus=c.key; applyFilters()"
-                class="card-dark p-3.5 flex items-center gap-3 text-left transition-all hover:scale-[1.02]"
+                class="card-dark p-3 sm:p-3.5 flex items-center gap-2.5 sm:gap-3 text-left transition-all hover:scale-[1.02]"
                 :style="fStatus===c.key ? `border:1.5px solid ${c.color}50` : ''">
-                <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center flex-shrink-0"
                     :style="`background:${c.color}1A`">
-                    <span class="text-lg font-bold" :style="`color:${c.color}`">{{ c.val }}</span>
+                    <span class="text-base sm:text-lg font-bold" :style="`color:${c.color}`">{{ c.val }}</span>
                 </div>
-                <p class="text-[11px] leading-tight" style="color:var(--text-secondary)">{{ c.label }}</p>
+                <p class="text-[10px] sm:text-[11px] leading-tight" style="color:var(--text-secondary)">{{ c.label }}</p>
             </button>
         </div>
 
         <!-- Breakdown sumber -->
-        <div class="flex items-center gap-4 text-xs" style="color:var(--text-secondary)">
+        <div class="flex items-center gap-3 sm:gap-4 text-[11px] sm:text-xs flex-wrap" style="color:var(--text-secondary)">
             <span class="flex items-center gap-1.5">
                 <span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#4A90D9"></span>
                 Booking Eksternal: <strong style="color:var(--text-primary)">{{ summary.by_sumber?.external ?? 0 }}</strong>
@@ -270,7 +270,8 @@ const jenisOptions = [
 
         <!-- Filter bar -->
         <div class="card-dark p-3.5 space-y-3">
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <!-- Menyesuaikan agar HP jadi 1 kolom, tablet 2 kolom, desktop 4 kolom -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
                 <div>
                     <label class="block text-[10px] font-semibold mb-1" style="color:var(--text-secondary)">Status</label>
                     <select v-model="fStatus" @change="applyFilters" class="w-full text-xs px-2.5 py-2 rounded-lg outline-none"
@@ -302,14 +303,14 @@ const jenisOptions = [
                 <span class="text-[10px]" style="color:var(--text-muted)">Urutkan:</span>
                 <button v-for="col in [{key:'created_at',label:'Waktu'},{key:'nama_pasien',label:'Nama'},{key:'status',label:'Status'}]"
                     :key="col.key" @click="toggleSort(col.key)"
-                    class="text-[10px] px-2 py-1 rounded-lg font-semibold"
+                    class="text-[10px] px-2 py-1 rounded-lg font-semibold transition-colors"
                     :style="sortBy===col.key
                         ? 'background:rgba(45,217,164,.15); color:#2DD9A4; border:1px solid rgba(45,217,164,.3)'
                         : 'background:var(--bg-input); color:var(--text-secondary); border:1px solid var(--border-default)'">
                     {{ col.label }} {{ sortIcon(col.key) }}
                 </button>
                 <button v-if="fStatus||fJenis||fNama||fTgl" @click="resetFilter"
-                    class="text-[10px] px-2 py-1 rounded-lg ml-auto"
+                    class="text-[10px] px-2 py-1 rounded-lg ml-auto hover:brightness-110 transition-colors"
                     style="background:rgba(224,112,80,.1); color:#E07050; border:1px solid rgba(224,112,80,.2)">
                     ✕ Reset
                 </button>
@@ -322,30 +323,31 @@ const jenisOptions = [
             <p class="text-xs mt-1" style="color:var(--text-muted)">Coba reset filter atau tambah booking baru</p>
         </div>
 
-        <!-- Tabel -->
+        <!-- Content Area -->
         <div v-else class="card-dark overflow-hidden">
-            <div class="overflow-x-auto">
-                <table class="w-full text-xs" style="border-collapse:collapse; min-width:820px">
+            
+            <!-- 💻 TAMPILAN DESKTOP (Tabel) -->
+            <div class="hidden md:block overflow-x-auto">
+                <table class="w-full text-xs" style="border-collapse:collapse; min-width:700px">
                     <thead>
                         <tr style="background:var(--bg-main); border-bottom:2px solid var(--border-default)">
                             <th class="px-3 py-2.5 text-left font-semibold w-7" style="color:var(--text-secondary)">#</th>
-                            <th class="px-3 py-2.5 text-left font-semibold cursor-pointer" style="color:var(--text-secondary)" @click="toggleSort('nama_pasien')">Pasien {{ sortIcon('nama_pasien') }}</th>
+                            <th class="px-3 py-2.5 text-left font-semibold cursor-pointer hover:opacity-80" style="color:var(--text-secondary)" @click="toggleSort('nama_pasien')">Pasien {{ sortIcon('nama_pasien') }}</th>
                             <th class="px-3 py-2.5 text-left font-semibold" style="color:var(--text-secondary)">Jenis</th>
                             <th class="px-3 py-2.5 text-left font-semibold" style="color:var(--text-secondary)">Diagnosa / Indikasi</th>
                             <th class="px-3 py-2.5 text-left font-semibold" style="color:var(--text-secondary)">Jaminan</th>
-                            <th class="px-3 py-2.5 text-left font-semibold" style="color:var(--text-secondary)">Asal</th>
                             <th class="px-3 py-2.5 text-left font-semibold" style="color:var(--text-secondary)">Bed</th>
-                            <th class="px-3 py-2.5 text-left font-semibold cursor-pointer" style="color:var(--text-secondary)" @click="toggleSort('status')">Status {{ sortIcon('status') }}</th>
-                            <th class="px-3 py-2.5 text-left font-semibold cursor-pointer" style="color:var(--text-secondary)" @click="toggleSort('created_at')">Waktu {{ sortIcon('created_at') }}</th>
-                            <th class="px-3 py-2.5 text-left font-semibold" style="color:var(--text-secondary)">Aksi</th>
+                            <th class="px-3 py-2.5 text-left font-semibold cursor-pointer hover:opacity-80" style="color:var(--text-secondary)" @click="toggleSort('status')">Status {{ sortIcon('status') }}</th>
+                            <th class="px-3 py-2.5 text-left font-semibold cursor-pointer hover:opacity-80" style="color:var(--text-secondary)" @click="toggleSort('created_at')">Waktu {{ sortIcon('created_at') }}</th>
+                            <th class="px-3 py-2.5 text-center font-semibold w-10"></th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr v-for="(item, idx) in antrian" :key="`${item.sumber}-${item.id}`"
+                            @click="openModal('detail', item)"
                             :style="`border-bottom:1px solid var(--border-default); border-left:3px solid ${ss(item.status).dot}`"
-                            class="transition-colors hover:bg-[var(--bg-surface)]">
+                            class="transition-colors hover:bg-[var(--bg-input)] cursor-pointer group">
                             <td class="px-3 py-2.5 font-mono" style="color:var(--text-muted)">{{ idx+1 }}</td>
-                            <!-- Pasien -->
                             <td class="px-3 py-2.5">
                                 <div class="flex items-center gap-1.5">
                                     <span class="font-bold flex-shrink-0" :style="`color:${gColor(item.jenis_kelamin)}`">{{ gIcon(item.jenis_kelamin) }}</span>
@@ -355,66 +357,83 @@ const jenisOptions = [
                                     </div>
                                 </div>
                             </td>
-                            <!-- Jenis -->
                             <td class="px-3 py-2.5">
                                 <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap"
                                     :style="`background:${SRC[item.sumber]?.bg}; color:${SRC[item.sumber]?.color}`">
                                     {{ item.sumber_label }}
                                 </span>
                             </td>
-                            <!-- Diagnosa -->
                             <td class="px-3 py-2.5" style="max-width:160px">
                                 <p class="truncate" :title="item.diagnosa" style="color:var(--text-primary)">{{ item.diagnosa ?? '-' }}</p>
-                                <p v-if="item.IndikasiRI" class="truncate text-[10px] mt-0.5" :title="item.IndikasiRI" style="color:var(--text-secondary)">{{ item.IndikasiRI }}</p>
                             </td>
-                            <!-- Jaminan -->
                             <td class="px-3 py-2.5">
                                 <span v-if="item.jaminan" class="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
                                     style="background:rgba(74,144,217,.12); color:#4A90D9">{{ jaminanLabel(item.jaminan) }}</span>
                                 <span v-else class="text-[10px]" style="color:var(--text-muted)">—</span>
                             </td>
-                            <!-- Asal -->
-                            <td class="px-3 py-2.5" style="max-width:100px">
-                                <p class="truncate text-[11px]" style="color:var(--text-secondary)">{{ item.asal_rujukan ?? '-' }}</p>
-                            </td>
-                            <!-- Bed -->
                             <td class="px-3 py-2.5">
                                 <span v-if="item.nama_bed" class="font-semibold text-[11px]" style="color:#2DD9A4">🏥 {{ item.nama_bed }}</span>
                                 <span v-else class="text-[10px]" style="color:var(--text-muted)">—</span>
-                                <p v-if="item.kebutuhan_bed" class="text-[10px] mt-0.5" style="color:#2DD9A4">{{ item.kebutuhan_bed }}</p>
                             </td>
-                            <!-- Status -->
                             <td class="px-3 py-2.5">
                                 <span class="text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap"
                                     :style="`background:${ss(item.status).bg}; color:${ss(item.status).color}`">
                                     {{ item.status_label }}
                                 </span>
-                                <p v-if="item.alasan_tolak" class="text-[10px] mt-1 max-w-[100px] truncate" :title="item.alasan_tolak" style="color:#E07050">{{ item.alasan_tolak }}</p>
-                                <p v-if="item.catatan_admisi" class="text-[10px] mt-1 max-w-[100px] truncate" :title="item.catatan_admisi" style="color:var(--text-secondary)">{{ item.catatan_admisi }}</p>
                             </td>
-                            <!-- Waktu -->
                             <td class="px-3 py-2.5 font-mono whitespace-nowrap" style="color:var(--text-secondary)">
                                 {{ item.created_at_fmt }}
-                                <p class="text-[10px] mt-0.5" style="color:var(--text-muted)">{{ item.created_by }}</p>
                             </td>
-                            <!-- Aksi -->
-                            <td class="px-3 py-2.5">
-                                <div class="flex gap-1.5 flex-wrap">
-                                    <template v-for="act in actionsOf(item)" :key="act.id">
-                                        <button @click="act.id==='verifikasi' ? openVerifModal(item) : openModal(act.id, item)"
-                                            class="text-[10px] font-bold px-2.5 py-1.5 rounded-lg whitespace-nowrap"
-                                            :style="`background:${act.bg}; color:${act.color}; border:1px solid ${act.border}`">
-                                            {{ act.label }}
-                                        </button>
-                                    </template>
-                                    <span v-if="!actionsOf(item).length" class="text-[10px]" style="color:var(--text-muted)">—</span>
-                                </div>
+                            <td class="px-3 py-2.5 text-center transition-transform group-hover:translate-x-1" style="color:var(--text-muted)">
+                                ❯
                             </td>
                         </tr>
                     </tbody>
                 </table>
             </div>
-            <div class="px-4 py-2" style="border-top:1px solid var(--border-default)">
+
+            <!-- 📱 TAMPILAN MOBILE (Daftar Kartu) -->
+            <div class="block md:hidden divide-y" style="border-color:var(--border-default)">
+                <div v-for="(item, idx) in antrian" :key="`mob-${item.sumber}-${item.id}`"
+                    @click="openModal('detail', item)"
+                    class="p-4 transition-colors hover:bg-[var(--bg-input)] cursor-pointer relative group"
+                    :style="`border-left:4px solid ${ss(item.status).dot}`">
+                    
+                    <div class="flex justify-between items-start mb-2 gap-2 pr-4">
+                        <div class="flex flex-wrap gap-1.5">
+                            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full" :style="`background:${ss(item.status).bg}; color:${ss(item.status).color}`">{{ item.status_label }}</span>
+                            <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full" :style="`background:${SRC[item.sumber]?.bg}; color:${SRC[item.sumber]?.color}`">{{ item.sumber_label }}</span>
+                        </div>
+                        <span class="text-[10px] font-mono whitespace-nowrap" style="color:var(--text-muted)">{{ item.created_at_fmt.split(' ')[0] }}</span>
+                    </div>
+
+                    <div class="flex items-center gap-2.5 mb-2.5 pr-4">
+                        <span class="font-bold text-lg flex-shrink-0" :style="`color:${gColor(item.jenis_kelamin)}`">{{ gIcon(item.jenis_kelamin) }}</span>
+                        <div class="min-w-0 flex-1">
+                            <p class="font-semibold text-sm truncate" style="color:var(--text-primary)">{{ item.nama_pasien }}</p>
+                            <p class="font-mono text-[10px] truncate" style="color:var(--text-secondary)">{{ item.No_MR ?? 'Belum ada MR' }} • {{ jaminanLabel(item.jaminan) }}</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 text-[11px] pr-4">
+                        <div class="min-w-0">
+                            <p style="color:var(--text-muted)">Diagnosa</p>
+                            <p class="font-semibold truncate" style="color:var(--text-secondary)">{{ item.diagnosa ?? '-' }}</p>
+                        </div>
+                        <div class="min-w-0">
+                            <p style="color:var(--text-muted)">Bed</p>
+                            <p class="font-semibold truncate" :style="item.nama_bed ? 'color:#2DD9A4' : 'color:var(--text-secondary)'">{{ item.nama_bed ? '🏥 ' + item.nama_bed : '-' }}</p>
+                        </div>
+                    </div>
+
+                    <div class="absolute right-4 top-1/2 -translate-y-1/2 text-lg transition-transform group-hover:translate-x-1" style="color:var(--text-muted)">
+                        ❯
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer Pagination / Total -->
+            <div class="px-4 py-3" style="border-top:1px solid var(--border-default); background:var(--bg-main)">
                 <p class="text-[11px]" style="color:var(--text-secondary)">
                     Menampilkan <strong style="color:var(--text-primary)">{{ antrian.length }}</strong> data
                 </p>
@@ -424,12 +443,118 @@ const jenisOptions = [
 
     <!-- ═══════════════ MODAL WRAPPER ═══════════════════════════════════ -->
     <Transition enter-active-class="transition-all duration-200" enter-from-class="opacity-0" leave-to-class="opacity-0">
-        <div v-if="modal.open" class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(0,0,0,0.6); backdrop-filter:blur(3px)" @click.self="closeModal">
+        <div v-if="modal.open" class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4" style="background:rgba(0,0,0,0.6); backdrop-filter:blur(3px)" @click.self="closeModal">
+
+            <!-- ── Modal: Detail & Aksi Pasien ──────────────────────────────── -->
+            <Transition enter-active-class="transition-all duration-200" enter-from-class="opacity-0 scale-95" leave-to-class="opacity-0 scale-95">
+                <div v-if="modal.type==='detail' && modal.item" class="w-full max-w-lg rounded-2xl flex flex-col" style="background:var(--bg-sidebar); border:1px solid var(--border-default); max-height: 90vh;">
+                    
+                    <!-- Header Detail -->
+                    <div class="flex items-center justify-between px-4 sm:px-5 py-4 flex-shrink-0" style="border-bottom:1px solid var(--border-default)">
+                        <div>
+                            <p class="font-bold text-sm" style="color:var(--text-primary)">Detail Antrian Pasien</p>
+                            <p class="text-xs mt-0.5" style="color:var(--text-secondary)">{{ modal.item.nama_pasien }}</p>
+                        </div>
+                        <button @click="closeModal" class="p-1.5 rounded-lg hover:brightness-110 transition-colors" style="background:var(--bg-input); color:var(--text-secondary)">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                    </div>
+                    
+                    <!-- Body Detail -->
+                    <div class="p-4 sm:p-5 space-y-4 overflow-y-auto">
+                        <!-- Status Badge -->
+                        <div class="flex gap-2 mb-2 flex-wrap">
+                            <span class="text-[10px] font-bold px-2.5 py-1 rounded-full" :style="`background:${ss(modal.item.status).bg}; color:${ss(modal.item.status).color}`">
+                                {{ modal.item.status_label }}
+                            </span>
+                            <span class="text-[10px] font-semibold px-2.5 py-1 rounded-full" :style="`background:${SRC[modal.item.sumber]?.bg}; color:${SRC[modal.item.sumber]?.color}`">
+                                {{ modal.item.sumber_label }}
+                            </span>
+                        </div>
+
+                        <!-- Data Grid -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-y-3 gap-x-4 text-xs">
+                            <div>
+                                <p style="color:var(--text-secondary)">No. MR / Identitas</p>
+                                <p class="font-semibold font-mono mt-0.5" style="color:var(--text-primary)">{{ modal.item.No_MR ?? modal.item.no_identitas ?? '—' }}</p>
+                            </div>
+                            <div>
+                                <p style="color:var(--text-secondary)">Jenis Kelamin</p>
+                                <p class="font-semibold mt-0.5 flex items-center gap-1" style="color:var(--text-primary)">
+                                    <span :style="`color:${gColor(modal.item.jenis_kelamin)}`">{{ gIcon(modal.item.jenis_kelamin) }}</span>
+                                    {{ modal.item.jenis_kelamin === 'L' ? 'Pria' : modal.item.jenis_kelamin === 'P' ? 'Wanita' : '—' }}
+                                </p>
+                            </div>
+                            <div class="sm:col-span-2">
+                                <p style="color:var(--text-secondary)">Diagnosa / Indikasi</p>
+                                <p class="font-semibold mt-0.5" style="color:var(--text-primary)">{{ modal.item.diagnosa ?? '—' }}</p>
+                                <p v-if="modal.item.IndikasiRI" class="mt-0.5 text-[10px]" style="color:var(--text-secondary)">{{ modal.item.IndikasiRI }}</p>
+                            </div>
+
+                            <div>
+                                <p style="color:var(--text-secondary)">Indikasi RI</p>
+                                <p class="font-semibold mt-0.5" style="color:var(--text-primary)">{{ modal.item.IndikasiRI }}</p>
+                            </div>
+
+                            <div>
+                                <p style="color:var(--text-secondary)">DPJP</p>
+                                <p class="font-semibold mt-0.5" style="color:var(--text-primary)">{{ modal.item.Dokter ?? '—' }}</p>
+                            </div>
+                            
+                            <div>
+                                <p style="color:var(--text-secondary)">Jaminan</p>
+                                <p class="font-semibold mt-0.5" style="color:var(--text-primary)">{{ jaminanLabel(modal.item.jaminan) }}</p>
+                            </div>
+                            <div>
+                                <p style="color:var(--text-secondary)">Asal Rujukan</p>
+                                <p class="font-semibold mt-0.5" style="color:var(--text-primary)">{{ modal.item.asal_rujukan ?? '—' }}</p>
+                            </div>
+                            <div>
+                                <p style="color:var(--text-secondary)">Alokasi Bed</p>
+                                <p class="font-semibold mt-0.5" style="color:#2DD9A4">{{ modal.item.nama_bed ? '🏥 ' + modal.item.nama_bed : '—' }}</p>
+                                <p v-if="modal.item.kebutuhan_bed" class="text-[10px] mt-0.5" style="color:var(--text-muted)">{{ modal.item.kebutuhan_bed }}</p>
+                            </div>
+                            <div>
+                                <p style="color:var(--text-secondary)">Waktu Booking</p>
+                                <p class="font-semibold mt-0.5 font-mono" style="color:var(--text-primary)">{{ modal.item.created_at_fmt }}</p>
+                            </div>
+                            
+                            <!-- Box Catatan Khusus (Ditolak / Catatan Admisi) -->
+                            <div v-if="modal.item.alasan_tolak" class="sm:col-span-2 p-3 rounded-xl mt-1" style="background:rgba(224,112,80,.08); border:1px solid rgba(224,112,80,.2)">
+                                <p style="color:#E07050" class="font-semibold">Alasan Ditolak:</p>
+                                <p class="mt-1" style="color:var(--text-primary)">{{ modal.item.alasan_tolak }}</p>
+                            </div>
+                            <div v-if="modal.item.catatan_admisi" class="sm:col-span-2 p-3 rounded-xl mt-1" style="background:var(--bg-input)">
+                                <p style="color:var(--text-secondary)" class="font-semibold">Catatan Admisi:</p>
+                                <p class="mt-1" style="color:var(--text-primary)">{{ modal.item.catatan_admisi }}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Footer Aksi -->
+                    <div class="px-4 sm:px-5 py-4 flex-shrink-0" style="border-top:1px solid var(--border-default); background:var(--bg-main); border-bottom-left-radius:1rem; border-bottom-right-radius:1rem;">
+                        <p class="text-[10px] font-bold uppercase tracking-widest mb-2.5" style="color:var(--text-secondary)">Tindakan Tersedia</p>
+                        <div class="flex gap-2 flex-wrap">
+                            <template v-for="act in actionsOf(modal.item)" :key="act.id">
+                                <!-- Klik tombol aksi di sini akan otomatis "menimpa" modal.type ke form aksinya -->
+                                <button @click="act.id==='verifikasi' ? openVerifModal(modal.item) : openModal(act.id, modal.item)"
+                                    class="text-xs font-bold px-4 py-2.5 rounded-xl flex-1 flex items-center justify-center transition-transform hover:scale-[1.02]"
+                                    :style="`background:${act.bg}; color:${act.color}; border:1px solid ${act.border}`">
+                                    {{ act.label }}
+                                </button>
+                            </template>
+                            <p v-if="!actionsOf(modal.item).length" class="text-xs w-full py-2" style="color:var(--text-muted)">
+                                Tidak ada aksi yang dapat Anda lakukan untuk status ini.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </Transition>
 
             <!-- ── Modal: Booking Baru ──────────────────────────────── -->
             <Transition enter-active-class="transition-all duration-200" enter-from-class="opacity-0 scale-95" leave-to-class="opacity-0 scale-95">
                 <div v-if="modal.type==='booking'" class="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl" style="background:var(--bg-sidebar); border:1px solid var(--border-default)">
-                    <div class="flex items-center justify-between px-5 py-4" style="border-bottom:1px solid var(--border-default)">
+                    <div class="flex items-center justify-between px-4 sm:px-5 py-4" style="border-bottom:1px solid var(--border-default)">
                         <div>
                             <p class="font-bold text-sm" style="color:var(--text-primary)">Booking ICU Baru</p>
                             <p class="text-xs mt-0.5" style="color:var(--text-secondary)">Pasien eksternal — akan dikirim ke ICU</p>
@@ -438,7 +563,7 @@ const jenisOptions = [
                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                         </button>
                     </div>
-                    <form @submit.prevent="submitBooking" class="p-5 space-y-4">
+                    <form @submit.prevent="submitBooking" class="p-4 sm:p-5 space-y-4">
                         <!-- Identitas -->
                         <div>
                             <p class="text-[10px] font-bold uppercase tracking-widest mb-2.5" style="color:var(--text-accent)">Identitas Pasien</p>
@@ -453,10 +578,10 @@ const jenisOptions = [
                                     <label class="block text-xs font-semibold mb-1" style="color:var(--text-primary)">Jenis Kelamin <span style="color:#E07050">*</span></label>
                                     <div class="flex gap-2">
                                         <button type="button" @click="fmBooking.jenis_kelamin='L'"
-                                            class="flex-1 py-2 rounded-xl text-xs font-semibold"
+                                            class="flex-1 py-2 rounded-xl text-xs font-semibold transition-colors"
                                             :style="fmBooking.jenis_kelamin==='L' ? 'background:#4A90D9;color:#fff;border:2px solid #4A90D9' : 'background:var(--bg-surface);color:var(--text-secondary);border:2px solid var(--border-default)'">♂ Pria</button>
                                         <button type="button" @click="fmBooking.jenis_kelamin='P'"
-                                            class="flex-1 py-2 rounded-xl text-xs font-semibold"
+                                            class="flex-1 py-2 rounded-xl text-xs font-semibold transition-colors"
                                             :style="fmBooking.jenis_kelamin==='P' ? 'background:#D9517A;color:#fff;border:2px solid #D9517A' : 'background:var(--bg-surface);color:var(--text-secondary);border:2px solid var(--border-default)'">♀ Wanita</button>
                                     </div>
                                 </div>
@@ -522,7 +647,7 @@ const jenisOptions = [
                         <!-- Actions -->
                         <div class="flex items-center gap-2 pt-2" style="border-top:1px solid var(--border-default)">
                             <button type="submit" :disabled="fmBooking.processing || !fmBooking.jenis_kelamin || !fmBooking.jaminan"
-                                class="flex items-center gap-2 text-xs font-bold px-5 py-2.5 rounded-xl disabled:opacity-50"
+                                class="flex items-center justify-center flex-1 sm:flex-none gap-2 text-xs font-bold px-5 py-2.5 rounded-xl disabled:opacity-50"
                                 style="background:#2DD9A4; color:#0D1A17">
                                 <svg v-if="fmBooking.processing" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
                                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
@@ -539,17 +664,17 @@ const jenisOptions = [
             <!-- ── Modal: Approve SPRI ──────────────────────────────── -->
             <Transition enter-active-class="transition-all duration-200" enter-from-class="opacity-0 scale-95" leave-to-class="opacity-0 scale-95">
                 <div v-if="modal.type==='approve'" class="w-full max-w-md rounded-2xl" style="background:var(--bg-sidebar); border:1px solid var(--border-default)">
-                    <div class="flex items-center justify-between px-5 py-4" style="border-bottom:1px solid var(--border-default)">
+                    <div class="flex items-center justify-between px-4 sm:px-5 py-4" style="border-bottom:1px solid var(--border-default)">
                         <div>
                             <p class="font-bold text-sm" style="color:var(--text-primary)">Setujui SPRI</p>
                             <p class="text-xs mt-0.5" style="color:var(--text-secondary)">{{ modal.item?.nama_pasien }}</p>
                         </div>
-                        <button @click="closeModal" class="p-1.5 rounded-lg" style="background:var(--bg-input); color:var(--text-secondary)">
+                        <button @click="closeModal" class="p-1.5 rounded-lg hover:brightness-110" style="background:var(--bg-input); color:var(--text-secondary)">
                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                         </button>
                     </div>
                     <!-- Info ringkas -->
-                    <div class="px-5 py-3 grid grid-cols-2 gap-2 text-xs" style="border-bottom:1px solid var(--border-default)">
+                    <div class="px-4 sm:px-5 py-3 grid grid-cols-2 gap-2 text-xs" style="border-bottom:1px solid var(--border-default)">
                         <div class="rounded-lg p-2.5" style="background:var(--bg-input)">
                             <p style="color:var(--text-secondary)">No. MR</p>
                             <p class="font-mono font-semibold mt-0.5" style="color:var(--text-primary)">{{ modal.item?.No_MR }}</p>
@@ -563,7 +688,7 @@ const jenisOptions = [
                             <p class="font-semibold mt-0.5" style="color:var(--text-primary)">{{ modal.item?.diagnosa ?? '-' }}</p>
                         </div>
                     </div>
-                    <form @submit.prevent="submitApprove" class="p-5 space-y-4">
+                    <form @submit.prevent="submitApprove" class="p-4 sm:p-5 space-y-4">
                         <div>
                             <label class="block text-xs font-semibold mb-1.5" style="color:var(--text-primary)">Catatan Admisi <span class="font-normal" style="color:var(--text-secondary)">(opsional)</span></label>
                             <textarea v-model="fmApprove.catatan_admisi" rows="3" placeholder="Informasi jaminan, kondisi khusus, dll..."
@@ -573,7 +698,7 @@ const jenisOptions = [
                         <div class="flex gap-2">
                             <button type="submit" :disabled="fmApprove.processing" class="flex-1 text-xs font-bold py-2.5 rounded-xl disabled:opacity-50"
                                 style="background:#2DD9A4; color:#0D1A17">
-                                {{ fmApprove.processing ? 'Menyimpan...' : '✓ Setujui & Teruskan ke ICU' }}
+                                {{ fmApprove.processing ? 'Menyimpan...' : '✓ Setujui' }}
                             </button>
                             <button type="button" @click="closeModal" class="px-4 text-xs rounded-xl"
                                 style="background:var(--bg-main); color:var(--text-secondary); border:1px solid var(--border-default)">Batal</button>
@@ -585,16 +710,16 @@ const jenisOptions = [
             <!-- ── Modal: Tolak SPRI ────────────────────────────────── -->
             <Transition enter-active-class="transition-all duration-200" enter-from-class="opacity-0 scale-95" leave-to-class="opacity-0 scale-95">
                 <div v-if="modal.type==='tolak'" class="w-full max-w-sm rounded-2xl" style="background:var(--bg-sidebar); border:1px solid var(--border-default)">
-                    <div class="flex items-center justify-between px-5 py-4" style="border-bottom:1px solid var(--border-default)">
+                    <div class="flex items-center justify-between px-4 sm:px-5 py-4" style="border-bottom:1px solid var(--border-default)">
                         <div>
                             <p class="font-bold text-sm" style="color:#E07050">Tolak Permintaan</p>
                             <p class="text-xs mt-0.5" style="color:var(--text-secondary)">{{ modal.item?.nama_pasien }}</p>
                         </div>
-                        <button @click="closeModal" class="p-1.5 rounded-lg" style="background:var(--bg-input); color:var(--text-secondary)">
+                        <button @click="closeModal" class="p-1.5 rounded-lg hover:brightness-110" style="background:var(--bg-input); color:var(--text-secondary)">
                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                         </button>
                     </div>
-                    <form @submit.prevent="submitTolak" class="p-5 space-y-4">
+                    <form @submit.prevent="submitTolak" class="p-4 sm:p-5 space-y-4">
                         <div>
                             <label class="block text-xs font-semibold mb-1.5" style="color:var(--text-primary)">Alasan Penolakan <span style="color:#E07050">*</span></label>
                             <textarea v-model="fmTolak.alasan_tolak" required rows="3" placeholder="Alasan penolakan SPRI..."
@@ -606,7 +731,7 @@ const jenisOptions = [
                             <button type="submit" :disabled="fmTolak.processing || !fmTolak.alasan_tolak.trim()"
                                 class="flex-1 text-xs font-bold py-2.5 rounded-xl disabled:opacity-40"
                                 style="background:rgba(224,112,80,.12); color:#E07050; border:1px solid rgba(224,112,80,.3)">
-                                {{ fmTolak.processing ? 'Menyimpan...' : '✕ Tolak SPRI' }}
+                                {{ fmTolak.processing ? 'Menyimpan...' : '✕ Tolak' }}
                             </button>
                             <button type="button" @click="closeModal" class="px-4 text-xs rounded-xl"
                                 style="background:var(--bg-main); color:var(--text-secondary); border:1px solid var(--border-default)">Batal</button>
@@ -618,20 +743,20 @@ const jenisOptions = [
             <!-- ── Modal: Verifikasi Pasien ──────────────────────────── -->
             <Transition enter-active-class="transition-all duration-200" enter-from-class="opacity-0 scale-95" leave-to-class="opacity-0 scale-95">
                 <div v-if="modal.type==='verifikasi'" class="w-full max-w-md rounded-2xl" style="background:var(--bg-sidebar); border:1px solid var(--border-default)">
-                    <div class="flex items-center justify-between px-5 py-4" style="border-bottom:1px solid var(--border-default)">
+                    <div class="flex items-center justify-between px-4 sm:px-5 py-4" style="border-bottom:1px solid var(--border-default)">
                         <div>
                             <p class="font-bold text-sm" style="color:var(--text-primary)">Verifikasi Pasien Tiba</p>
-                            <p class="text-xs mt-0.5" style="color:var(--text-secondary)">
+                            <p class="text-[11px] sm:text-xs mt-0.5" style="color:var(--text-secondary)">
                                 {{ modal.item?.nama_pasien }} · Bed: <span style="color:#2DD9A4">{{ modal.item?.nama_bed }}</span>
                             </p>
                         </div>
-                        <button @click="closeModal" class="p-1.5 rounded-lg" style="background:var(--bg-input); color:var(--text-secondary)">
+                        <button @click="closeModal" class="p-1.5 rounded-lg hover:brightness-110" style="background:var(--bg-input); color:var(--text-secondary)">
                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                         </button>
                     </div>
 
                     <!-- Info booking ringkas -->
-                    <div class="px-5 py-3 grid grid-cols-2 gap-2 text-xs" style="border-bottom:1px solid var(--border-default)">
+                    <div class="px-4 sm:px-5 py-3 grid grid-cols-2 gap-2 text-xs" style="border-bottom:1px solid var(--border-default)">
                         <div class="rounded-lg p-2.5" style="background:var(--bg-input)">
                             <p style="color:var(--text-secondary)">Nama Booking</p>
                             <p class="font-semibold mt-0.5" style="color:var(--text-primary)">{{ modal.item?.nama_pasien }}</p>
@@ -640,20 +765,15 @@ const jenisOptions = [
                             <p style="color:var(--text-secondary)">Diagnosa</p>
                             <p class="font-semibold mt-0.5 truncate" :title="modal.item?.diagnosa" style="color:var(--text-primary)">{{ modal.item?.diagnosa ?? '-' }}</p>
                         </div>
-                        <div class="rounded-lg p-2.5 col-span-2" style="background:rgba(45,217,164,.08); border:1px solid rgba(45,217,164,.2)">
-                            <p style="color:#2DD9A4">Bed Dikonfirmasi ICU</p>
-                            <p class="font-bold mt-0.5" style="color:#2DD9A4">🏥 {{ modal.item?.nama_bed }} ({{ modal.item?.kebutuhan_bed }})</p>
-                        </div>
                     </div>
 
-                    <form @submit.prevent="submitVerif" class="p-5 space-y-3">
+                    <form @submit.prevent="submitVerif" class="p-4 sm:p-5 space-y-3">
                         <p class="text-xs" style="color:var(--text-secondary)">
-                            Cari No. MR pasien di database RS untuk memverifikasi bahwa pasien sudah tiba di ICU.
+                            Cari No. MR untuk memverifikasi kedatangan.
                         </p>
 
                         <!-- Input No. MR + Tombol Cari -->
                         <div>
-                            <label class="block text-xs font-semibold mb-1.5" style="color:var(--text-primary)">No. MR <span style="color:#E07050">*</span></label>
                             <div class="flex gap-2">
                                 <input v-model="fmVerif.No_MR" @keydown.enter.prevent="doVerifLookup"
                                     placeholder="Masukkan No. MR..."
@@ -732,15 +852,11 @@ const jenisOptions = [
                                 :disabled="fmVerif.processing || !fmVerif.No_MR.trim() || !verifLookupResult?.found"
                                 class="flex-1 text-xs font-bold py-2.5 rounded-xl disabled:opacity-40"
                                 style="background:#2DD9A4; color:#0D1A17">
-                                {{ fmVerif.processing ? 'Menyimpan...' : '✓ Verifikasi & Aktifkan Bed' }}
+                                {{ fmVerif.processing ? 'Menyimpan...' : '✓ Verifikasi' }}
                             </button>
                             <button type="button" @click="closeModal" class="px-4 text-xs rounded-xl"
                                 style="background:var(--bg-main); color:var(--text-secondary); border:1px solid var(--border-default)">Batal</button>
                         </div>
-                        <p v-if="fmVerif.No_MR.trim() && !verifLookupResult?.found && !verifLookupLoading && !verifLookupError"
-                            class="text-[10px]" style="color:#E0923A">
-                            ⚠ Klik "Cari" untuk memverifikasi No. MR di database RS
-                        </p>
                     </form>
                 </div>
             </Transition>

@@ -22,13 +22,16 @@ class AuthController extends Controller
      */
     public function redirectToKeycloak(): RedirectResponse
     {
-        // Pastikan Keycloak masih bisa dijangkau sebelum redirect
         if (! $this->keycloak->isReachable()) {
             return redirect()->route('login')
                 ->with('error', 'Server SSO tidak dapat dijangkau. Gunakan login lokal.');
         }
 
-        return Socialite::driver('keycloak')->redirect();
+        // prompt=login memaksa Keycloak selalu tampilkan halaman login
+        // meskipun SSO session masih aktif — ini lapisan keamanan tambahan
+        return Socialite::driver('keycloak')
+            ->with(['prompt' => 'login'])
+            ->redirect();
     }
 
     public function handleCallback(Request $request): RedirectResponse
@@ -41,7 +44,7 @@ class AuthController extends Controller
         }
 
         try {
-            // Exchange code → user object via Socialite
+            // Exchange code -> user object via Socialite
             $socialUser = Socialite::driver('keycloak')->user();
         } catch (\Throwable $e) {
             Log::error('[Keycloak Callback] ' . $e->getMessage());
@@ -50,34 +53,46 @@ class AuthController extends Controller
         }
 
         // Decode JWT untuk ambil realm_access.roles
-        $tokenPayload  = $this->keycloak->decodeJwtPayload($socialUser->token);
-        $realmRoles    = $tokenPayload['realm_access']['roles'] ?? [];
-        $localRole     = $this->keycloak->mapRole($realmRoles);
+        $tokenPayload = $this->keycloak->decodeJwtPayload($socialUser->token);
+        $realmRoles   = $tokenPayload['realm_access']['roles'] ?? [];
+        $localRole    = $this->keycloak->mapRole($realmRoles);
 
-        // Upsert user lokal — cari by keycloak_id, create/update jika perlu
+        // Ambil id_token dari response body (WAJIB untuk logout SSO yang benar)
+        $idToken = $socialUser->accessTokenResponseBody['id_token'] ?? null;
+        if (! $idToken) {
+            Log::warning('[Keycloak] id_token tidak ditemukan di response — logout SSO mungkin tidak bekerja.');
+        }
+
+        // Upsert user lokal
         $user = User::updateOrCreate(
             ['keycloak_id' => $socialUser->getId()],
             [
-                'name'               => $socialUser->getName()     ?: $socialUser->getNickname(),
-                'email'              => $socialUser->getEmail()     ?: null,
-                'keycloak_username'  => $socialUser->getNickname() ?: null,
-                'username'           => $socialUser->getNickname() ?: 'kc_' . $socialUser->getId(),
-                'role'               => $localRole,
-                'auth_provider'      => 'keycloak',
-                'is_active'          => true,
-                'password'           => null,  // SSO user tidak punya password lokal
+                'name'              => $socialUser->getName()     ?: $socialUser->getNickname(),
+                'email'             => $socialUser->getEmail()    ?: null,
+                'keycloak_username' => $socialUser->getNickname() ?: null,
+                'username'          => $socialUser->getNickname() ?: 'kc_' . $socialUser->getId(),
+                'role'              => $localRole,
+                'auth_provider'     => 'keycloak',
+                'is_active'         => true,
+                'password'          => null,
             ]
         );
 
-        // Login ke session Laravel
-        Auth::login($user, remember: true);
+        // Hapus semua sessions lama milik user ini sebelum buat yang baru
+        // Mencegah session lama yang tersisa di database bisa digunakan kembali
+        \Illuminate\Support\Facades\DB::table('sessions')
+            ->where('user_id', $user->id)
+            ->delete();
+
+        // Login tanpa remember — SSO user tidak boleh punya persistent cookie
+        Auth::login($user, remember: false);
         $request->session()->regenerate();
 
-        // Tandai bahwa session ini via Keycloak (untuk logout yang benar)
+        // Simpan id_token asli untuk keperluan logout SSO
         $request->session()->put('auth_via', 'keycloak');
-        $request->session()->put('keycloak_id_token', $tokenPayload['sid'] ?? null);
+        $request->session()->put('keycloak_id_token', $idToken);
 
-        Log::info("[Keycloak] User login: {$user->name} ({$user->email}) role:{$localRole}");
+        Log::info("[Keycloak] Login: {$user->name} role:{$localRole} id_token:" . ($idToken ? 'ada' : 'KOSONG'));
 
         return redirect()->intended(route('icu.dashboard'));
     }
@@ -85,22 +100,43 @@ class AuthController extends Controller
     public function logout(Request $request): RedirectResponse
     {
         $authVia = $request->session()->get('auth_via', 'local');
+        $idToken = $request->session()->get('keycloak_id_token');
+        $userId  = Auth::id();
 
-        // Hapus session Laravel
-        Auth::logout();
+        // 1. Logout dari Laravel session
+        Auth::guard('web')->logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
+        // 2. Hapus SEMUA sessions aktif milik user ini dari database
+        //    Ini mencegah session lain yang mungkin tersisa di DB digunakan kembali
+        if ($userId) {
+            \Illuminate\Support\Facades\DB::table('sessions')
+                ->where('user_id', $userId)
+                ->delete();
+        }
+
         if ($authVia === 'keycloak') {
-            $baseUrl    = rtrim(config('services.keycloak.base_url', ''), '/');
-            $realm      = config('services.keycloak.realms', 'myrealm');
-            $clientId   = config('services.keycloak.client_id');
+            $baseUrl  = rtrim(config('services.keycloak.base_url', ''), '/');
+            $realm    = config('services.keycloak.realms', 'myrealm');
+            $clientId = config('services.keycloak.client_id');
+
+            // post_logout_redirect_uri harus sudah didaftarkan di Keycloak client
             $postLogout = urlencode(route('login'));
 
-            // Keycloak logout endpoint — session SSO di-terminate
             $logoutUrl = "{$baseUrl}/realms/{$realm}/protocol/openid-connect/logout"
-                . "?post_logout_redirect_uri={$postLogout}"
-                . "&client_id={$clientId}";
+                . "?client_id=" . urlencode($clientId)
+                . "&post_logout_redirect_uri={$postLogout}";
+
+            // id_token_hint adalah kunci utama agar Keycloak invalidate SSO session
+            if ($idToken) {
+                $logoutUrl .= "&id_token_hint=" . urlencode($idToken);
+                Log::info("[Keycloak] Logout dengan id_token_hint untuk user_id:{$userId}");
+            } else {
+                // Fallback: tanpa id_token, tambah prompt=login agar Keycloak paksa auth ulang
+                // Ini tidak ideal tapi mencegah auto-login dengan SSO session lama
+                Log::warning("[Keycloak] Logout tanpa id_token_hint — user_id:{$userId}. Pakai fallback.");
+            }
 
             return redirect($logoutUrl);
         }

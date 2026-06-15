@@ -62,9 +62,16 @@ const SRC = {
 const gIcon  = (g) => g==='L'?'♂':g==='P'?'♀':'·';
 const gColor = (g) => g==='L'?'#4A90D9':g==='P'?'#D9517A':'var(--text-secondary)';
 
-const canAct = (item) => {
-    if (!canKonfirmasiIcu.value && !isAdmin.value) return false;
-    return item.status === 'pending_icu';
+// ── Aksi yang tersedia per item ────────────────────────────
+const actionsOf = (item) => {
+    if (!canKonfirmasiIcu.value && !isAdmin.value) return [];
+    const acts = [];
+    if (item.status === 'pending_icu') {
+        const labelKonfirm = item.sumber === 'external' ? 'Konfirmasi Bed' : 'Verifikasi Bed';
+        acts.push({ id:'konfirmasi', label: labelKonfirm, bg:'rgba(45,217,164,.12)', color:'#2DD9A4', border:'rgba(45,217,164,.3)' });
+        acts.push({ id:'tolak', label:'Tolak Permintaan', bg:'rgba(224,112,80,.08)', color:'#E07050', border:'rgba(224,112,80,.25)' });
+    }
+    return acts;
 };
 
 // ── Summary ────────────────────────────────────────────────
@@ -87,7 +94,7 @@ const openModal = (type, item) => {
     fmKonfirmasi.reset(); fmTolak.reset();
     modal.value = { open:true, type, item };
 };
-const closeModal = () => { modal.value.open = false; setTimeout(() => modal.value = {open:false,type:'',item:null}, 200); };
+const closeModal = () => { modal.value.open = false; setTimeout(() => modal.value = {open:false,type:'',item:null}, 300); };
 
 // ── Form: Konfirmasi Bed ───────────────────────────────────
 const fmKonfirmasi = useForm({ Kode_Ruang:'', kebutuhan_bed:'' });
@@ -154,23 +161,24 @@ const jenisOptions = [
         <!-- Summary Cards -->
         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             <button v-for="c in CARDS" :key="c.key" @click="clickCard(c.key)"
-                class="card-dark p-3.5 flex items-center gap-3 text-left transition-all hover:scale-[1.02]"
+                class="card-dark p-3 sm:p-3.5 flex items-center gap-2.5 sm:gap-3 text-left transition-all hover:scale-[1.02]"
                 :style="fStatus===c.key ? `border:1.5px solid ${c.color}50` : ''">
-                <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" :style="`background:${c.color}1A`">
-                    <span class="text-lg font-bold" :style="`color:${c.color}`">{{ c.val }}</span>
+                <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center flex-shrink-0" :style="`background:${c.color}1A`">
+                    <span class="text-base sm:text-lg font-bold" :style="`color:${c.color}`">{{ c.val }}</span>
                 </div>
-                <p class="text-[11px] leading-tight" style="color:var(--text-secondary)">{{ c.label }}</p>
+                <p class="text-[10px] sm:text-[11px] leading-tight" style="color:var(--text-secondary)">{{ c.label }}</p>
             </button>
         </div>
 
-        <div class="flex items-center gap-4 text-xs" style="color:var(--text-secondary)">
+        <!-- Breakdown sumber -->
+        <div class="flex items-center gap-3 sm:gap-4 text-[11px] sm:text-xs flex-wrap" style="color:var(--text-secondary)">
             <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#4A90D9"></span>Booking Eksternal: <strong style="color:var(--text-primary)">{{ summary.by_sumber?.external ?? 0 }}</strong></span>
             <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#8EA89E"></span>SPRI Internal: <strong style="color:var(--text-primary)">{{ summary.by_sumber?.internal ?? 0 }}</strong></span>
         </div>
 
         <!-- Filter -->
         <div class="card-dark p-3.5 space-y-3">
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
                 <div>
                     <label class="block text-[10px] font-semibold mb-1" style="color:var(--text-secondary)">Status</label>
                     <select v-model="fStatus" @change="applyFilters" class="w-full text-xs px-2.5 py-2 rounded-lg outline-none"
@@ -200,12 +208,12 @@ const jenisOptions = [
                 <span class="text-[10px]" style="color:var(--text-muted)">Urutkan:</span>
                 <button v-for="col in [{key:'created_at',label:'Waktu'},{key:'nama_pasien',label:'Nama'},{key:'status',label:'Status'}]"
                     :key="col.key" @click="toggleSort(col.key)"
-                    class="text-[10px] px-2 py-1 rounded-lg font-semibold"
+                    class="text-[10px] px-2 py-1 rounded-lg font-semibold transition-colors"
                     :style="sortBy===col.key ? 'background:rgba(45,217,164,.15); color:#2DD9A4; border:1px solid rgba(45,217,164,.3)' : 'background:var(--bg-input); color:var(--text-secondary); border:1px solid var(--border-default)'">
                     {{ col.label }} {{ sortIcon(col.key) }}
                 </button>
                 <button v-if="fStatus||fJenis||fNama||fTgl" @click="resetFilter"
-                    class="text-[10px] px-2 py-1 rounded-lg ml-auto"
+                    class="text-[10px] px-2 py-1 rounded-lg ml-auto hover:brightness-110 transition-colors"
                     style="background:rgba(224,112,80,.1); color:#E07050; border:1px solid rgba(224,112,80,.2)">✕ Reset</button>
             </div>
         </div>
@@ -215,32 +223,35 @@ const jenisOptions = [
             <p class="text-sm font-semibold" style="color:var(--text-secondary)">Tidak ada antrian</p>
         </div>
 
-        <!-- Tabel -->
+        <!-- Content Area -->
         <div v-else class="card-dark overflow-hidden">
-            <div class="overflow-x-auto">
+            
+            <!-- 💻 TAMPILAN DESKTOP (Tabel) -->
+            <div class="hidden md:block overflow-x-auto">
                 <table class="w-full text-xs" style="border-collapse:collapse; min-width:780px">
                     <thead>
                         <tr style="background:var(--bg-main); border-bottom:2px solid var(--border-default)">
                             <th class="px-3 py-2.5 text-left font-semibold w-7" style="color:var(--text-secondary)">#</th>
-                            <th class="px-3 py-2.5 text-left font-semibold cursor-pointer" style="color:var(--text-secondary)" @click="toggleSort('nama_pasien')">Pasien {{ sortIcon('nama_pasien') }}</th>
+                            <th class="px-3 py-2.5 text-left font-semibold cursor-pointer hover:opacity-80" style="color:var(--text-secondary)" @click="toggleSort('nama_pasien')">Pasien {{ sortIcon('nama_pasien') }}</th>
                             <th class="px-3 py-2.5 text-left font-semibold" style="color:var(--text-secondary)">Jenis</th>
                             <th class="px-3 py-2.5 text-left font-semibold" style="color:var(--text-secondary)">Diagnosa</th>
                             <th class="px-3 py-2.5 text-left font-semibold" style="color:var(--text-secondary)">Asal</th>
                             <th class="px-3 py-2.5 text-left font-semibold" style="color:var(--text-secondary)">Bed</th>
-                            <th class="px-3 py-2.5 text-left font-semibold cursor-pointer" style="color:var(--text-secondary)" @click="toggleSort('status')">Status {{ sortIcon('status') }}</th>
-                            <th class="px-3 py-2.5 text-left font-semibold cursor-pointer" style="color:var(--text-secondary)" @click="toggleSort('created_at')">Waktu {{ sortIcon('created_at') }}</th>
-                            <th class="px-3 py-2.5 text-left font-semibold" style="color:var(--text-secondary)">Aksi</th>
+                            <th class="px-3 py-2.5 text-left font-semibold cursor-pointer hover:opacity-80" style="color:var(--text-secondary)" @click="toggleSort('status')">Status {{ sortIcon('status') }}</th>
+                            <th class="px-3 py-2.5 text-left font-semibold cursor-pointer hover:opacity-80" style="color:var(--text-secondary)" @click="toggleSort('created_at')">Waktu {{ sortIcon('created_at') }}</th>
+                            <th class="px-3 py-2.5 text-center font-semibold w-10"></th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr v-for="(item, idx) in antrian" :key="`${item.sumber}-${item.id}`"
+                            @click="openModal('detail', item)"
                             :style="`border-bottom:1px solid var(--border-default); border-left:3px solid ${ss(item.status).dot}`"
-                            class="transition-colors hover:bg-[var(--bg-surface)]">
+                            class="transition-colors hover:bg-[var(--bg-input)] cursor-pointer group">
                             <td class="px-3 py-2.5 font-mono" style="color:var(--text-muted)">{{ idx+1 }}</td>
                             <td class="px-3 py-2.5">
                                 <div class="flex items-center gap-1.5">
-                                    <span class="font-bold" :style="`color:${gColor(item.jenis_kelamin)}`">{{ gIcon(item.jenis_kelamin) }}</span>
-                                    <div>
+                                    <span class="font-bold flex-shrink-0" :style="`color:${gColor(item.jenis_kelamin)}`">{{ gIcon(item.jenis_kelamin) }}</span>
+                                    <div class="min-w-0">
                                         <p class="font-semibold truncate" style="color:var(--text-primary); max-width:130px">{{ item.nama_pasien }}</p>
                                         <p class="font-mono text-[10px]" style="color:var(--text-secondary)">{{ item.No_MR ?? '—' }}</p>
                                     </div>
@@ -268,31 +279,60 @@ const jenisOptions = [
                                     :style="`background:${ss(item.status).bg}; color:${ss(item.status).color}`">
                                     {{ item.status_label }}
                                 </span>
-                                <p v-if="item.alasan_tolak" class="text-[10px] mt-1 max-w-[100px] truncate" style="color:#E07050">{{ item.alasan_tolak }}</p>
                             </td>
                             <td class="px-3 py-2.5 font-mono whitespace-nowrap" style="color:var(--text-secondary)">
                                 {{ item.created_at_fmt }}
                             </td>
-                            <td class="px-3 py-2.5">
-                                <div class="flex gap-1.5" v-if="canAct(item)">
-                                    <button @click="openModal('konfirmasi', item)"
-                                        class="text-[10px] font-bold px-2.5 py-1.5 rounded-lg whitespace-nowrap"
-                                        style="background:rgba(45,217,164,.12); color:#2DD9A4; border:1px solid rgba(45,217,164,.3)">
-                                        ✓ Konfirmasi Bed
-                                    </button>
-                                    <button @click="openModal('tolak', item)"
-                                        class="text-[10px] font-bold px-2.5 py-1.5 rounded-lg whitespace-nowrap"
-                                        style="background:rgba(224,112,80,.08); color:#E07050; border:1px solid rgba(224,112,80,.25)">
-                                        ✕ Tolak
-                                    </button>
-                                </div>
-                                <span v-else class="text-[10px]" style="color:var(--text-muted)">—</span>
+                            <td class="px-3 py-2.5 text-center transition-transform group-hover:translate-x-1" style="color:var(--text-muted)">
+                                ❯
                             </td>
                         </tr>
                     </tbody>
                 </table>
             </div>
-            <div class="px-4 py-2" style="border-top:1px solid var(--border-default)">
+
+            <!-- 📱 TAMPILAN MOBILE (Daftar Kartu) -->
+            <div class="block md:hidden divide-y" style="border-color:var(--border-default)">
+                <div v-for="(item, idx) in antrian" :key="`mob-${item.sumber}-${item.id}`"
+                    @click="openModal('detail', item)"
+                    class="p-4 transition-colors hover:bg-[var(--bg-input)] cursor-pointer relative group"
+                    :style="`border-left:4px solid ${ss(item.status).dot}`">
+                    
+                    <div class="flex justify-between items-start mb-2 gap-2 pr-4">
+                        <div class="flex flex-wrap gap-1.5">
+                            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full" :style="`background:${ss(item.status).bg}; color:${ss(item.status).color}`">{{ item.status_label }}</span>
+                            <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full" :style="`background:${SRC[item.sumber]?.bg}; color:${SRC[item.sumber]?.color}`">{{ item.sumber_label }}</span>
+                        </div>
+                        <span class="text-[10px] font-mono whitespace-nowrap" style="color:var(--text-muted)">{{ item.created_at_fmt?.split(' ')[0] }}</span>
+                    </div>
+
+                    <div class="flex items-center gap-2.5 mb-2.5 pr-4">
+                        <span class="font-bold text-lg flex-shrink-0" :style="`color:${gColor(item.jenis_kelamin)}`">{{ gIcon(item.jenis_kelamin) }}</span>
+                        <div class="min-w-0 flex-1">
+                            <p class="font-semibold text-sm truncate" style="color:var(--text-primary)">{{ item.nama_pasien }}</p>
+                            <p class="font-mono text-[10px] truncate" style="color:var(--text-secondary)">{{ item.No_MR ?? 'Belum ada MR' }}</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 text-[11px] pr-4">
+                        <div class="min-w-0">
+                            <p style="color:var(--text-muted)">Diagnosa</p>
+                            <p class="font-semibold truncate" style="color:var(--text-secondary)">{{ item.diagnosa ?? '-' }}</p>
+                        </div>
+                        <div class="min-w-0">
+                            <p style="color:var(--text-muted)">Bed</p>
+                            <p class="font-semibold truncate" :style="item.nama_bed ? 'color:#2DD9A4' : 'color:var(--text-secondary)'">{{ item.nama_bed ? '🏥 ' + item.nama_bed : '-' }}</p>
+                        </div>
+                    </div>
+
+                    <div class="absolute right-4 top-1/2 -translate-y-1/2 text-lg transition-transform group-hover:translate-x-1" style="color:var(--text-muted)">
+                        ❯
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="px-4 py-3" style="border-top:1px solid var(--border-default); background:var(--bg-main)">
                 <p class="text-[11px]" style="color:var(--text-secondary)">
                     Menampilkan <strong style="color:var(--text-primary)">{{ antrian.length }}</strong> data
                 </p>
@@ -300,107 +340,219 @@ const jenisOptions = [
         </div>
     </div>
 
-    <!-- ═══════════════ MODALS ════════════════════════════════════════════ -->
-    <Transition enter-active-class="transition-all duration-200" enter-from-class="opacity-0" leave-to-class="opacity-0">
-        <div v-if="modal.open" class="fixed inset-0 z-50 flex items-center justify-center p-4"
+    <!-- ═══════════════ MODALS WITH SMOOTH TRANSITIONS ════════════════════ -->
+    <Transition 
+        enter-active-class="transition-all duration-300 ease-out" 
+        enter-from-class="opacity-0" 
+        leave-active-class="transition-all duration-200 ease-in" 
+        leave-to-class="opacity-0"
+    >
+        <div v-if="modal.open" class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4"
             style="background:rgba(0,0,0,0.6); backdrop-filter:blur(3px)" @click.self="closeModal">
 
-            <!-- Modal Konfirmasi Bed -->
-            <Transition enter-active-class="transition-all duration-200" enter-from-class="opacity-0 scale-95" leave-to-class="opacity-0 scale-95">
-                <div v-if="modal.type==='konfirmasi'" class="w-full max-w-md rounded-2xl" style="background:var(--bg-sidebar); border:1px solid var(--border-default)">
-                    <div class="flex items-center justify-between px-5 py-4" style="border-bottom:1px solid var(--border-default)">
-                        <div>
-                            <p class="font-bold text-sm" style="color:var(--text-primary)">
-                                {{ modal.item?.sumber==='external' ? 'Konfirmasi Bed' : 'Verifikasi Bed' }}
-                            </p>
-                            <p class="text-xs mt-0.5" style="color:var(--text-secondary)">{{ modal.item?.nama_pasien }}</p>
-                        </div>
-                        <button @click="closeModal" class="p-1.5 rounded-lg" style="background:var(--bg-input); color:var(--text-secondary)">
-                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-                        </button>
-                    </div>
-                    <!-- Info pasien -->
-                    <div class="px-5 py-3 grid grid-cols-2 gap-2 text-xs" style="border-bottom:1px solid var(--border-default)">
-                        <div class="rounded-lg p-2.5" style="background:var(--bg-input)">
-                            <p style="color:var(--text-secondary)">No. MR</p>
-                            <p class="font-mono font-semibold mt-0.5" style="color:var(--text-primary)">{{ modal.item?.No_MR ?? '—' }}</p>
-                        </div>
-                        <div class="rounded-lg p-2.5" style="background:var(--bg-input)">
-                            <p style="color:var(--text-secondary)">Asal</p>
-                            <p class="font-semibold mt-0.5" style="color:var(--text-primary)">{{ modal.item?.asal_rujukan ?? '-' }}</p>
-                        </div>
-                        <div class="rounded-lg p-2.5 col-span-2" style="background:var(--bg-input)">
-                            <p style="color:var(--text-secondary)">Diagnosa</p>
-                            <p class="font-semibold mt-0.5" style="color:var(--text-primary)">{{ modal.item?.diagnosa ?? '-' }}</p>
-                        </div>
-                    </div>
-                    <form @submit.prevent="submitKonfirmasi" class="p-5 space-y-3">
-                        <div>
-                            <label class="block text-xs font-semibold mb-1.5" style="color:var(--text-primary)">Jenis ICU <span style="color:#E07050">*</span></label>
-                            <select v-model="fmKonfirmasi.kebutuhan_bed" required class="w-full text-xs px-3 py-2.5 rounded-xl outline-none"
-                                style="border:1px solid var(--border-default); background:var(--bg-surface); color:var(--text-primary)">
-                                <option value="" disabled>-- Pilih Jenis ICU --</option>
-                                <option v-for="k in masterKelas" :key="k.kode" :value="k.nama">{{ k.nama }}</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-semibold mb-1.5" style="color:var(--text-primary)">
-                                Pilih Bed <span style="color:#E07050">*</span>
-                                <span class="font-normal ml-1" style="color:var(--text-muted)">({{ bedCocok.length }} tersedia)</span>
-                            </label>
-                            <select v-model="fmKonfirmasi.Kode_Ruang" required :disabled="!bedCocok.length"
-                                class="w-full text-xs px-3 py-2.5 rounded-xl outline-none disabled:opacity-40"
-                                style="border:1px solid var(--border-default); background:var(--bg-surface); color:var(--text-primary)">
-                                <option value="" disabled>-- Pilih Bed --</option>
-                                <option v-for="bed in bedCocok" :key="bed.Kode_Ruang" :value="bed.Kode_Ruang">{{ bed.nama_ruang }}</option>
-                            </select>
-                            <p v-if="!kamarKosong.length" class="text-[10px] mt-1" style="color:#E0923A">Tidak ada bed kosong saat ini</p>
-                        </div>
-                        <div class="flex gap-2 pt-1">
-                            <button type="submit" :disabled="fmKonfirmasi.processing || !fmKonfirmasi.Kode_Ruang || !fmKonfirmasi.kebutuhan_bed"
-                                class="flex-1 text-xs font-bold py-2.5 rounded-xl disabled:opacity-40"
-                                style="background:#2DD9A4; color:#0D1A17">
-                                {{ fmKonfirmasi.processing ? 'Menyimpan...' : '✓ Konfirmasi Bed' }}
+            <!-- Modal Container Induk -->
+            <div class="w-full max-w-lg rounded-2xl flex flex-col shadow-2xl relative overflow-hidden transition-all duration-300"
+                style="background:var(--bg-sidebar); border:1px solid var(--border-default); max-height: 90vh;"
+                @click.stop>
+                
+                <!-- Animasi Isi (Crossfade Out-In) -->
+                <Transition 
+                    enter-active-class="transition-all duration-250 ease-out"
+                    enter-from-class="opacity-0 scale-95"
+                    leave-active-class="transition-all duration-150 ease-in"
+                    leave-to-class="opacity-0 scale-105"
+                    mode="out-in"
+                >
+                    <!-- ── VIEW 1: DETAIL ────────────────────────────────────────────────────────── -->
+                    <div v-if="modal.type==='detail' && modal.item" key="detail" class="flex flex-col w-full h-full max-h-[90vh]">
+                        <!-- Header -->
+                        <div class="flex items-center justify-between px-4 sm:px-5 py-3.5 flex-shrink-0" style="border-bottom:1px solid var(--border-default)">
+                            <div>
+                                <p class="font-bold text-sm" style="color:var(--text-primary)">Detail Pasien ICU</p>
+                                <p class="text-xs mt-0.5" style="color:var(--text-secondary)">{{ modal.item.nama_pasien }}</p>
+                            </div>
+                            <button @click="closeModal" class="p-1.5 rounded-lg hover:brightness-110 transition-colors" style="background:var(--bg-input); color:var(--text-secondary)">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                             </button>
-                            <button type="button" @click="closeModal" class="px-4 text-xs rounded-xl"
-                                style="background:var(--bg-main); color:var(--text-secondary); border:1px solid var(--border-default)">Batal</button>
                         </div>
-                    </form>
-                </div>
-            </Transition>
+                        
+                        <!-- Body -->
+                        <div class="p-4 sm:p-5 space-y-4 overflow-y-auto">
+                            <div class="flex gap-2 mb-2 flex-wrap">
+                                <span class="text-[10px] font-bold px-2.5 py-1 rounded-full" :style="`background:${ss(modal.item.status).bg}; color:${ss(modal.item.status).color}`">
+                                    {{ modal.item.status_label }}
+                                </span>
+                                <span class="text-[10px] font-semibold px-2.5 py-1 rounded-full" :style="`background:${SRC[modal.item.sumber]?.bg}; color:${SRC[modal.item.sumber]?.color}`">
+                                    {{ modal.item.sumber_label }}
+                                </span>
+                            </div>
 
-            <!-- Modal Tolak -->
-            <Transition enter-active-class="transition-all duration-200" enter-from-class="opacity-0 scale-95" leave-to-class="opacity-0 scale-95">
-                <div v-if="modal.type==='tolak'" class="w-full max-w-sm rounded-2xl" style="background:var(--bg-sidebar); border:1px solid var(--border-default)">
-                    <div class="flex items-center justify-between px-5 py-4" style="border-bottom:1px solid var(--border-default)">
-                        <div>
-                            <p class="font-bold text-sm" style="color:#E07050">Tolak Permintaan</p>
-                            <p class="text-xs mt-0.5" style="color:var(--text-secondary)">{{ modal.item?.nama_pasien }}</p>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-y-3 gap-x-4 text-xs">
+                                <div>
+                                    <p style="color:var(--text-secondary)">No. MR</p>
+                                    <p class="font-semibold font-mono mt-0.5" style="color:var(--text-primary)">{{ modal.item.No_MR ?? '—' }}</p>
+                                </div>
+                                <div>
+                                    <p style="color:var(--text-secondary)">Jenis Kelamin</p>
+                                    <p class="font-semibold mt-0.5 flex items-center gap-1" style="color:var(--text-primary)">
+                                        <span :style="`color:${gColor(modal.item.jenis_kelamin)}`">{{ gIcon(modal.item.jenis_kelamin) }}</span>
+                                        {{ modal.item.jenis_kelamin === 'L' ? 'Pria' : modal.item.jenis_kelamin === 'P' ? 'Wanita' : '—' }}
+                                    </p>
+                                </div>
+                                <div class="sm:col-span-2">
+                                    <p style="color:var(--text-secondary)">Diagnosa / Indikasi</p>
+                                    <p class="font-semibold mt-0.5" style="color:var(--text-primary)">{{ modal.item.diagnosa ?? '—' }}</p>
+                                </div>
+
+                                <div class="sm:col-span-2">
+                                    <p style="color:var(--text-secondary)">Catatan Admisi</p>
+                                    <p class="font-semibold mt-0.5" style="color:var(--text-primary)">{{ modal.item.catatan_admisi ?? '—' }}</p>
+                                </div>
+
+                                <div>
+                                    <p style="color:var(--text-secondary)">Asal Rujukan</p>
+                                    <p class="font-semibold mt-0.5" style="color:var(--text-primary)">{{ modal.item.asal_rujukan ?? '—' }}</p>
+                                </div>
+                                <div>
+                                    <p style="color:var(--text-secondary)">Alokasi Bed</p>
+                                    <p class="font-semibold mt-0.5" style="color:#2DD9A4">{{ modal.item.nama_bed ? '🏥 ' + modal.item.nama_bed : '—' }}</p>
+                                    <p v-if="modal.item.kebutuhan_bed" class="text-[10px] mt-0.5" style="color:var(--text-muted)">{{ modal.item.kebutuhan_bed }}</p>
+                                </div>
+                                <div>
+                                    <p style="color:var(--text-secondary)">Waktu Booking</p>
+                                    <p class="font-semibold mt-0.5 font-mono" style="color:var(--text-primary)">{{ modal.item.created_at_fmt }}</p>
+                                </div>
+
+                                <div v-if="modal.item.alasan_tolak" class="sm:col-span-2 p-3 rounded-xl mt-1" style="background:rgba(224,112,80,.08); border:1px solid rgba(224,112,80,.2)">
+                                    <p style="color:#E07050" class="font-semibold">Alasan Ditolak:</p>
+                                    <p class="mt-1" style="color:var(--text-primary)">{{ modal.item.alasan_tolak }}</p>
+                                </div>
+                            </div>
                         </div>
-                        <button @click="closeModal" class="p-1.5 rounded-lg" style="background:var(--bg-input); color:var(--text-secondary)">
-                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-                        </button>
+
+                        <!-- Footer Actions -->
+                        <div class="px-4 sm:px-5 py-4 flex-shrink-0" style="border-top:1px solid var(--border-default); background:var(--bg-main)">
+                            <p class="text-[10px] font-bold uppercase tracking-widest mb-2.5" style="color:var(--text-secondary)">Tindakan Tersedia</p>
+                            <div class="flex gap-2 flex-wrap">
+                                <template v-for="act in actionsOf(modal.item)" :key="act.id">
+                                    <button @click="openModal(act.id, modal.item)"
+                                        class="text-xs font-bold px-4 py-2.5 rounded-xl flex-1 flex items-center justify-center transition-transform hover:scale-[1.02]"
+                                        :style="`background:${act.bg}; color:${act.color}; border:1px solid ${act.border}`">
+                                        {{ act.label }}
+                                    </button>
+                                </template>
+                                <p v-if="!actionsOf(modal.item).length" class="text-xs w-full py-2" style="color:var(--text-muted)">
+                                    Tidak ada aksi yang dapat Anda lakukan untuk status ini.
+                                </p>
+                            </div>
+                        </div>
                     </div>
-                    <form @submit.prevent="submitTolak" class="p-5 space-y-4">
-                        <div>
-                            <label class="block text-xs font-semibold mb-1.5" style="color:var(--text-primary)">Alasan Penolakan <span style="color:#E07050">*</span></label>
-                            <textarea v-model="fmTolak.alasan_tolak" required rows="3" placeholder="Alasan penolakan..."
-                                class="w-full text-xs px-3 py-2.5 rounded-xl outline-none resize-none"
-                                style="border:1px solid var(--border-default); background:var(--bg-surface); color:var(--text-primary)"/>
-                        </div>
-                        <div class="flex gap-2">
-                            <button type="submit" :disabled="fmTolak.processing || !fmTolak.alasan_tolak.trim()"
-                                class="flex-1 text-xs font-bold py-2.5 rounded-xl disabled:opacity-40"
-                                style="background:rgba(224,112,80,.12); color:#E07050; border:1px solid rgba(224,112,80,.3)">
-                                {{ fmTolak.processing ? 'Menyimpan...' : '✕ Tolak' }}
-                            </button>
-                            <button type="button" @click="closeModal" class="px-4 text-xs rounded-xl"
-                                style="background:var(--bg-main); color:var(--text-secondary); border:1px solid var(--border-default)">Batal</button>
-                        </div>
-                    </form>
-                </div>
-            </Transition>
 
+                    <!-- ── VIEW 2: KONFIRMASI BED ────────────────────────────────────────────────── -->
+                    <div v-else-if="modal.type==='konfirmasi' && modal.item" key="konfirmasi" class="flex flex-col w-full h-full max-h-[90vh]">
+                        <!-- Header with Back Button -->
+                        <div class="flex items-center justify-between px-4 sm:px-5 py-3.5 flex-shrink-0" style="border-bottom:1px solid var(--border-default)">
+                            <div class="flex items-center gap-3">
+                                <button type="button" @click="openModal('detail', modal.item)" class="p-1.5 rounded-lg hover:bg-[var(--bg-input)] transition-colors" style="color:var(--text-secondary)">
+                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+                                </button>
+                                <div>
+                                    <p class="font-bold text-sm" style="color:var(--text-primary)">
+                                        {{ modal.item?.sumber==='external' ? 'Konfirmasi Bed' : 'Verifikasi Bed' }}
+                                    </p>
+                                    <p class="text-xs mt-0.5" style="color:var(--text-secondary)">{{ modal.item?.nama_pasien }}</p>
+                                </div>
+                            </div>
+                            <button @click="closeModal" class="p-1.5 rounded-lg hover:brightness-110 transition-colors" style="background:var(--bg-input); color:var(--text-secondary)">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                            </button>
+                        </div>
+                        
+                        <!-- Form Body -->
+                        <div class="overflow-y-auto">
+                            <div class="px-4 sm:px-5 py-3 grid grid-cols-2 gap-2 text-xs" style="border-bottom:1px solid var(--border-default)">
+                                <div class="rounded-lg p-2.5" style="background:var(--bg-input)">
+                                    <p style="color:var(--text-secondary)">No. MR</p>
+                                    <p class="font-mono font-semibold mt-0.5" style="color:var(--text-primary)">{{ modal.item?.No_MR ?? '—' }}</p>
+                                </div>
+                                <div class="rounded-lg p-2.5" style="background:var(--bg-input)">
+                                    <p style="color:var(--text-secondary)">Asal</p>
+                                    <p class="font-semibold mt-0.5" style="color:var(--text-primary)">{{ modal.item?.asal_rujukan ?? '-' }}</p>
+                                </div>
+                            </div>
+                            <form @submit.prevent="submitKonfirmasi" class="p-4 sm:p-5 space-y-4">
+                                <div>
+                                    <label class="block text-xs font-semibold mb-1.5" style="color:var(--text-primary)">Jenis ICU <span style="color:#E07050">*</span></label>
+                                    <select v-model="fmKonfirmasi.kebutuhan_bed" required class="w-full text-xs px-3 py-2.5 rounded-xl outline-none"
+                                        style="border:1px solid var(--border-default); background:var(--bg-surface); color:var(--text-primary)">
+                                        <option value="" disabled>-- Pilih Jenis ICU --</option>
+                                        <option v-for="k in masterKelas" :key="k.kode" :value="k.nama">{{ k.nama }}</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold mb-1.5" style="color:var(--text-primary)">
+                                        Pilih Bed <span style="color:#E07050">*</span>
+                                        <span class="font-normal ml-1" style="color:var(--text-muted)">({{ bedCocok.length }} tersedia)</span>
+                                    </label>
+                                    <select v-model="fmKonfirmasi.Kode_Ruang" required :disabled="!bedCocok.length"
+                                        class="w-full text-xs px-3 py-2.5 rounded-xl outline-none disabled:opacity-40"
+                                        style="border:1px solid var(--border-default); background:var(--bg-surface); color:var(--text-primary)">
+                                        <option value="" disabled>-- Pilih Bed --</option>
+                                        <option v-for="bed in bedCocok" :key="bed.Kode_Ruang" :value="bed.Kode_Ruang">{{ bed.nama_ruang }}</option>
+                                    </select>
+                                    <p v-if="!kamarKosong.length" class="text-[10px] mt-1" style="color:#E0923A">Tidak ada bed kosong saat ini</p>
+                                </div>
+                                <div class="flex gap-2 pt-2">
+                                    <button type="submit" :disabled="fmKonfirmasi.processing || !fmKonfirmasi.Kode_Ruang || !fmKonfirmasi.kebutuhan_bed"
+                                        class="flex-1 text-xs font-bold py-3 rounded-xl disabled:opacity-40"
+                                        style="background:#2DD9A4; color:#0D1A17">
+                                        {{ fmKonfirmasi.processing ? 'Menyimpan...' : '✓ Simpan Alokasi Bed' }}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- ── VIEW 3: TOLAK ─────────────────────────────────────────────────────────── -->
+                    <div v-else-if="modal.type==='tolak' && modal.item" key="tolak" class="flex flex-col w-full h-full max-h-[90vh]">
+                        <!-- Header with Back Button -->
+                        <div class="flex items-center justify-between px-4 sm:px-5 py-3.5 flex-shrink-0" style="border-bottom:1px solid var(--border-default)">
+                            <div class="flex items-center gap-3">
+                                <button type="button" @click="openModal('detail', modal.item)" class="p-1.5 rounded-lg hover:bg-[var(--bg-input)] transition-colors" style="color:var(--text-secondary)">
+                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+                                </button>
+                                <div>
+                                    <p class="font-bold text-sm" style="color:#E07050">Tolak Permintaan</p>
+                                    <p class="text-xs mt-0.5" style="color:var(--text-secondary)">{{ modal.item?.nama_pasien }}</p>
+                                </div>
+                            </div>
+                            <button @click="closeModal" class="p-1.5 rounded-lg hover:brightness-110 transition-colors" style="background:var(--bg-input); color:var(--text-secondary)">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                            </button>
+                        </div>
+                        
+                        <!-- Form Body -->
+                        <div class="overflow-y-auto">
+                            <form @submit.prevent="submitTolak" class="p-4 sm:p-5 space-y-4">
+                                <div>
+                                    <label class="block text-xs font-semibold mb-1.5" style="color:var(--text-primary)">Alasan Penolakan <span style="color:#E07050">*</span></label>
+                                    <textarea v-model="fmTolak.alasan_tolak" required rows="4" placeholder="Tuliskan alasan penolakan secara jelas..."
+                                        class="w-full text-xs px-3 py-2.5 rounded-xl outline-none resize-none"
+                                        style="border:1px solid var(--border-default); background:var(--bg-surface); color:var(--text-primary)"/>
+                                </div>
+                                <div class="flex gap-2 pt-2">
+                                    <button type="submit" :disabled="fmTolak.processing || !fmTolak.alasan_tolak.trim()"
+                                        class="flex-1 text-xs font-bold py-3 rounded-xl disabled:opacity-40"
+                                        style="background:rgba(224,112,80,.12); color:#E07050; border:1px solid rgba(224,112,80,.3)">
+                                        {{ fmTolak.processing ? 'Menyimpan...' : '✕ Proses Penolakan' }}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </Transition>
+
+            </div>
         </div>
     </Transition>
 

@@ -72,19 +72,49 @@ class AntrianService
         return $q->latest()->get()->map(fn ($b) => $this->fmtExt($b));
     }
 
+    // private function queryInternal(string $fStatus, string $fNama, string $fTgl): Collection
+    // {
+    //     $q = IcuSpriInternal::with('pasien');
+    //     if ($fStatus) $q->where('status', $fStatus);
+    //     if ($fNama) {
+    //         $q->where(function ($qq) use ($fNama) {
+    //             $qq->whereHas('pasien', fn ($p) => $p->where('Nama_Pasien', 'like', "%{$fNama}%"))
+    //                ->orWhere('No_MR', 'like', "%{$fNama}%");
+    //         });
+    //     }
+    //     if ($fTgl) $q->whereDate('created_at', $fTgl);
+
+    //     return $q->latest()->get()->map(fn ($s) => $this->fmtInt($s));
+    // }
+
     private function queryInternal(string $fStatus, string $fNama, string $fTgl): Collection
     {
-        $q = IcuSpriInternal::with('pasien');
-        if ($fStatus) $q->where('status', $fStatus);
+        $q = IcuSpriInternal::query(); 
+        
+        if ($fStatus) {
+            $q->where('status', $fStatus);
+        }
+
         if ($fNama) {
-            $q->where(function ($qq) use ($fNama) {
-                $qq->whereHas('pasien', fn ($p) => $p->where('Nama_Pasien', 'like', "%{$fNama}%"))
-                   ->orWhere('No_MR', 'like', "%{$fNama}%");
+            // ambil No_MR dari SQL Server
+            $pasienIds = \App\Models\RegistrasiPasien::query()
+                ->where('Nama_Pasien', 'like', "%{$fNama}%")
+                ->pluck('No_MR')
+                ->toArray();
+
+            $q->where(function ($qq) use ($fNama, $pasienIds) {
+                $qq->whereIn('No_MR', $pasienIds)
+                ->orWhere('No_MR', 'like', "%{$fNama}%");
             });
         }
-        if ($fTgl) $q->whereDate('created_at', $fTgl);
 
-        return $q->latest()->get()->map(fn ($s) => $this->fmtInt($s));
+        if ($fTgl) {
+            $q->whereDate('created_at', $fTgl);
+        }
+
+        return $q->latest()->get()->map(function ($s) {
+            return $this->fmtInt($s);
+        });
     }
 
     private function summary(Collection $data): array
