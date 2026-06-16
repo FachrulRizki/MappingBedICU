@@ -1,13 +1,14 @@
 /**
  * useTheme — Dark / Light mode composable
- * Persists to localStorage, applies data-theme attribute to <html>
+ * Default: 'light'  (ICU Monitor v2.0 design system)
+ * Persists to localStorage key 'icu-theme'
  */
 import { ref, watch, onMounted } from 'vue';
 
 const STORAGE_KEY = 'icu-theme';
 
-// Shared reactive state (module-level singleton)
-const theme = ref('dark'); // 'dark' | 'light'
+// Module-level singleton — shared across all component instances
+const theme = ref('light');
 
 function applyTheme(value) {
     if (typeof document !== 'undefined') {
@@ -16,13 +17,12 @@ function applyTheme(value) {
 }
 
 export function useTheme() {
-    const isDark = () => theme.value === 'dark';
-
     function init() {
         const saved = typeof localStorage !== 'undefined'
             ? localStorage.getItem(STORAGE_KEY)
             : null;
-        theme.value = saved === 'light' ? 'light' : 'dark';
+        // Default to light if no preference saved
+        theme.value = saved === 'dark' ? 'dark' : 'light';
         applyTheme(theme.value);
     }
 
@@ -34,7 +34,9 @@ export function useTheme() {
         theme.value = value;
     }
 
-    // Persist and apply whenever theme changes
+    const isDark = () => theme.value === 'dark';
+
+    // Persist + apply on every change
     watch(theme, (val) => {
         if (typeof localStorage !== 'undefined') {
             localStorage.setItem(STORAGE_KEY, val);
@@ -42,9 +44,7 @@ export function useTheme() {
         applyTheme(val);
     });
 
-    onMounted(() => {
-        init();
-    });
+    onMounted(init);
 
     return { theme, isDark, toggle, setTheme, init };
 }

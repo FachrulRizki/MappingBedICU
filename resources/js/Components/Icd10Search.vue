@@ -103,7 +103,7 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside));
                 autocomplete="off"
                 class="w-full pl-9 pr-8 py-2.5 text-sm rounded-xl outline-none"
                 :style="`
-                    border: 1px solid ${hasError ? '#E07050' : showDropdown ? 'var(--border-input-focus)' : 'var(--border-default)'};
+                    border: 1px solid ${hasError ? '#E74C3C' : showDropdown ? 'var(--border-input-focus)' : 'var(--border-default)'};
                     background: var(--bg-surface);
                     color: var(--text-primary);
                 `"
@@ -115,7 +115,7 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside));
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                 </svg>
-                <span v-else-if="selected" style="color:#2DD9A4" class="text-sm font-bold">✓</span>
+                <span v-else-if="selected" style="color:#00A884" class="text-sm font-bold">✓</span>
             </div>
         </div>
 
@@ -142,7 +142,7 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside));
                     @mouseleave="$el.style.background='transparent'">
                     <!-- Kode badge -->
                     <span class="flex-shrink-0 text-xs font-mono font-bold px-1.5 py-0.5 rounded mt-0.5"
-                        style="background:rgba(45,217,164,0.12); color:#2DD9A4; min-width:52px; text-align:center">
+                        style="background:rgba(0,168,132,0.12); color:#00A884; min-width:52px; text-align:center">
                         {{ item.kode }}
                     </span>
                     <!-- Keterangan -->

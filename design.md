@@ -1,210 +1,128 @@
-# AuraHealth Dashboard — Design Documentation
+# Dokumen Spesifikasi Desain UI/UX: ICU Monitor v2.0
 
-## Gambaran Umum
-
-**AuraHealth** adalah platform manajemen kesehatan berbasis web dengan tampilan dashboard modern bertema gelap (*dark mode*). Dashboard ini dirancang untuk profesional medis dan pengguna yang ingin memantau kondisi kesehatan secara menyeluruh — mulai dari nutrisi harian, kepatuhan pengobatan, hingga manajemen pasien.
-
----
-
-## Palet Warna
-
-| Peran | Warna | Hex |
-|---|---|---|
-| Background Utama | Hitam kehijauan gelap | `#0D1A17` |
-| Background Sidebar | Hijau tua sangat gelap | `#0F1E1A` |
-| Surface / Card | Hijau gelap | `#132A23` |
-| Aksen Utama | Hijau terang (teal) | `#2DD9A4` |
-| Aksen Sekunder | Hijau muda | `#4AEAB5` |
-| Teks Utama | Putih | `#FFFFFF` |
-| Teks Sekunder | Abu-abu kehijauan | `#8EA89E` |
-| Status Aktif | Hijau cerah | `#3DDB8A` |
-| Status Tidak Aktif | Oranye/merah redup | `#E07050` |
-| Badge / Tag | Teal redup | `#1A3D32` |
-
-**Prinsip Warna:**
-- Dominasi warna gelap menciptakan nuansa klinis dan profesional.
-- Aksen teal digunakan secara konsisten sebagai penanda interaktif, highlight data, dan CTA (Call-to-Action).
-- Gradasi dari `#0D1A17` ke `#132A23` pada card memberikan kedalaman visual tanpa gangguan.
+**Versi Desain:** 3.1
+**Fokus:** UI/UX Medis, Modern, Interaktif, Alur Kerja (Workflow) Optimal.
+**Konsep Utama:** *Soft Modernism*, *Glassmorphism Minimalis*, Elevasi Data Terstruktur, *Whitespace* Strategis.
 
 ---
 
-## Tipografi
+## 1. Filosofi Desain
 
-| Elemen | Gaya |
-|---|---|
-| Heading Utama | Sans-serif tebal, bersih (contoh: **Plus Jakarta Sans Bold** atau **DM Sans Bold**) |
-| Body & Label | Sans-serif ringan, mudah dibaca (contoh: **Inter Regular** atau **DM Sans Regular**) |
-| Angka / Statistik | Monospaced atau tabular figures untuk keselarasan data |
-| Badge / Status | Huruf kecil (lowercase), ukuran kecil, berat medium |
+Aplikasi medis menuntut kejelasan tinggi, namun tidak harus mengorbankan estetika. ICU Monitor v2.0 dirancang untuk mengurangi kelelahan mata (*eye strain*) pengguna yang bekerja berjam-jam, dengan membedakan informasi kritis melalui hierarki visual, warna, dan animasi yang halus.
 
-**Hierarki Teks:**
-1. **Headline besar** — Ukuran 32–40px, putih, bobot 700
-2. **Subheading / Label Section** — 14–16px, putih 70%, bobot 600
-3. **Body / Deskripsi** — 13–14px, abu-abu kehijauan, bobot 400
-4. **Caption / Metadata** — 11–12px, abu-abu redup, bobot 400
+*   **Soft Modernism:** Meninggalkan desain *flat* kaku beralih ke elemen berdimensi dengan bayangan halus (*soft shadows*) dan sudut membulat (*rounded corners*).
+*   **Glassmorphism:** Penggunaan efek kaca buram (*blur/backdrop-filter*) pada elemen *overlay* (seperti Topbar, Sidebar, Modal) untuk memberikan kesan kedalaman layar.
+*   **Micro-interactions:** Umpan balik seketika saat elemen di-*hover* atau diklik (misal: baris tabel sedikit terangkat) agar aplikasi terasa "hidup" dan responsif.
 
 ---
 
-## Layout & Struktur
+## 2. Palet Warna & Tema
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│  Sidebar (240px fixed)  │  Main Content Area (fluid)         │
-│                         │                                    │
-│  Logo                   │  Top Bar (Search + Lang + Avatar)  │
-│  Nav Menu               │─────────────────────────────────── │
-│    - Dashboard          │  Hero Banner + Stats Cards (2-col) │
-│    - Medical Team       │─────────────────────────────────── │
-│    - Patients           │  Nutrition + Adherence (2-col)     │
-│    - Medications        │─────────────────────────────────── │
-│    - Messages           │  Professionals + Weight + BP (3-col│
-│                         │─────────────────────────────────── │
-│  More                   │  Recent Patients Table (full-width)│
-│    - Settings           │                                    │
-│    - Tutorials          │                                    │
-│    - Help & Support     │                                    │
-│                         │                                    │
-│  Promo Card             │                                    │
-└──────────────────────────────────────────────────────────────┘
-```
+Sistem mendukung Tema Terang (Bright/Light Mode) dan Tema Gelap (Dark Mode) yang dapat diubah *real-time* dengan transisi *fading*.
 
-### Grid System
-- **Sidebar**: Lebar tetap 240px, tinggi penuh layar, posisi fixed
-- **Main Content**: Padding horizontal 24–32px, padding vertikal 20px
-- **Card Grid**: Menggunakan CSS Grid 12-kolom, dengan breakpoint responsif
-- **Gap antar Card**: 16–20px
+### A. Tema Terang (Light Mode)
+| Komponen UI | Warna (HEX) | Deskripsi |
+| :--- | :--- | :--- |
+| **Main Background** | `#F0F4F8` | Abu-abu sangat muda kebiruan (mengurangi mata lelah). |
+| **Card / Surface** | `#FFFFFF` | Putih bersih pekat, dengan elevasi shadow halus (Opacity 90%). |
+| **Topbar / Sidebar**| `#FFFFFF` | Latar belakang transparan dengan efek Blur 15px (Alpha 70%). |
+| **Primary Text** | `#1A2B3C` | Biru tua arang untuk kontras baca maksimal. |
+| **Secondary Text** | `#5A6B7C` | Abu-abu tua kebiruan untuk teks pendukung. |
+| **Primary Accent** | `#00A884` | Hijau Emerald Medis (*Vibrant*). |
+| **Accent Hover** | `#008C6E` | Hijau Emerald lebih gelap. |
 
----
+### B. Tema Gelap (Dark Mode)
+| Komponen UI | Warna (HEX) | Deskripsi |
+| :--- | :--- | :--- |
+| **Main Background** | `#0A121A` | Biru hitam sangat tua. |
+| **Card / Surface** | `#141E2A` | Biru tua arang, dengan elevasi shadow halus (Opacity 90%). |
+| **Topbar / Sidebar**| `#141E2A` | Latar belakang transparan dengan efek Blur 15px (Alpha 70%). |
+| **Primary Text** | `#E0E6ED` | Putih tulang (mencegah silau di ruang gelap). |
+| **Secondary Text** | `#90A0B0` | Abu-abu muda kebiruan. |
+| **Primary Accent** | `#00CFA3` | Hijau Emerald Medis (*Luminous*). |
 
-## Komponen UI
+### C. Sistem Warna Status (Pill Badges)
+Warna cerah dengan latar belakang yang sangat pudar (*soft-tint*) untuk visibilitas tanpa terlalu mencolok.
 
-### 1. Sidebar
-- Background solid gelap dengan sedikit batas kanan (border 1px transparan)
-- Menu item: padding 12px 16px, border-radius 10px
-- **State aktif**: Background teal gelap `#1A3D32`, teks teal terang, ikon teal
-- **State hover**: Background sedikit lebih terang dari default
-- Ikon kecil (16–18px) di sebelah kiri label
-- Badge notifikasi (angka merah kecil) pada item "Messages"
-- Promo card di bagian bawah dengan background teal gelap dan CTA button
-
-### 2. Top Bar / Header
-- Background sama dengan konten utama (tidak ada perbedaan mencolok)
-- Search bar: Input dengan ikon kaca pembesar, background lebih gelap, border subtle
-- Dropdown bahasa (EN) dengan chevron
-- Avatar pengguna di kanan (lingkaran, 36–40px)
-
-### 3. Hero Banner
-- Background gradient dari hijau teal `#1A3D32` ke teal cerah `#2A5A48`
-- Teks "Check Your Health!" besar (32–40px), putih, bold
-- Ilustrasi karakter dokter 3D di sisi kanan (elemen dekoratif)
-- Rounded corner 16px, padding 24–32px
-
-### 4. Stats Card (Kecil)
-- Background card gelap
-- Ikon di kiri atas dengan background teal sangat redup
-- Angka besar (36–48px, bold) sebagai metrik utama
-- Label kecil di bawah angka
-- Perubahan persentase dengan indikator panah (↑ hijau / ↓ merah)
-
-### 5. Donut Chart — Today's Nutrition
-- Chart berbentuk cincin tebal dengan gradasi warna
-- Angka kalori di tengah chart (bold, putih)
-- Legend: Protein (teal), Carbs (hijau muda), Fat (abu-abu)
-- Background card dengan border-radius 16px
-
-### 6. Line Chart — Adherence Overview
-- Dua line: Medication Intake (teal solid) & Range Compliance (teal transparan/dashed)
-- Tooltip muncul saat hover dengan nilai persentase
-- Area bawah garis terisi dengan gradient transparan
-- Sumbu X: hari dalam seminggu (Sat–Fri)
-- Sumbu Y: persentase 0–100%
-- Dropdown filter "Weekly" di kanan atas card
-
-### 7. Bar Chart — Weight Tracking Trends
-- Bar vertikal, warna teal dengan variasi tinggi
-- Sumbu X: Week 1–4
-- Sumbu Y: skala berat
-- Background gelap, minimalis
-
-### 8. Area/Line Chart — Blood Pressure
-- Dua line (Systolic & Diastolic) dengan area gradient di bawahnya
-- Skala tekanan darah di sumbu Y: 80/60 – 160/100
-- Sumbu X: S M T W T F S (hari)
-
-### 9. List Card — Recent Professionals
-- Avatar bulat tiap dokter (foto kecil, ~36px)
-- Nama dan spesialisasi dokter
-- Jumlah pasien di kanan (teks abu-abu)
-- Link "View All" di kanan atas card
-- Separator tipis antar item
-
-### 10. Data Table — Recent Patients
-- Header kolom: Checkbox, Patient Name, Age, Doctor, Status, Created At, Adherence, Actions
-- Setiap baris: Avatar inisial berwarna, nama + email, data terstruktur
-- Badge Status: `Active` (hijau) / `Inactive` (oranye/merah), pill-shape kecil
-- Badge Adherence: `Intake` / `Range` (teal redup)
-- Action icons: View (mata), Edit (pensil), More (tiga titik)
-- Tombol "+ Add Patient" di kanan atas (CTA utama, background teal)
-- Pagination di bawah tabel: Previous / 1 2 3 ... 7 / Next
+| Status / Kategori | Warna Teks / Dot | Latar Belakang (Soft Tint) |
+| :--- | :--- | :--- |
+| **Menunggu / Pending**| `#E67E22` (Orange) | `#FDF3E9` |
+| **Selesai / Terverifikasi**| `#27AE60` (Hijau) | `#EBF9F1` |
+| **Internal / Antrian** | `#3498DB` (Biru) | `#EAF4FB` |
+| **Eksternal** | `#8E44AD` (Ungu) | `#F4ECF7` |
+| **Ditolak / Alert** | `#E74C3C` (Merah) | `#FDEDEC` |
 
 ---
 
-## Ikonografi
+## 3. Tipografi
 
-- Style: **Line icons**, stroke tipis 1.5–2px, bersih dan minimalis
-- Ukuran: 16–20px untuk navigasi, 18–24px untuk card
-- Konsisten menggunakan satu library ikon (contoh: **Phosphor Icons**, **Lucide**, atau **Heroicons**)
-- Warna ikon default: abu-abu kehijauan; aktif/highlighted: teal
+Sangat disarankan menggunakan *font* geometris sans-serif yang bersih.
+*   **Primary Font:** `Inter` atau `Plus Jakarta Sans`
+*   **Monospace Font:** `DM Mono` atau `Fira Code` (untuk Jam, NIK, MR, dan Data Numerik Klinis).
 
----
-
-## Efek Visual & Interaksi
-
-| Elemen | Efek |
-|---|---|
-| Card hover | Slight brightness increase + subtle shadow |
-| Button hover | Brightness +10%, subtle scale(1.02) |
-| Sidebar nav hover | Background fade in 150ms |
-| Chart tooltip | Fade in, posisi mengikuti kursor |
-| Badge / Status | Subtle glow (box-shadow teal/merah tipis) |
-| Scroll konten | Custom scrollbar tipis berwarna teal redup |
+| Penggunaan | Ukuran Dasar | Weight | Line Height | Contoh Penggunaan |
+| :--- | :--- | :--- | :--- | :--- |
+| **Hero Title** | 36px | Bold (700) | 1.1 | Ruang ICU & HCU |
+| **Main Title** | 22px | Bold (700) | 1.2 | Dashboard ICU (Topbar) |
+| **KPI Number** | 48px | ExtraBold (800) | 1.0 | 12 (Angka Total) |
+| **Table Header** | 12px | SemiBold (600) | 1.5 | DIAGNOSA (Uppercase) |
+| **Body Text** | 14px | Regular (400) | 1.5 | Nama Pasien |
+| **Data Vital (Mono)** | 11px/12px | Medium (500) | 1.4 | HR: 88 bpm |
 
 ---
 
-## Spacing System
+## 4. Komponen Antarmuka Global
 
-Menggunakan skala **4px base**:
-
-| Token | Nilai |
-|---|---|
-| xs | 4px |
-| sm | 8px |
-| md | 16px |
-| lg | 24px |
-| xl | 32px |
-| 2xl | 48px |
-
-- Card padding: `24px`
-- Gap antar komponen: `16–20px`
-- Border-radius card: `12–16px`
-- Border-radius badge: `6px` (pill untuk status)
-- Border-radius button: `8–10px`
+1.  **Sidebar (Navigasi):**
+    *   Lebar tetap (misal: 240px). Menggunakan efek *Glassmorphism* (transparan dengan latar blur).
+    *   Icon menu menggunakan gaya *outline*. Menu aktif berubah menjadi *solid* dengan pendaran (*glow*) warna Emerald dan tulisan sedikit ditebalkan.
+2.  **Topbar (Header Sticky):**
+    *   Melayang di atas konten (*sticky*) dengan efek kaca buram.
+    *   Berisi Judul Halaman, Jam Digital (Monospace, Real-time), Theme Toggle (ikon Matahari/Bulan dalam satu *pill* dinamis), dan Avatar User.
+3.  **Kartu Statistik (KPI Cards):**
+    *   Menggunakan *soft shadow*. Pada *hover*, kartu terangkat naik (`translate-y: -4px`) dan bayangan membesar.
+    *   Dilengkapi *Micro-sparkline* (grafik mini) di bawah angka jika mewakili data yang memiliki tren.
+4.  **Tombol (Buttons):**
+    *   Tombol aksi utama (Primer) menggunakan warna solid aksen dengan efek klik *bounce/scale* mengecil ke dalam (`scale: 0.96`).
+    *   Tombol sekunder/batal menggunakan desain *outline* atau *ghost button*.
 
 ---
 
-## Prinsip Desain
+## 5. Spesifikasi Tata Letak Halaman (Layout & Workspace)
 
-1. **Clarity over decoration** — Setiap elemen visual memiliki fungsi. Tidak ada hiasan tanpa tujuan.
-2. **Data first** — Informasi medis ditampilkan dengan hierarki yang jelas; angka penting selalu menonjol.
-3. **Dark mode by default** — Mengurangi kelelahan mata untuk penggunaan jangka panjang di lingkungan klinis.
-4. **Konsistensi warna** — Aksen teal digunakan secara konsisten sebagai penanda status positif, aksi, dan data aktif.
-5. **Accessibilitas** — Kontras teks terhadap background memenuhi standar WCAG AA minimum (ratio ≥ 4.5:1 untuk teks kecil).
+Setiap menu memiliki alur kerja (*workflow*) yang dibedakan tata letaknya sesuai fungsi departemen.
+
+### A. Dashboard Utama (Overview)
+*   **Hero Section:** Banner lebar (*full-width*) melengkung dengan gradasi Emerald Teal. Berisi logo RS, Unit Kerja, dan teks "LIVE" berkedip dengan *ticker* informasi pasien berjalan.
+*   **Tabel Elevated:** Tabel pasien bukan grid kaku, melainkan *list* di mana setiap baris (`<tr>`) adalah entitas kartu tersendiri.
+*   **Interaksi Hover Baris:** Saat disorot, baris terangkat (Lift-up), *background* berubah cerah, dan memunculkan tombol aksi mini (opsional).
+*   **Animasi Tampil:** Data di-load menggunakan *Staggered Fade Slide Up* (muncul satu persatu dari bawah ke atas).
+
+### B. Menu Admisi (Penerimaan & Booking)
+*   **Layout:** *Split-screen* (Membagi layar menjadi 2 kolom utama).
+    *   **Kolom Kiri (40%):** Daftar antrian rujukan pasien masuk (*Vertical Card List*).
+    *   **Kolom Kanan (60%):** Denah Bed interaktif (*Mini Map*).
+*   **Interaksi Utama (Drag & Drop):** Petugas dapat menyeret (*drag*) nama pasien dari antrian kiri, lalu menjatuhkannya (*drop*) ke kotak Bed hijau (kosong) di peta kanan untuk mengalokasikan kamar secara langsung.
+
+### C. Menu ICU (Clinical Monitoring Center)
+*   **Layout:** *Grid View* secara default (Kartu Kotak 4x3 atau disesuaikan dengan jumlah Bed).
+*   **Bed Card UI:**
+    *   Tiap kartu mewakili 1 Bed (misal: ICU-01). Menampilkan Nama Pasien, No MR.
+    *   Menampilkan data vital (HR, BP, SpO2) dengan **grafik denyut (sparkline) neon** yang berjalan *real-time*.
+*   **Sistem Peringatan (Alerts):** Jika parameter pasien melewati batas kritis, pinggiran kartu (*border*) akan **berdenyut merah (*pulsating glow*)**.
+*   **Toggle:** Terdapat tombol kecil di kanan atas untuk beralih dari tampilan *Grid* (Peta Bed) ke tampilan *Table/List* klasik.
+
+### D. Menu Petugas Ruang (Manajemen Bangsal & SPRI)
+*   **Fokus:** Menampilkan daftar pasien bangsal yang sedang dirawat petugas terkait dan alur pembuatan SPRI (Surat Permintaan Rawat ICU).
+*   **Layout Panel (3 Bagian):**
+    1.  **Panel Pencarian/Daftar Pasien:** Tampilan baris *elevated*. Petugas mencari pasien yang kondisinya memburuk, lalu klik "Pilih".
+    2.  **Panel Pembuatan SPRI (Modal Kanan/Overlay):** Formulir *Glassmorphism* minimalis. Data medis pasien otomatis terisi (*auto-fill*). Petugas hanya memilih Indikasi ICU (Dropdown) dan Tingkat Kegawatan.
+    3.  **Riwayat SPRI:** Tampilan kartu ringkas (mirip resi) di bagian bawah yang menunjukkan status SPRI yang pernah dibuat (Menunggu, Disetujui, Ditolak).
 
 ---
 
-## Referensi Desain
+## 6. Feedback & Interaksi Tambahan
 
-- **Inspirasi**: Klinik digital modern, health-tech SaaS platform
-- **Mood Board**: Dark teal + emerald, clean data visualization, professional medical aesthetics
-- **Target Pengguna**: Dokter, administrator klinik, pasien yang melek teknologi
-- **Platform**: Web (desktop-first, responsif ke tablet)
+*   **Skeleton Loading:** Ganti *spinner* berputar konvensional dengan *Skeleton Screens* (bentuk blok abu-abu yang berkedip napas/pulsing) saat memuat data pasien/grafik untuk persepsi memuat data yang lebih cepat.
+*   **Auto-Refresh Indicator:** Titik hijau berdenyut (*pinging dot*) di pojok bawah tabel dengan teks *countdown* mundur (misal: "Auto-refresh: 15s").
+*   **Toasts/Notifikasi:** Pemberitahuan sukses/gagal muncul melayang (*floating*) di pojok kanan atas dengan animasi masuk dan keluar (slide).

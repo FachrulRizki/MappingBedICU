@@ -17,13 +17,7 @@ const props = defineProps({
     flash:       { type: Object, default: () => ({}) },
 });
 
-// ── Flash ──────────────────────────────────────────────────
-const toast = ref(null);
-watch(() => props.flash, (f) => {
-    if (f?.success) toast.value = { type: 'success', msg: f.success };
-    if (f?.error)   toast.value = { type: 'error',   msg: f.error   };
-    if (toast.value) setTimeout(() => toast.value = null, 4000);
-}, { immediate: true, deep: true });
+// Flash ditangani oleh FlashMessage global di AppLayout — tidak perlu toast lokal
 
 // ── Filters ────────────────────────────────────────────────
 const fStatus = ref(props.filters.filterStatus ?? '');
@@ -51,30 +45,30 @@ const sortIcon = (col) => sortBy.value !== col ? '↕' : sortDir.value === 'asc'
 
 // ── Style helpers ──────────────────────────────────────────
 const SS = {
-    pending_icu:     { bg: 'rgba(224,146,58,.15)',  color: '#E0923A', dot: '#E0923A' },
-    pending_admisi:  { bg: 'rgba(245,166,35,.15)',  color: '#F5A623', dot: '#F5A623' },
-    bed_confirmed:   { bg: 'rgba(74,144,217,.15)',  color: '#4A90D9', dot: '#4A90D9' },
-    bed_verified:    { bg: 'rgba(45,217,164,.15)',  color: '#2DD9A4', dot: '#2DD9A4' },
-    admisi_verified: { bg: 'rgba(45,217,164,.15)',  color: '#2DD9A4', dot: '#2DD9A4' },
-    ditolak:         { bg: 'rgba(224,112,80,.15)',  color: '#E07050', dot: '#E07050' },
+    pending_icu:     { bg: 'rgba(230,126,34,.15)',  color: '#E67E22', dot: '#E67E22' },
+    pending_admisi:  { bg: 'rgba(245,166,35,.15)',  color: '#E67E22', dot: '#E67E22' },
+    bed_confirmed:   { bg: 'rgba(52,152,219,.15)',  color: '#3498DB', dot: '#3498DB' },
+    bed_verified:    { bg: 'rgba(0,168,132,.15)',  color: '#00A884', dot: '#00A884' },
+    admisi_verified: { bg: 'rgba(0,168,132,.15)',  color: '#00A884', dot: '#00A884' },
+    ditolak:         { bg: 'rgba(231,76,60,.15)',  color: '#E74C3C', dot: '#E74C3C' },
 };
 const ss = (s) => SS[s] ?? { bg: 'var(--bg-input)', color: 'var(--text-secondary)', dot: '#888' };
 
 const SRC = {
-    external: { bg: 'rgba(74,144,217,.12)', color: '#4A90D9' },
-    internal: { bg: 'rgba(142,168,158,.12)', color: '#8EA89E' },
+    external: { bg: 'rgba(52,152,219,.12)', color: '#3498DB' },
+    internal: { bg: 'rgba(90,107,124,.12)', color: '#5A6B7C' },
 };
 const jaminanLabel = (k) => props.caraBayar.find(c => c.kode === k)?.nama ?? k ?? '-';
 const gIcon  = (g) => g === 'L' ? '♂' : g === 'P' ? '♀' : '·';
-const gColor = (g) => g === 'L' ? '#4A90D9' : g === 'P' ? '#D9517A' : 'var(--text-secondary)';
+const gColor = (g) => g === 'L' ? '#3498DB' : g === 'P' ? '#8E44AD' : 'var(--text-secondary)';
 
 // ── Summary cards ──────────────────────────────────────────
 const CARDS = computed(() => [
-    { key:'',               label:'Total',           val: props.summary.total        ?? 0, color:'#8EA89E' },
-    { key:'pending_admisi', label:'Menunggu Admisi',  val: props.antrian.filter(a=>a.status==='pending_admisi').length, color:'#F5A623' },
-    { key:'bed_confirmed',  label:'Perlu Verifikasi', val: props.antrian.filter(a=>a.status==='bed_confirmed').length,  color:'#4A90D9' },
-    { key:'admisi_verified',label:'Selesai',          val: props.summary.verified      ?? 0, color:'#2DD9A4' },
-    { key:'ditolak',        label:'Ditolak',          val: props.summary.ditolak       ?? 0, color:'#E07050' },
+    { key:'',               label:'Total',           val: props.summary.total        ?? 0, color:'#5A6B7C' },
+    { key:'pending_admisi', label:'Menunggu Admisi',  val: props.antrian.filter(a=>a.status==='pending_admisi').length, color:'#E67E22' },
+    { key:'bed_confirmed',  label:'Perlu Verifikasi', val: props.antrian.filter(a=>a.status==='bed_confirmed').length,  color:'#3498DB' },
+    { key:'admisi_verified',label:'Selesai',          val: props.summary.verified      ?? 0, color:'#00A884' },
+    { key:'ditolak',        label:'Ditolak',          val: props.summary.ditolak       ?? 0, color:'#E74C3C' },
 ]);
 
 // ── Aksi yang tersedia per item ────────────────────────────
@@ -84,11 +78,11 @@ const actionsOf = (item) => {
     if (!canAct.value) return [];
     const acts = [];
     if (item.sumber === 'internal' && item.status === 'pending_admisi') {
-        acts.push({ id:'approve', label:'Setujui SPRI', color:'#2DD9A4', bg:'rgba(45,217,164,.12)', border:'rgba(45,217,164,.3)' });
-        acts.push({ id:'tolak',   label:'Tolak SPRI',   color:'#E07050', bg:'rgba(224,112,80,.08)', border:'rgba(224,112,80,.25)' });
+        acts.push({ id:'approve', label:'Setujui SPRI', color:'#00A884', bg:'rgba(0,168,132,.12)', border:'rgba(0,168,132,.3)' });
+        acts.push({ id:'tolak',   label:'Tolak SPRI',   color:'#E74C3C', bg:'rgba(231,76,60,.08)', border:'rgba(231,76,60,.25)' });
     }
     if (item.sumber === 'external' && item.status === 'bed_confirmed') {
-        acts.push({ id:'verifikasi', label:'Verifikasi Pasien', color:'#2DD9A4', bg:'rgba(45,217,164,.12)', border:'rgba(45,217,164,.3)' });
+        acts.push({ id:'verifikasi', label:'Verifikasi Pasien', color:'#00A884', bg:'rgba(0,168,132,.12)', border:'rgba(0,168,132,.3)' });
     }
     return acts;
 };
@@ -213,237 +207,297 @@ const jenisOptions = [
 <template>
 <AppLayout :flash="flash" page-title="Menu Admisi">
 
-    <!-- Toast -->
-    <Transition enter-active-class="transition-all duration-300" enter-from-class="opacity-0 -translate-y-2"
-        leave-active-class="transition-all duration-200" leave-to-class="opacity-0 -translate-y-2">
-        <div v-if="toast" class="fixed top-4 right-4 z-[100] flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold shadow-xl"
-            :style="toast.type==='success'
-                ? 'background:#2DD9A4; color:#0D1A17'
-                : 'background:#E07050; color:#fff'">
-            {{ toast.type==='success' ? '✓' : '✕' }} {{ toast.msg }}
-        </div>
-    </Transition>
+    <div class="p-6 sm:p-8 space-y-6" style="font-family:'Inter','Plus Jakarta Sans',sans-serif">
 
-    <div class="p-4 sm:p-6 space-y-4" style="font-family:'Plus Jakarta Sans',sans-serif">
-
-        <!-- Header -->
-        <div class="flex items-center justify-between gap-3 flex-wrap">
-            <div>
-                <h1 class="font-bold text-xl" style="color:var(--text-primary)">Menu Admisi</h1>
-                <p class="text-xs mt-0.5" style="color:var(--text-secondary)">Booking Eksternal & SPRI Internal</p>
+        <!-- ═══ PAGE HEADER ══════════════════════════════════════════════ -->
+        <div class="flex items-center justify-between gap-4 flex-wrap">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0" style="background:rgba(0,168,132,.15)">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="#00A884" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold tracking-tight" style="color:var(--text-primary)">Menu Admisi</h1>
+                    <p class="text-sm" style="color:var(--text-secondary)">Booking Eksternal &amp; SPRI Internal</p>
+                </div>
             </div>
             <button v-if="canBuatBookingExternal" @click="openModal('booking')"
-                class="flex items-center gap-2 text-sm font-bold px-4 py-2.5 rounded-xl hover:brightness-110 transition-all"
-                style="background:#2DD9A4; color:#0D1A17">
+                class="flex items-center gap-2 font-bold px-5 py-2.5 rounded-xl transition-all duration-150 hover:-translate-y-px"
+                style="background:#00A884; color:var(--text-on-accent); font-size:14px; box-shadow:0 4px 14px rgba(0,168,132,0.3)">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
                 </svg>
-                Booking Baru
+                    Booking Baru
             </button>
         </div>
 
-        <!-- Summary Cards -->
-        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <!-- ═══ KPI SUMMARY CARDS ═══════════════════════════════════════ -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
             <button v-for="c in CARDS" :key="c.key"
                 @click="fStatus=c.key; applyFilters()"
-                class="card-dark p-3 sm:p-3.5 flex items-center gap-2.5 sm:gap-3 text-left transition-all hover:scale-[1.02]"
-                :style="fStatus===c.key ? `border:1.5px solid ${c.color}50` : ''">
-                <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                    :style="`background:${c.color}1A`">
-                    <span class="text-base sm:text-lg font-bold" :style="`color:${c.color}`">{{ c.val }}</span>
-                </div>
-                <p class="text-[10px] sm:text-[11px] leading-tight" style="color:var(--text-secondary)">{{ c.label }}</p>
+                class="relative flex flex-col gap-2 p-5 rounded-2xl text-left transition-all duration-200 hover:-translate-y-1"
+                style="background:var(--bg-card); border:1px solid var(--border-default); box-shadow:var(--shadow-card); min-height:100px"
+                :style="fStatus===c.key ? `border:2.5px solid ${c.color}; box-shadow:0 0 0 3px ${c.color}18` : ''">
+                <span class="absolute left-0 top-6 bottom-6 w-1 rounded-r-full"
+                    :style="`background:${c.color}; opacity:${fStatus===c.key?'1':'0.35'}`"></span>
+                <span class="text-3xl font-bold tracking-tight" :style="`color:${c.color}`">{{ c.val }}</span>
+                <span class="text-xs font-medium leading-tight" style="color:var(--text-secondary)">{{ c.label }}</span>
             </button>
         </div>
 
-        <!-- Breakdown sumber -->
-        <div class="flex items-center gap-3 sm:gap-4 text-[11px] sm:text-xs flex-wrap" style="color:var(--text-secondary)">
-            <span class="flex items-center gap-1.5">
-                <span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#4A90D9"></span>
-                Booking Eksternal: <strong style="color:var(--text-primary)">{{ summary.by_sumber?.external ?? 0 }}</strong>
+        <!-- ═══ BREAKDOWN SUMBER ════════════════════════════════════════ -->
+        <div class="flex items-center gap-3 flex-wrap">
+            <span class="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium"
+                style="background:rgba(52,152,219,.1); border:1px solid rgba(52,152,219,.2)">
+                <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background:#3498DB"></span>
+                <span style="color:var(--text-secondary)">Booking Eksternal</span>
+                <strong class="font-bold" style="color:#3498DB">{{ summary.by_sumber?.external ?? 0 }}</strong>
             </span>
-            <span class="flex items-center gap-1.5">
-                <span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#8EA89E"></span>
-                SPRI Internal: <strong style="color:var(--text-primary)">{{ summary.by_sumber?.internal ?? 0 }}</strong>
+            <span class="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium"
+                style="background:rgba(90,107,124,.1); border:1px solid rgba(90,107,124,.2)">
+                <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background:#5A6B7C"></span>
+                <span style="color:var(--text-secondary)">SPRI Internal</span>
+                <strong class="font-bold" style="color:#5A6B7C">{{ summary.by_sumber?.internal ?? 0 }}</strong>
             </span>
         </div>
 
-        <!-- Filter bar -->
-        <div class="card-dark p-3.5 space-y-3">
-            <!-- Menyesuaikan agar HP jadi 1 kolom, tablet 2 kolom, desktop 4 kolom -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
-                <div>
-                    <label class="block text-[10px] font-semibold mb-1" style="color:var(--text-secondary)">Status</label>
-                    <select v-model="fStatus" @change="applyFilters" class="w-full text-xs px-2.5 py-2 rounded-lg outline-none"
-                        style="border:1px solid var(--border-default); background:var(--bg-surface); color:var(--text-primary)">
+        <!-- ═══ FILTER BAR ══════════════════════════════════════════════ -->
+        <div class="rounded-2xl p-5 sm:p-6 space-y-4" style="background:var(--bg-surface); border:1px solid var(--border-default); box-shadow:var(--shadow-card)">
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="space-y-1.5">
+                    <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Status</label>
+                    <select v-model="fStatus" @change="applyFilters" class="w-full rounded-xl outline-none"
+                        style="padding:10px 14px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary); font-size:13px">
                         <option v-for="o in statusOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
                     </select>
                 </div>
-                <div>
-                    <label class="block text-[10px] font-semibold mb-1" style="color:var(--text-secondary)">Jenis</label>
-                    <select v-model="fJenis" @change="applyFilters" class="w-full text-xs px-2.5 py-2 rounded-lg outline-none"
-                        style="border:1px solid var(--border-default); background:var(--bg-surface); color:var(--text-primary)">
+                <div class="space-y-1.5">
+                    <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Jenis</label>
+                    <select v-model="fJenis" @change="applyFilters" class="w-full rounded-xl outline-none"
+                        style="padding:10px 14px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary); font-size:13px">
                         <option v-for="o in jenisOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
                     </select>
                 </div>
-                <div>
-                    <label class="block text-[10px] font-semibold mb-1" style="color:var(--text-secondary)">Nama / No. MR</label>
-                    <input v-model="fNama" @input="onNamaInput" placeholder="Cari..."
-                        class="w-full text-xs px-2.5 py-2 rounded-lg outline-none"
-                        style="border:1px solid var(--border-default); background:var(--bg-surface); color:var(--text-primary)"/>
+                <div class="space-y-1.5">
+                    <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Nama / No. MR</label>
+                    <input v-model="fNama" @input="onNamaInput" placeholder="Cari pasien..." class="w-full rounded-xl outline-none"
+                        style="padding:10px 14px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary); font-size:13px"/>
                 </div>
-                <div>
-                    <label class="block text-[10px] font-semibold mb-1" style="color:var(--text-secondary)">Tanggal</label>
-                    <input v-model="fTgl" @change="applyFilters" type="date"
-                        class="w-full text-xs px-2.5 py-2 rounded-lg outline-none"
-                        style="border:1px solid var(--border-default); background:var(--bg-surface); color:var(--text-primary)"/>
+                <div class="space-y-1.5">
+                    <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Tanggal</label>
+                    <input v-model="fTgl" @change="applyFilters" type="date" class="w-full rounded-xl outline-none"
+                        style="padding:10px 14px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary); font-size:13px"/>
                 </div>
             </div>
-            <div class="flex items-center gap-2 flex-wrap">
-                <span class="text-[10px]" style="color:var(--text-muted)">Urutkan:</span>
+            <div class="flex items-center gap-2.5 flex-wrap">
+                <span class="text-xs font-semibold" style="color:var(--text-muted)">Urutkan:</span>
                 <button v-for="col in [{key:'created_at',label:'Waktu'},{key:'nama_pasien',label:'Nama'},{key:'status',label:'Status'}]"
                     :key="col.key" @click="toggleSort(col.key)"
-                    class="text-[10px] px-2 py-1 rounded-lg font-semibold transition-colors"
+                    class="text-xs font-semibold px-3.5 py-2 rounded-xl transition-all duration-150"
                     :style="sortBy===col.key
-                        ? 'background:rgba(45,217,164,.15); color:#2DD9A4; border:1px solid rgba(45,217,164,.3)'
-                        : 'background:var(--bg-input); color:var(--text-secondary); border:1px solid var(--border-default)'">
+                        ? 'background:rgba(0,168,132,.15); color:#00A884; border:1.5px solid rgba(0,168,132,.35)'
+                        : 'background:var(--bg-input); color:var(--text-secondary); border:1.5px solid var(--border-default)'">
                     {{ col.label }} {{ sortIcon(col.key) }}
                 </button>
                 <button v-if="fStatus||fJenis||fNama||fTgl" @click="resetFilter"
-                    class="text-[10px] px-2 py-1 rounded-lg ml-auto hover:brightness-110 transition-colors"
-                    style="background:rgba(224,112,80,.1); color:#E07050; border:1px solid rgba(224,112,80,.2)">
-                    ✕ Reset
+                    class="ml-auto text-xs font-semibold px-3.5 py-2 rounded-xl flex items-center gap-1.5"
+                    style="background:rgba(231,76,60,.1); color:#E74C3C; border:1.5px solid rgba(231,76,60,.25)">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                    Reset Filter
                 </button>
             </div>
         </div>
 
-        <!-- Empty -->
-        <div v-if="!antrian.length" class="card-dark text-center py-14">
-            <p class="text-sm font-semibold" style="color:var(--text-secondary)">Tidak ada antrian</p>
-            <p class="text-xs mt-1" style="color:var(--text-muted)">Coba reset filter atau tambah booking baru</p>
+
+        <!-- Empty state -->
+        <div v-if="!antrian.length" class="card-dark text-center py-16">
+            <div class="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4" style="background:var(--bg-input)">
+                <svg class="w-7 h-7" style="color:var(--text-muted)" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                </svg>
+            </div>
+            <p class="font-semibold" style="color:var(--text-secondary)">Tidak ada antrian</p>
+            <p class="text-sm mt-1" style="color:var(--text-muted)">Coba reset filter atau tambah booking baru</p>
         </div>
 
         <!-- Content Area -->
         <div v-else class="card-dark overflow-hidden">
             
-            <!-- 💻 TAMPILAN DESKTOP (Tabel) -->
+            <!-- TAMPILAN DESKTOP — Tabel modern spacious -->
             <div class="hidden md:block overflow-x-auto">
-                <table class="w-full text-xs" style="border-collapse:collapse; min-width:700px">
+                <table class="w-full" style="border-collapse:collapse; min-width:860px">
                     <thead>
-                        <tr style="background:var(--bg-main); border-bottom:2px solid var(--border-default)">
-                            <th class="px-3 py-2.5 text-left font-semibold w-7" style="color:var(--text-secondary)">#</th>
-                            <th class="px-3 py-2.5 text-left font-semibold cursor-pointer hover:opacity-80" style="color:var(--text-secondary)" @click="toggleSort('nama_pasien')">Pasien {{ sortIcon('nama_pasien') }}</th>
-                            <th class="px-3 py-2.5 text-left font-semibold" style="color:var(--text-secondary)">Jenis</th>
-                            <th class="px-3 py-2.5 text-left font-semibold" style="color:var(--text-secondary)">Diagnosa / Indikasi</th>
-                            <th class="px-3 py-2.5 text-left font-semibold" style="color:var(--text-secondary)">Jaminan</th>
-                            <th class="px-3 py-2.5 text-left font-semibold" style="color:var(--text-secondary)">Bed</th>
-                            <th class="px-3 py-2.5 text-left font-semibold cursor-pointer hover:opacity-80" style="color:var(--text-secondary)" @click="toggleSort('status')">Status {{ sortIcon('status') }}</th>
-                            <th class="px-3 py-2.5 text-left font-semibold cursor-pointer hover:opacity-80" style="color:var(--text-secondary)" @click="toggleSort('created_at')">Waktu {{ sortIcon('created_at') }}</th>
-                            <th class="px-3 py-2.5 text-center font-semibold w-10"></th>
+                        <tr style="background:var(--bg-surface-2)">
+                            <th class="px-4 py-3.5 text-left w-10" style="color:var(--table-th-color); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; border-bottom:2px solid var(--border-table)">#</th>
+                            <th class="px-4 py-3.5 text-left cursor-pointer select-none" style="color:var(--table-th-color); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; border-bottom:2px solid var(--border-table); min-width:180px" @click="toggleSort('nama_pasien')">
+                                <span class="flex items-center gap-1">Pasien <span style="opacity:.5">{{ sortIcon('nama_pasien') }}</span></span>
+                            </th>
+                            <th class="px-4 py-3.5 text-left" style="color:var(--table-th-color); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; border-bottom:2px solid var(--border-table); min-width:120px">Jenis</th>
+                            <th class="px-4 py-3.5 text-left" style="color:var(--table-th-color); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; border-bottom:2px solid var(--border-table); min-width:200px">Diagnosa / Indikasi</th>
+                            <th class="px-4 py-3.5 text-left" style="color:var(--table-th-color); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; border-bottom:2px solid var(--border-table); min-width:110px">Jaminan</th>
+                            <th class="px-4 py-3.5 text-left" style="color:var(--table-th-color); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; border-bottom:2px solid var(--border-table); min-width:150px">Bed</th>
+                            <th class="px-4 py-3.5 text-left cursor-pointer select-none" style="color:var(--table-th-color); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; border-bottom:2px solid var(--border-table); min-width:140px" @click="toggleSort('status')">
+                                <span class="flex items-center gap-1">Status <span style="opacity:.5">{{ sortIcon('status') }}</span></span>
+                            </th>
+                            <th class="px-4 py-3.5 text-left cursor-pointer select-none" style="color:var(--table-th-color); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; border-bottom:2px solid var(--border-table); min-width:130px" @click="toggleSort('created_at')">
+                                <span class="flex items-center gap-1">Waktu <span style="opacity:.5">{{ sortIcon('created_at') }}</span></span>
+                            </th>
+                            <th class="px-4 py-3.5 text-center w-12" style="border-bottom:2px solid var(--border-table)"></th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr v-for="(item, idx) in antrian" :key="`${item.sumber}-${item.id}`"
                             @click="openModal('detail', item)"
-                            :style="`border-bottom:1px solid var(--border-default); border-left:3px solid ${ss(item.status).dot}`"
-                            class="transition-colors hover:bg-[var(--bg-input)] cursor-pointer group">
-                            <td class="px-3 py-2.5 font-mono" style="color:var(--text-muted)">{{ idx+1 }}</td>
-                            <td class="px-3 py-2.5">
-                                <div class="flex items-center gap-1.5">
-                                    <span class="font-bold flex-shrink-0" :style="`color:${gColor(item.jenis_kelamin)}`">{{ gIcon(item.jenis_kelamin) }}</span>
+                            class="cursor-pointer group"
+                            style="border-bottom:1px solid var(--border-row); transition:background .15s ease, transform .15s ease, box-shadow .15s ease"
+                            :style="`border-left:4px solid ${ss(item.status).dot}`"
+                            @mouseenter="e => { e.currentTarget.style.background='var(--bg-row-hover)'; e.currentTarget.style.transform='translateY(-1px)'; e.currentTarget.style.boxShadow='0 3px 12px rgba(0,0,0,0.07)'; e.currentTarget.style.zIndex='1'; e.currentTarget.style.position='relative'; }"
+                            @mouseleave="e => { e.currentTarget.style.background=''; e.currentTarget.style.transform=''; e.currentTarget.style.boxShadow=''; }">
+                            <!-- # -->
+                            <td class="px-4 py-4">
+                                <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
+                                    style="background:var(--bg-input); color:var(--text-muted); font-family:'DM Mono',monospace">
+                                    {{ idx+1 }}
+                                </span>
+                            </td>
+                            <!-- Pasien -->
+                            <td class="px-4 py-4">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-sm font-bold"
+                                        :style="`background:${gColor(item.jenis_kelamin)}18; color:${gColor(item.jenis_kelamin)}`">
+                                        {{ gIcon(item.jenis_kelamin) }}
+                                    </div>
                                     <div class="min-w-0">
-                                        <p class="font-semibold truncate" style="color:var(--text-primary); max-width:130px">{{ item.nama_pasien }}</p>
-                                        <p class="font-mono text-[10px]" style="color:var(--text-secondary)">{{ item.No_MR ?? '—' }}</p>
+                                        <p class="font-semibold truncate" style="color:var(--text-primary); font-size:13.5px">{{ item.nama_pasien }}</p>
+                                        <p class="font-mono mt-0.5" style="color:var(--text-muted); font-size:10.5px">{{ item.No_MR ?? 'No MR' }}</p>
                                     </div>
                                 </div>
                             </td>
-                            <td class="px-3 py-2.5">
-                                <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap"
+                            <!-- Jenis -->
+                            <td class="px-4 py-4">
+                                <span class="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg whitespace-nowrap"
                                     :style="`background:${SRC[item.sumber]?.bg}; color:${SRC[item.sumber]?.color}`">
+                                    <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" :style="`background:${SRC[item.sumber]?.color}`"></span>
                                     {{ item.sumber_label }}
                                 </span>
                             </td>
-                            <td class="px-3 py-2.5" style="max-width:160px">
-                                <p class="truncate" :title="item.diagnosa" style="color:var(--text-primary)">{{ item.diagnosa ?? '-' }}</p>
+                            <!-- Diagnosa -->
+                            <td class="px-4 py-4">
+                                <p class="font-medium truncate" style="color:var(--text-primary); font-size:13px; max-width:200px" :title="item.diagnosa">{{ item.diagnosa ?? '—' }}</p>
                             </td>
-                            <td class="px-3 py-2.5">
-                                <span v-if="item.jaminan" class="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
-                                    style="background:rgba(74,144,217,.12); color:#4A90D9">{{ jaminanLabel(item.jaminan) }}</span>
-                                <span v-else class="text-[10px]" style="color:var(--text-muted)">—</span>
+                            <!-- Jaminan -->
+                            <td class="px-4 py-4">
+                                <span v-if="item.jaminan" class="text-xs font-semibold px-2.5 py-1 rounded-lg"
+                                    style="background:#EAF4FB; color:#3498DB">{{ jaminanLabel(item.jaminan) }}</span>
+                                <span v-else class="text-xs" style="color:var(--text-muted)">—</span>
                             </td>
-                            <td class="px-3 py-2.5">
-                                <span v-if="item.nama_bed" class="font-semibold text-[11px]" style="color:#2DD9A4">🏥 {{ item.nama_bed }}</span>
-                                <span v-else class="text-[10px]" style="color:var(--text-muted)">—</span>
+                            <!-- Bed -->
+                            <td class="px-4 py-4">
+                                <div v-if="item.nama_bed" class="flex items-center gap-2">
+                                    <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+                                        style="background:#EBF9F1; color:#00A884; font-size:14px">🏥</div>
+                                    <span class="font-semibold text-xs" style="color:#00A884">{{ item.nama_bed }}</span>
+                                </div>
+                                <span v-else class="text-xs" style="color:var(--text-muted)">Belum dialokasi</span>
                             </td>
-                            <td class="px-3 py-2.5">
-                                <span class="text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap"
+                            <!-- Status -->
+                            <td class="px-4 py-4">
+                                <span class="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl whitespace-nowrap"
                                     :style="`background:${ss(item.status).bg}; color:${ss(item.status).color}`">
+                                    <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" :style="`background:${ss(item.status).color}`"></span>
                                     {{ item.status_label }}
                                 </span>
                             </td>
-                            <td class="px-3 py-2.5 font-mono whitespace-nowrap" style="color:var(--text-secondary)">
-                                {{ item.created_at_fmt }}
+                            <!-- Waktu -->
+                            <td class="px-4 py-4">
+                                <p class="font-mono text-xs" style="color:var(--text-secondary)">{{ item.created_at_fmt }}</p>
                             </td>
-                            <td class="px-3 py-2.5 text-center transition-transform group-hover:translate-x-1" style="color:var(--text-muted)">
-                                ❯
+                            <!-- Arrow -->
+                            <td class="px-4 py-4 text-center">
+                                <div class="w-7 h-7 rounded-lg flex items-center justify-center mx-auto transition-all group-hover:translate-x-0.5"
+                                    style="background:var(--bg-input); color:var(--text-muted)">
+                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+                                    </svg>
+                                </div>
                             </td>
                         </tr>
                     </tbody>
                 </table>
             </div>
 
-            <!-- 📱 TAMPILAN MOBILE (Daftar Kartu) -->
+            <!-- TAMPILAN MOBILE — Kartu vertikal -->
             <div class="block md:hidden divide-y" style="border-color:var(--border-default)">
                 <div v-for="(item, idx) in antrian" :key="`mob-${item.sumber}-${item.id}`"
                     @click="openModal('detail', item)"
-                    class="p-4 transition-colors hover:bg-[var(--bg-input)] cursor-pointer relative group"
-                    :style="`border-left:4px solid ${ss(item.status).dot}`">
+                    class="p-5 cursor-pointer relative"
+                    style="border-left:4px solid transparent; transition:background .15s ease"
+                    :style="`border-left-color:${ss(item.status).dot}`"
+                    @mouseenter="e => e.currentTarget.style.background='var(--bg-row-hover)'"
+                    @mouseleave="e => e.currentTarget.style.background=''">
                     
-                    <div class="flex justify-between items-start mb-2 gap-2 pr-4">
+                    <div class="flex justify-between items-start mb-3 gap-2 pr-6">
                         <div class="flex flex-wrap gap-1.5">
-                            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full" :style="`background:${ss(item.status).bg}; color:${ss(item.status).color}`">{{ item.status_label }}</span>
-                            <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full" :style="`background:${SRC[item.sumber]?.bg}; color:${SRC[item.sumber]?.color}`">{{ item.sumber_label }}</span>
+                            <span class="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-lg" :style="`background:${ss(item.status).bg}; color:${ss(item.status).color}`">
+                                <span class="w-1.5 h-1.5 rounded-full" :style="`background:${ss(item.status).color}`"></span>
+                                {{ item.status_label }}
+                            </span>
+                            <span class="text-xs font-semibold px-2 py-1 rounded-lg" :style="`background:${SRC[item.sumber]?.bg}; color:${SRC[item.sumber]?.color}`">{{ item.sumber_label }}</span>
                         </div>
-                        <span class="text-[10px] font-mono whitespace-nowrap" style="color:var(--text-muted)">{{ item.created_at_fmt.split(' ')[0] }}</span>
+                        <span class="text-xs font-mono whitespace-nowrap" style="color:var(--text-muted)">{{ item.created_at_fmt?.split(' ')[0] }}</span>
                     </div>
 
-                    <div class="flex items-center gap-2.5 mb-2.5 pr-4">
-                        <span class="font-bold text-lg flex-shrink-0" :style="`color:${gColor(item.jenis_kelamin)}`">{{ gIcon(item.jenis_kelamin) }}</span>
+                    <div class="flex items-center gap-3 mb-3 pr-6">
+                        <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-base font-bold"
+                            :style="`background:${gColor(item.jenis_kelamin)}18; color:${gColor(item.jenis_kelamin)}`">
+                            {{ gIcon(item.jenis_kelamin) }}
+                        </div>
                         <div class="min-w-0 flex-1">
                             <p class="font-semibold text-sm truncate" style="color:var(--text-primary)">{{ item.nama_pasien }}</p>
-                            <p class="font-mono text-[10px] truncate" style="color:var(--text-secondary)">{{ item.No_MR ?? 'Belum ada MR' }} • {{ jaminanLabel(item.jaminan) }}</p>
+                            <p class="font-mono text-xs truncate" style="color:var(--text-muted)">{{ item.No_MR ?? '—' }} · {{ jaminanLabel(item.jaminan) }}</p>
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-2 gap-3 text-[11px] pr-4">
-                        <div class="min-w-0">
-                            <p style="color:var(--text-muted)">Diagnosa</p>
-                            <p class="font-semibold truncate" style="color:var(--text-secondary)">{{ item.diagnosa ?? '-' }}</p>
+                    <div class="grid grid-cols-2 gap-3 text-xs pr-6">
+                        <div>
+                            <p class="font-medium mb-0.5" style="color:var(--text-muted)">Diagnosa</p>
+                            <p class="font-semibold truncate" style="color:var(--text-secondary)">{{ item.diagnosa ?? '—' }}</p>
                         </div>
-                        <div class="min-w-0">
-                            <p style="color:var(--text-muted)">Bed</p>
-                            <p class="font-semibold truncate" :style="item.nama_bed ? 'color:#2DD9A4' : 'color:var(--text-secondary)'">{{ item.nama_bed ? '🏥 ' + item.nama_bed : '-' }}</p>
+                        <div>
+                            <p class="font-medium mb-0.5" style="color:var(--text-muted)">Bed</p>
+                            <p class="font-semibold truncate" :style="item.nama_bed ? 'color:#00A884' : 'color:var(--text-muted)'">{{ item.nama_bed ? '🏥 ' + item.nama_bed : 'Belum dialokasi' }}</p>
                         </div>
                     </div>
 
-                    <div class="absolute right-4 top-1/2 -translate-y-1/2 text-lg transition-transform group-hover:translate-x-1" style="color:var(--text-muted)">
-                        ❯
+                    <div class="absolute right-4 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg flex items-center justify-center"
+                        style="background:var(--bg-input); color:var(--text-muted)">
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+                        </svg>
                     </div>
                 </div>
             </div>
 
-            <!-- Footer Pagination / Total -->
-            <div class="px-4 py-3" style="border-top:1px solid var(--border-default); background:var(--bg-main)">
-                <p class="text-[11px]" style="color:var(--text-secondary)">
+            <!-- Footer -->
+            <div class="px-5 py-3.5 flex items-center justify-between" style="border-top:1px solid var(--border-default); background:var(--bg-surface-2)">
+                <p class="text-xs" style="color:var(--text-secondary)">
                     Menampilkan <strong style="color:var(--text-primary)">{{ antrian.length }}</strong> data
                 </p>
             </div>
         </div>
     </div>
 
-    <!-- ═══════════════ MODAL WRAPPER ═══════════════════════════════════ -->
-    <Transition enter-active-class="transition-all duration-200" enter-from-class="opacity-0" leave-to-class="opacity-0">
-        <div v-if="modal.open" class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4" style="background:rgba(0,0,0,0.6); backdrop-filter:blur(3px)" @click.self="closeModal">
+    <!-- ═══════════════ MODAL ═══════════════════════════════════════════
+         Pola sama dengan Menu ICU: satu container tetap + inner Transition
+         mode="out-in" → smooth crossfade antar view, tidak ada popping.
+    ══════════════════════════════════════════════════════════════════════ -->
+    <Transition enter-active-class="transition-all duration-300 ease-out" enter-from-class="opacity-0" leave-to-class="opacity-0">
+        <div v-if="modal.open" class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
+            style="background:rgba(0,0,0,0.65); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px)"
+            @click.self="closeModal">
 
             <!-- ── Modal: Detail & Aksi Pasien ──────────────────────────────── -->
             <Transition enter-active-class="transition-all duration-200" enter-from-class="opacity-0 scale-95" leave-to-class="opacity-0 scale-95">
@@ -511,7 +565,7 @@ const jenisOptions = [
                             </div>
                             <div>
                                 <p style="color:var(--text-secondary)">Alokasi Bed</p>
-                                <p class="font-semibold mt-0.5" style="color:#2DD9A4">{{ modal.item.nama_bed ? '🏥 ' + modal.item.nama_bed : '—' }}</p>
+                                <p class="font-semibold mt-0.5" style="color:#00A884">{{ modal.item.nama_bed ? '🏥 ' + modal.item.nama_bed : '—' }}</p>
                                 <p v-if="modal.item.kebutuhan_bed" class="text-[10px] mt-0.5" style="color:var(--text-muted)">{{ modal.item.kebutuhan_bed }}</p>
                             </div>
                             <div>
@@ -520,8 +574,8 @@ const jenisOptions = [
                             </div>
                             
                             <!-- Box Catatan Khusus (Ditolak / Catatan Admisi) -->
-                            <div v-if="modal.item.alasan_tolak" class="sm:col-span-2 p-3 rounded-xl mt-1" style="background:rgba(224,112,80,.08); border:1px solid rgba(224,112,80,.2)">
-                                <p style="color:#E07050" class="font-semibold">Alasan Ditolak:</p>
+                            <div v-if="modal.item.alasan_tolak" class="sm:col-span-2 p-3 rounded-xl mt-1" style="background:rgba(231,76,60,.08); border:1px solid rgba(231,76,60,.2)">
+                                <p style="color:#E74C3C" class="font-semibold">Alasan Ditolak:</p>
                                 <p class="mt-1" style="color:var(--text-primary)">{{ modal.item.alasan_tolak }}</p>
                             </div>
                             <div v-if="modal.item.catatan_admisi" class="sm:col-span-2 p-3 rounded-xl mt-1" style="background:var(--bg-input)">
@@ -569,20 +623,20 @@ const jenisOptions = [
                             <p class="text-[10px] font-bold uppercase tracking-widest mb-2.5" style="color:var(--text-accent)">Identitas Pasien</p>
                             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div class="sm:col-span-2">
-                                    <label class="block text-xs font-semibold mb-1" style="color:var(--text-primary)">Nama Pasien <span style="color:#E07050">*</span></label>
+                                    <label class="block text-xs font-semibold mb-1" style="color:var(--text-primary)">Nama Pasien <span style="color:#E74C3C">*</span></label>
                                     <input v-model="fmBooking.nama_pasien" required placeholder="Nama lengkap" class="w-full text-xs px-3 py-2 rounded-xl outline-none"
-                                        :style="`border:1px solid ${fmBooking.errors.nama_pasien?'#E07050':'var(--border-default)'}; background:var(--bg-surface); color:var(--text-primary)`"/>
-                                    <p v-if="fmBooking.errors.nama_pasien" class="text-[10px] mt-1" style="color:#E07050">{{ fmBooking.errors.nama_pasien }}</p>
+                                        :style="`border:1px solid ${fmBooking.errors.nama_pasien?'#E74C3C':'var(--border-default)'}; background:var(--bg-surface); color:var(--text-primary)`"/>
+                                    <p v-if="fmBooking.errors.nama_pasien" class="text-[10px] mt-1" style="color:#E74C3C">{{ fmBooking.errors.nama_pasien }}</p>
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-semibold mb-1" style="color:var(--text-primary)">Jenis Kelamin <span style="color:#E07050">*</span></label>
+                                    <label class="block text-xs font-semibold mb-1" style="color:var(--text-primary)">Jenis Kelamin <span style="color:#E74C3C">*</span></label>
                                     <div class="flex gap-2">
                                         <button type="button" @click="fmBooking.jenis_kelamin='L'"
                                             class="flex-1 py-2 rounded-xl text-xs font-semibold transition-colors"
-                                            :style="fmBooking.jenis_kelamin==='L' ? 'background:#4A90D9;color:#fff;border:2px solid #4A90D9' : 'background:var(--bg-surface);color:var(--text-secondary);border:2px solid var(--border-default)'">♂ Pria</button>
+                                            :style="fmBooking.jenis_kelamin==='L' ? 'background:#3498DB;color:#fff;border:2px solid #3498DB' : 'background:var(--bg-surface);color:var(--text-secondary);border:2px solid var(--border-default)'">♂ Pria</button>
                                         <button type="button" @click="fmBooking.jenis_kelamin='P'"
                                             class="flex-1 py-2 rounded-xl text-xs font-semibold transition-colors"
-                                            :style="fmBooking.jenis_kelamin==='P' ? 'background:#D9517A;color:#fff;border:2px solid #D9517A' : 'background:var(--bg-surface);color:var(--text-secondary);border:2px solid var(--border-default)'">♀ Wanita</button>
+                                            :style="fmBooking.jenis_kelamin==='P' ? 'background:#8E44AD;color:#fff;border:2px solid #8E44AD' : 'background:var(--bg-surface);color:var(--text-secondary);border:2px solid var(--border-default)'">♀ Wanita</button>
                                     </div>
                                 </div>
                                 <div>
@@ -607,13 +661,13 @@ const jenisOptions = [
                             <p class="text-[10px] font-bold uppercase tracking-widest mb-2.5" style="color:var(--text-accent)">Data Klinis</p>
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
-                                    <label class="block text-xs font-semibold mb-1" style="color:var(--text-primary)">Diagnosa <span style="color:#E07050">*</span></label>
+                                    <label class="block text-xs font-semibold mb-1" style="color:var(--text-primary)">Diagnosa <span style="color:#E74C3C">*</span></label>
                                     <Icd10Search v-model="fmBooking.diagnosa" placeholder="Cari kode ICD-10..."
                                         :required="true" :has-error="!!fmBooking.errors.diagnosa"/>
-                                    <p v-if="fmBooking.errors.diagnosa" class="text-[10px] mt-1" style="color:#E07050">{{ fmBooking.errors.diagnosa }}</p>
+                                    <p v-if="fmBooking.errors.diagnosa" class="text-[10px] mt-1" style="color:#E74C3C">{{ fmBooking.errors.diagnosa }}</p>
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-semibold mb-1" style="color:var(--text-primary)">Rencana Tindakan <span style="color:#E07050">*</span></label>
+                                    <label class="block text-xs font-semibold mb-1" style="color:var(--text-primary)">Rencana Tindakan <span style="color:#E74C3C">*</span></label>
                                     <input v-model="fmBooking.rencana_tindakan" required placeholder="Rencana tindakan ICU" class="w-full text-xs px-3 py-2 rounded-xl outline-none"
                                         style="border:1px solid var(--border-default); background:var(--bg-surface); color:var(--text-primary)"/>
                                 </div>
@@ -630,9 +684,9 @@ const jenisOptions = [
                             <p class="text-[10px] font-bold uppercase tracking-widest mb-2.5" style="color:var(--text-accent)">Jaminan</p>
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
-                                    <label class="block text-xs font-semibold mb-1" style="color:var(--text-primary)">Jenis Jaminan <span style="color:#E07050">*</span></label>
+                                    <label class="block text-xs font-semibold mb-1" style="color:var(--text-primary)">Jenis Jaminan <span style="color:#E74C3C">*</span></label>
                                     <select v-model="fmBooking.jaminan" required class="w-full text-xs px-3 py-2 rounded-xl outline-none"
-                                        :style="`border:1px solid ${fmBooking.errors.jaminan?'#E07050':'var(--border-default)'}; background:var(--bg-surface); color:${fmBooking.jaminan?'var(--text-primary)':'var(--text-secondary)'}`">
+                                        :style="`border:1px solid ${fmBooking.errors.jaminan?'#E74C3C':'var(--border-default)'}; background:var(--bg-surface); color:${fmBooking.jaminan?'var(--text-primary)':'var(--text-secondary)'}`">
                                         <option value="" disabled>-- Pilih Jaminan --</option>
                                         <option v-for="cb in caraBayar" :key="cb.kode" :value="cb.kode">{{ cb.nama }}</option>
                                     </select>
@@ -648,7 +702,7 @@ const jenisOptions = [
                         <div class="flex items-center gap-2 pt-2" style="border-top:1px solid var(--border-default)">
                             <button type="submit" :disabled="fmBooking.processing || !fmBooking.jenis_kelamin || !fmBooking.jaminan"
                                 class="flex items-center justify-center flex-1 sm:flex-none gap-2 text-xs font-bold px-5 py-2.5 rounded-xl disabled:opacity-50"
-                                style="background:#2DD9A4; color:#0D1A17">
+                                style="background:#00A884; color:var(--text-on-accent)">
                                 <svg v-if="fmBooking.processing" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
                                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                                 </svg>
@@ -697,7 +751,7 @@ const jenisOptions = [
                         </div>
                         <div class="flex gap-2">
                             <button type="submit" :disabled="fmApprove.processing" class="flex-1 text-xs font-bold py-2.5 rounded-xl disabled:opacity-50"
-                                style="background:#2DD9A4; color:#0D1A17">
+                                style="background:#00A884; color:var(--text-on-accent)">
                                 {{ fmApprove.processing ? 'Menyimpan...' : '✓ Setujui' }}
                             </button>
                             <button type="button" @click="closeModal" class="px-4 text-xs rounded-xl"
@@ -712,7 +766,7 @@ const jenisOptions = [
                 <div v-if="modal.type==='tolak'" class="w-full max-w-sm rounded-2xl" style="background:var(--bg-sidebar); border:1px solid var(--border-default)">
                     <div class="flex items-center justify-between px-4 sm:px-5 py-4" style="border-bottom:1px solid var(--border-default)">
                         <div>
-                            <p class="font-bold text-sm" style="color:#E07050">Tolak Permintaan</p>
+                            <p class="font-bold text-sm" style="color:#E74C3C">Tolak Permintaan</p>
                             <p class="text-xs mt-0.5" style="color:var(--text-secondary)">{{ modal.item?.nama_pasien }}</p>
                         </div>
                         <button @click="closeModal" class="p-1.5 rounded-lg hover:brightness-110" style="background:var(--bg-input); color:var(--text-secondary)">
@@ -721,16 +775,16 @@ const jenisOptions = [
                     </div>
                     <form @submit.prevent="submitTolak" class="p-4 sm:p-5 space-y-4">
                         <div>
-                            <label class="block text-xs font-semibold mb-1.5" style="color:var(--text-primary)">Alasan Penolakan <span style="color:#E07050">*</span></label>
+                            <label class="block text-xs font-semibold mb-1.5" style="color:var(--text-primary)">Alasan Penolakan <span style="color:#E74C3C">*</span></label>
                             <textarea v-model="fmTolak.alasan_tolak" required rows="3" placeholder="Alasan penolakan SPRI..."
                                 class="w-full text-xs px-3 py-2.5 rounded-xl outline-none resize-none"
                                 style="border:1px solid var(--border-default); background:var(--bg-surface); color:var(--text-primary)"/>
-                            <p v-if="fmTolak.errors.alasan_tolak" class="text-[10px] mt-1" style="color:#E07050">{{ fmTolak.errors.alasan_tolak }}</p>
+                            <p v-if="fmTolak.errors.alasan_tolak" class="text-[10px] mt-1" style="color:#E74C3C">{{ fmTolak.errors.alasan_tolak }}</p>
                         </div>
                         <div class="flex gap-2">
                             <button type="submit" :disabled="fmTolak.processing || !fmTolak.alasan_tolak.trim()"
                                 class="flex-1 text-xs font-bold py-2.5 rounded-xl disabled:opacity-40"
-                                style="background:rgba(224,112,80,.12); color:#E07050; border:1px solid rgba(224,112,80,.3)">
+                                style="background:rgba(231,76,60,.12); color:#E74C3C; border:1px solid rgba(231,76,60,.3)">
                                 {{ fmTolak.processing ? 'Menyimpan...' : '✕ Tolak' }}
                             </button>
                             <button type="button" @click="closeModal" class="px-4 text-xs rounded-xl"
@@ -747,7 +801,7 @@ const jenisOptions = [
                         <div>
                             <p class="font-bold text-sm" style="color:var(--text-primary)">Verifikasi Pasien Tiba</p>
                             <p class="text-[11px] sm:text-xs mt-0.5" style="color:var(--text-secondary)">
-                                {{ modal.item?.nama_pasien }} · Bed: <span style="color:#2DD9A4">{{ modal.item?.nama_bed }}</span>
+                                {{ modal.item?.nama_pasien }} · Bed: <span style="color:#00A884">{{ modal.item?.nama_bed }}</span>
                             </p>
                         </div>
                         <button @click="closeModal" class="p-1.5 rounded-lg hover:brightness-110" style="background:var(--bg-input); color:var(--text-secondary)">
@@ -778,11 +832,11 @@ const jenisOptions = [
                                 <input v-model="fmVerif.No_MR" @keydown.enter.prevent="doVerifLookup"
                                     placeholder="Masukkan No. MR..."
                                     class="flex-1 text-xs px-3 py-2.5 rounded-xl outline-none font-mono"
-                                    :style="`border:1px solid ${verifLookupError ? '#E07050' : verifLookupResult?.found ? '#2DD9A4' : 'var(--border-default)'}; background:var(--bg-surface); color:var(--text-primary)`"/>
+                                    :style="`border:1px solid ${verifLookupError ? '#E74C3C' : verifLookupResult?.found ? '#00A884' : 'var(--border-default)'}; background:var(--bg-surface); color:var(--text-primary)`"/>
                                 <button type="button" @click="doVerifLookup"
                                     :disabled="verifLookupLoading || fmVerif.No_MR.length < 3"
                                     class="flex items-center gap-1.5 text-xs font-semibold px-3 py-2.5 rounded-xl disabled:opacity-40"
-                                    style="background:rgba(45,217,164,.15); color:#2DD9A4; border:1px solid rgba(45,217,164,.3); white-space:nowrap">
+                                    style="background:rgba(0,168,132,.15); color:#00A884; border:1px solid rgba(0,168,132,.3); white-space:nowrap">
                                     <svg v-if="verifLookupLoading" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
                                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
                                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
@@ -793,20 +847,20 @@ const jenisOptions = [
                                     Cari
                                 </button>
                             </div>
-                            <p v-if="fmVerif.errors.No_MR" class="text-[10px] mt-1" style="color:#E07050">{{ fmVerif.errors.No_MR }}</p>
+                            <p v-if="fmVerif.errors.No_MR" class="text-[10px] mt-1" style="color:#E74C3C">{{ fmVerif.errors.No_MR }}</p>
                         </div>
 
                         <!-- Error lookup -->
                         <div v-if="verifLookupError" class="text-xs px-3 py-2 rounded-xl"
-                            style="background:rgba(224,112,80,.08); color:#E07050; border:1px solid rgba(224,112,80,.2)">
+                            style="background:rgba(231,76,60,.08); color:#E74C3C; border:1px solid rgba(231,76,60,.2)">
                             ⚠ {{ verifLookupError }}
                         </div>
 
                         <!-- Hasil lookup ditemukan -->
                         <div v-if="verifLookupResult?.found" class="px-3 py-2.5 rounded-xl text-xs"
-                            style="background:rgba(45,217,164,.08); border:1px solid rgba(45,217,164,.2)">
+                            style="background:rgba(0,168,132,.08); border:1px solid rgba(0,168,132,.2)">
                             <div class="flex items-center gap-2">
-                                <span style="color:#2DD9A4; font-size:14px">✓</span>
+                                <span style="color:#00A884; font-size:14px">✓</span>
                                 <div>
                                     <p class="font-bold" style="color:var(--text-primary)">{{ verifLookupResult.nama_pasien }}</p>
                                     <p class="font-mono text-[10px] mt-0.5" style="color:var(--text-secondary)">{{ verifLookupResult.No_MR }}</p>
@@ -817,14 +871,14 @@ const jenisOptions = [
                         <!-- Pilih kunjungan jika ada lebih dari 1 -->
                         <div v-if="verifKunjungans.length > 1">
                             <label class="block text-xs font-semibold mb-1.5" style="color:var(--text-primary)">
-                                Pilih No. Reg Kunjungan <span style="color:#E07050">*</span>
+                                Pilih No. Reg Kunjungan <span style="color:#E74C3C">*</span>
                             </label>
                             <div class="space-y-1.5 max-h-36 overflow-y-auto pr-1">
                                 <button v-for="k in verifKunjungans" :key="k.No_Reg" type="button"
                                     @click="fmVerif.No_Reg = k.No_Reg"
                                     class="w-full text-left px-3 py-2 rounded-lg text-xs transition-all"
                                     :style="fmVerif.No_Reg === k.No_Reg
-                                        ? 'background:rgba(45,217,164,.12); border:1.5px solid rgba(45,217,164,.4); color:var(--text-primary)'
+                                        ? 'background:rgba(0,168,132,.12); border:1.5px solid rgba(0,168,132,.4); color:var(--text-primary)'
                                         : 'background:var(--bg-input); border:1px solid var(--border-default); color:var(--text-secondary)'">
                                     <span class="font-mono font-semibold">{{ k.No_Reg }}</span>
                                     <span class="ml-2 text-[10px]">· {{ k.nama_ruang || k.Kode_Masuk || '-' }}</span>
@@ -851,7 +905,7 @@ const jenisOptions = [
                             <button type="submit"
                                 :disabled="fmVerif.processing || !fmVerif.No_MR.trim() || !verifLookupResult?.found"
                                 class="flex-1 text-xs font-bold py-2.5 rounded-xl disabled:opacity-40"
-                                style="background:#2DD9A4; color:#0D1A17">
+                                style="background:#00A884; color:var(--text-on-accent)">
                                 {{ fmVerif.processing ? 'Menyimpan...' : '✓ Verifikasi' }}
                             </button>
                             <button type="button" @click="closeModal" class="px-4 text-xs rounded-xl"

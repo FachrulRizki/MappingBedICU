@@ -49,17 +49,17 @@ const doPulang = (p) => {
 };
 
 // ── Gender theme ───────────────────────────────────────────
-const gCardBorder = (g) => g === 'L' ? 'rgba(74,144,217,0.45)'  : g === 'P' ? 'rgba(217,81,122,0.45)'  : 'var(--border-default)';
-const gStripe     = (g) => g === 'L' ? '#4A90D9'                : g === 'P' ? '#D9517A'                : '#2DD9A4';
-const gBadgeBg    = (g) => g === 'L' ? 'rgba(74,144,217,0.15)'  : g === 'P' ? 'rgba(217,81,122,0.15)'  : 'rgba(45,217,164,0.12)';
-const gBadgeColor = (g) => g === 'L' ? '#4A90D9'                : g === 'P' ? '#D9517A'                : '#2DD9A4';
+const gCardBorder = (g) => g === 'L' ? 'rgba(52,152,219,0.45)'  : g === 'P' ? 'rgba(142,68,173,0.45)'  : 'var(--border-default)';
+const gStripe     = (g) => g === 'L' ? '#3498DB'                : g === 'P' ? '#8E44AD'                : '#00A884';
+const gBadgeBg    = (g) => g === 'L' ? 'rgba(52,152,219,0.15)'  : g === 'P' ? 'rgba(142,68,173,0.15)'  : 'rgba(0,168,132,0.12)';
+const gBadgeColor = (g) => g === 'L' ? '#3498DB'                : g === 'P' ? '#8E44AD'                : '#00A884';
 const gLabel      = (g) => g === 'L' ? '♂ Pria' : g === 'P' ? '♀ Wanita' : '— ?';
 
 // ── Sumber badge ───────────────────────────────────────────
 const sumberBadge = (sumber) => ({
-    lama:     { label: 'IGD',      bg: 'rgba(224,146,58,0.15)',  color: '#E0923A' },
-    external: { label: 'External', bg: 'rgba(74,144,217,0.15)',  color: '#4A90D9' },
-    internal: { label: 'Internal', bg: 'rgba(45,217,164,0.15)',  color: '#2DD9A4' },
+    lama:     { label: 'IGD',      bg: 'rgba(230,126,34,0.15)',  color: '#E67E22' },
+    external: { label: 'External', bg: 'rgba(52,152,219,0.15)',  color: '#3498DB' },
+    internal: { label: 'Internal', bg: 'rgba(0,168,132,0.15)',  color: '#00A884' },
 }[sumber] ?? { label: sumber, bg: 'var(--bg-input)', color: 'var(--text-secondary)' });
 
 // ── Counts ─────────────────────────────────────────────────
@@ -74,7 +74,7 @@ const countByGender = computed(() => ({
         <AlertModal   v-bind="alert"   @close="alert.show = false"/>
         <ConfirmModal v-bind="confirm" @confirm="doConfirm" @cancel="confirm.show = false"/>
 
-        <div class="p-4 sm:p-6 space-y-4" style="font-family:'Plus Jakarta Sans',sans-serif">
+        <div class="p-4 sm:p-6 space-y-4" style="font-family:'Inter','Plus Jakarta Sans',sans-serif">
 
             <!-- Header -->
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -84,15 +84,15 @@ const countByGender = computed(() => ({
                 </div>
                 <div class="flex items-center gap-2 flex-wrap">
                     <span class="text-xs font-semibold px-2.5 py-1 rounded-full"
-                        style="background:rgba(74,144,217,0.15); color:#4A90D9; border:1px solid rgba(74,144,217,0.3)">
+                        style="background:rgba(52,152,219,0.15); color:#3498DB; border:1px solid rgba(52,152,219,0.3)">
                         ♂ {{ countByGender.L }} Pria
                     </span>
                     <span class="text-xs font-semibold px-2.5 py-1 rounded-full"
-                        style="background:rgba(217,81,122,0.15); color:#D9517A; border:1px solid rgba(217,81,122,0.3)">
+                        style="background:rgba(142,68,173,0.15); color:#8E44AD; border:1px solid rgba(142,68,173,0.3)">
                         ♀ {{ countByGender.P }} Wanita
                     </span>
                     <span class="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full"
-                        style="background:rgba(45,217,164,0.12); color:#2DD9A4; border:1px solid rgba(45,217,164,0.2)">
+                        style="background:rgba(0,168,132,0.12); color:#00A884; border:1px solid rgba(0,168,132,0.2)">
                         <span class="w-1.5 h-1.5 rounded-full pulse-teal" style="background:#2DC5B2"></span>
                         {{ pasienIcu.length }} Aktif
                     </span>
@@ -104,15 +104,15 @@ const countByGender = computed(() => ({
                 <button @click="activeTab='aktif'"
                     class="flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-sm font-semibold transition-all flex items-center gap-1.5"
                     :style="activeTab==='aktif'
-                        ? 'background:var(--bg-surface); color:#1A9E8F; box-shadow:0 1px 4px rgba(26,158,143,.12)'
+                        ? 'background:var(--bg-surface); color:#008C6E; box-shadow:0 1px 4px rgba(26,158,143,.12)'
                         : 'color:var(--text-secondary)'">
                     Pasien Aktif
-                    <span class="text-xs px-1.5 rounded-full" style="background:rgba(45,217,164,0.15); color:#2DD9A4">{{ pasienIcu.length }}</span>
+                    <span class="text-xs px-1.5 rounded-full" style="background:rgba(0,168,132,0.15); color:#00A884">{{ pasienIcu.length }}</span>
                 </button>
                 <button @click="activeTab='riwayat'"
                     class="flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-sm font-semibold transition-all flex items-center gap-1.5"
                     :style="activeTab==='riwayat'
-                        ? 'background:var(--bg-surface); color:#1A9E8F; box-shadow:0 1px 4px rgba(26,158,143,.12)'
+                        ? 'background:var(--bg-surface); color:#008C6E; box-shadow:0 1px 4px rgba(26,158,143,.12)'
                         : 'color:var(--text-secondary)'">
                     Riwayat
                     <span class="text-xs px-1.5 rounded-full" style="background:var(--bg-input); color:var(--text-secondary)">{{ riwayat.length }}</span>
@@ -194,9 +194,9 @@ const countByGender = computed(() => ({
                             <!-- Pulangkan -->
                             <button v-if="canPulangkan" @click="doPulang(p)"
                                 class="w-full flex items-center justify-center gap-2 text-xs font-semibold px-4 py-2 rounded-xl transition-all"
-                                style="border:1px solid rgba(224,112,80,0.35); color:#E07050; background:rgba(224,112,80,0.06)"
-                                @mouseenter="$el.style.background='rgba(224,112,80,0.14)'"
-                                @mouseleave="$el.style.background='rgba(224,112,80,0.06)'">
+                                style="border:1px solid rgba(231,76,60,0.35); color:#E74C3C; background:rgba(231,76,60,0.06)"
+                                @mouseenter="$el.style.background='rgba(231,76,60,0.14)'"
+                                @mouseleave="$el.style.background='rgba(231,76,60,0.06)'">
                                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round"
                                         d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>

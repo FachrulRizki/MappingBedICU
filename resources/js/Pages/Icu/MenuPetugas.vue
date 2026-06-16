@@ -17,12 +17,8 @@ const props = defineProps({
 });
 
 // ── Toast ──────────────────────────────────────────────────
-const toast = ref(null);
-watch(() => props.flash, (f) => {
-    if (f?.success) toast.value = { type: 'success', msg: f.success };
-    if (f?.error)   toast.value = { type: 'error',   msg: f.error   };
-    if (toast.value) setTimeout(() => toast.value = null, 5000);
-}, { immediate: true, deep: true });
+// Flash ditangani oleh FlashMessage global di AppLayout
+
 
 // ── Filter lokal ───────────────────────────────────────────
 const fStatus = ref(props.filters.fStatus ?? '');
@@ -38,20 +34,20 @@ const resetFilter = () => { fStatus.value=''; fNama.value=''; fTgl.value=''; app
 
 // ── Styles ─────────────────────────────────────────────────
 const SS = {
-    pending_admisi: { bg: 'rgba(245,166,35,.15)', color: '#F5A623', dot: '#F5A623' },
-    pending_icu:    { bg: 'rgba(224,146,58,.15)', color: '#E0923A', dot: '#E0923A' },
-    bed_verified:   { bg: 'rgba(45,217,164,.15)', color: '#2DD9A4', dot: '#2DD9A4' },
-    ditolak:        { bg: 'rgba(224,112,80,.15)', color: '#E07050', dot: '#E07050' },
+    pending_admisi: { bg: 'rgba(245,166,35,.15)', color: '#E67E22', dot: '#E67E22' },
+    pending_icu:    { bg: 'rgba(230,126,34,.15)', color: '#E67E22', dot: '#E67E22' },
+    bed_verified:   { bg: 'rgba(0,168,132,.15)', color: '#00A884', dot: '#00A884' },
+    ditolak:        { bg: 'rgba(231,76,60,.15)', color: '#E74C3C', dot: '#E74C3C' },
 };
 const ss = (s) => SS[s] ?? { bg: 'var(--bg-input)', color: 'var(--text-secondary)', dot: '#888' };
 
 // ── Summary cards ──────────────────────────────────────────
 const CARDS = computed(() => [
-    { key: '',              label: 'Total',         val: props.summary.total        ?? 0, color: '#8EA89E' },
-    { key: 'pending_admisi',label: 'Menunggu Admisi',val: props.spriList.filter(s=>s.status==='pending_admisi').length, color: '#F5A623' },
-    { key: 'pending_icu',   label: 'Menunggu ICU',  val: props.spriList.filter(s=>s.status==='pending_icu').length,    color: '#E0923A' },
-    { key: 'bed_verified',  label: 'Bed Verified',  val: props.summary.bed_verified ?? 0, color: '#2DD9A4' },
-    { key: 'ditolak',       label: 'Ditolak',       val: props.summary.ditolak      ?? 0, color: '#E07050' },
+    { key: '',              label: 'Total',         val: props.summary.total        ?? 0, color: '#5A6B7C' },
+    { key: 'pending_admisi',label: 'Menunggu Admisi',val: props.spriList.filter(s=>s.status==='pending_admisi').length, color: '#E67E22' },
+    { key: 'pending_icu',   label: 'Menunggu ICU',  val: props.spriList.filter(s=>s.status==='pending_icu').length,    color: '#E67E22' },
+    { key: 'bed_verified',  label: 'Bed Verified',  val: props.summary.bed_verified ?? 0, color: '#00A884' },
+    { key: 'ditolak',       label: 'Ditolak',       val: props.summary.ditolak      ?? 0, color: '#E74C3C' },
 ]);
 
 // ── Modal ──────────────────────────────────────────────────
@@ -179,383 +175,331 @@ const statusOptions = [
 <template>
 <AppLayout :flash="flash" page-title="Menu Petugas Internal">
 
-    <!-- Toast -->
-    <Transition enter-active-class="transition-all duration-300" enter-from-class="opacity-0 -translate-y-2" leave-to-class="opacity-0 -translate-y-2">
-        <div v-if="toast" class="fixed top-4 right-4 z-[100] flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold shadow-xl"
-            :style="toast.type==='success' ? 'background:#2DD9A4; color:#0D1A17' : 'background:#E07050; color:#fff'">
-            {{ toast.type==='success' ? '✓' : '✕' }} {{ toast.msg }}
-        </div>
-    </Transition>
 
-    <div class="p-4 sm:p-6 space-y-4" style="font-family:'Plus Jakarta Sans',sans-serif">
+    <div class="p-4 sm:p-6 space-y-4" style="font-family:'Inter','Plus Jakarta Sans',sans-serif">
 
-        <!-- Header -->
-        <div class="flex items-center justify-between gap-3 flex-wrap">
-            <div>
-                <h1 class="font-bold text-xl" style="color:var(--text-primary)">Permintaan Pindah ICU</h1>
-                <p class="text-xs mt-0.5" style="color:var(--text-secondary)">Riwayat SPRI yang saya buat</p>
+        <!-- ═══ PAGE HEADER ══════════════════════════════════════════════ -->
+        <div class="flex items-center justify-between gap-4 flex-wrap">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0" style="background:rgba(52,152,219,.15)">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="#3498DB" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold tracking-tight" style="color:var(--text-primary)">Permintaan Pindah ICU</h1>
+                    <p class="text-sm" style="color:var(--text-secondary)">Daftar SPRI yang saya buat</p>
+                </div>
             </div>
             <button v-if="canBuatSpriInternal || isAdmin" @click="openModal('spri')"
-                class="flex items-center gap-2 text-sm font-bold px-4 py-2.5 rounded-xl"
-                style="background:#2DD9A4; color:#0D1A17">
+                class="flex items-center gap-2 font-bold px-5 py-2.5 rounded-xl transition-all duration-150 hover:-translate-y-px"
+                style="background:#00A884; color:var(--text-on-accent); font-size:14px; box-shadow:0 4px 14px rgba(0,168,132,0.3)">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
                 </svg>
-                Buat Surat Permintaan Rawat ICU
+                Buat Surat Permintaan
             </button>
         </div>
 
-        <!-- Summary -->
-        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <!-- ═══ KPI SUMMARY CARDS ═══════════════════════════════════════ -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
             <button v-for="c in CARDS" :key="c.key" @click="fStatus=c.key; applyFilters()"
-                class="card-dark p-3.5 flex items-center gap-3 text-left transition-all hover:scale-[1.02]"
-                :style="fStatus===c.key ? `border:1.5px solid ${c.color}50` : ''">
-                <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" :style="`background:${c.color}1A`">
-                    <span class="text-lg font-bold" :style="`color:${c.color}`">{{ c.val }}</span>
-                </div>
-                <p class="text-[11px] leading-tight" style="color:var(--text-secondary)">{{ c.label }}</p>
+                class="relative flex flex-col gap-2 p-5 rounded-2xl text-left transition-all duration-200 hover:-translate-y-1"
+                style="background:var(--bg-card); border:1px solid var(--border-default); box-shadow:var(--shadow-card); min-height:100px"
+                :style="fStatus===c.key ? `border:2.5px solid ${c.color}; box-shadow:0 0 0 3px ${c.color}18` : ''">
+                <span class="absolute left-0 top-6 bottom-6 w-1 rounded-r-full" :style="`background:${c.color}; opacity:${fStatus===c.key?'1':'0.35'}`"></span>
+                <span class="text-3xl font-bold tracking-tight" :style="`color:${c.color}`">{{ c.val }}</span>
+                <span class="text-xs font-medium leading-tight" style="color:var(--text-secondary)">{{ c.label }}</span>
             </button>
         </div>
 
-        <!-- Filter -->
-        <div class="card-dark p-3.5">
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                <div>
-                    <label class="block text-[10px] font-semibold mb-1" style="color:var(--text-secondary)">Status</label>
-                    <select v-model="fStatus" @change="applyFilters" class="w-full text-xs px-2.5 py-2 rounded-lg outline-none"
-                        style="border:1px solid var(--border-default); background:var(--bg-surface); color:var(--text-primary)">
+        <!-- ═══ FILTER BAR ══════════════════════════════════════════════ -->
+        <div class="rounded-2xl p-5 sm:p-6 space-y-4" style="background:var(--bg-surface); border:1px solid var(--border-default); box-shadow:var(--shadow-card)">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="space-y-1.5">
+                    <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Status</label>
+                    <select v-model="fStatus" @change="applyFilters" class="w-full rounded-xl outline-none"
+                        style="padding:10px 14px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary); font-size:13px">
                         <option v-for="o in statusOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
                     </select>
                 </div>
-                <div>
-                    <label class="block text-[10px] font-semibold mb-1" style="color:var(--text-secondary)">Nama / No. MR</label>
-                    <input v-model="fNama" @input="onNamaInput" placeholder="Cari..." class="w-full text-xs px-2.5 py-2 rounded-lg outline-none"
-                        style="border:1px solid var(--border-default); background:var(--bg-surface); color:var(--text-primary)"/>
+                <div class="space-y-1.5">
+                    <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Nama / No. MR</label>
+                    <input v-model="fNama" @input="onNamaInput" placeholder="Cari pasien..." class="w-full rounded-xl outline-none"
+                        style="padding:10px 14px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary); font-size:13px"/>
                 </div>
-                <div>
-                    <label class="block text-[10px] font-semibold mb-1" style="color:var(--text-secondary)">Tanggal</label>
+                <div class="space-y-1.5">
+                    <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Tanggal</label>
                     <div class="flex gap-2">
-                        <input v-model="fTgl" @change="applyFilters" type="date" class="flex-1 text-xs px-2.5 py-2 rounded-lg outline-none"
-                            style="border:1px solid var(--border-default); background:var(--bg-surface); color:var(--text-primary)"/>
-                        <button v-if="fStatus||fNama||fTgl" @click="resetFilter" class="text-[10px] px-2.5 py-2 rounded-lg"
-                            style="background:rgba(224,112,80,.1); color:#E07050; border:1px solid rgba(224,112,80,.2)">✕</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Empty -->
-        <div v-if="!spriList.length" class="card-dark text-center py-14">
-            <svg class="w-12 h-12 mx-auto mb-3 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2"
-                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-            </svg>
-            <p class="text-sm font-semibold" style="color:var(--text-secondary)">Belum ada SPRI</p>
-            <p class="text-xs mt-1" style="color:var(--text-muted)">Klik "Buat SPRI Baru" untuk memulai</p>
-        </div>
-
-        <!-- List SPRI — 1 layer, semua info tampil -->
-        <div v-else class="space-y-3">
-            <div v-for="item in spriList" :key="item.id"
-                class="card-dark overflow-hidden cursor-pointer transition-all hover:shadow-md"
-                :style="`border-left:3px solid ${ss(item.status).dot}`"
-                @click="openModal('detail', item)">
-
-                <!-- Row utama -->
-                <div class="px-4 py-3.5 flex items-center justify-between gap-3 flex-wrap">
-                    <!-- Pasien + identitas -->
-                    <div class="flex items-center gap-3 min-w-0">
-                        <div class="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-sm"
-                            style="background:rgba(45,217,164,.12); color:#2DD9A4">
-                            {{ item.nama_pasien?.charAt(0)?.toUpperCase() ?? '?' }}
-                        </div>
-                        <div class="min-w-0">
-                            <p class="font-bold text-sm truncate" style="color:var(--text-primary)">{{ item.nama_pasien }}</p>
-                            <div class="flex items-center gap-2 mt-0.5 flex-wrap">
-                                <span class="font-mono text-[10px]" style="color:var(--text-secondary)">{{ item.No_MR }}</span>
-                                <span class="text-[10px]" style="color:var(--text-muted)">No. Reg: {{ item.No_Reg }}</span>
-                            </div>
-                        </div>
-                    </div>
-                    <!-- Status + Waktu -->
-                    <div class="flex flex-col items-end gap-1 flex-shrink-0">
-                        <span class="text-[10px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap"
-                            :style="`background:${ss(item.status).bg}; color:${ss(item.status).color}`">
-                            {{ item.status_label }}
-                        </span>
-                        <span class="text-[10px] font-mono" style="color:var(--text-muted)">{{ item.created_at_fmt }}</span>
-                    </div>
-                </div>
-
-                <!-- Info detail dalam 1 layer -->
-                <div class="px-4 pb-3.5 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2" style="border-top:1px solid var(--border-default)">
-                    <div class="pt-2.5">
-                        <p class="text-[10px]" style="color:var(--text-secondary)">Diagnosa</p>
-                        <p class="text-xs font-semibold mt-0.5 truncate" :title="item.Diagnosis" style="color:var(--text-primary)">{{ item.Diagnosis }}</p>
-                    </div>
-                    <div class="pt-2.5">
-                        <p class="text-[10px]" style="color:var(--text-secondary)">Indikasi RI</p>
-                        <p class="text-xs font-semibold mt-0.5 truncate" :title="item.IndikasiRI" style="color:var(--text-primary)">{{ item.IndikasiRI }}</p>
-                    </div>
-                    <div class="pt-2.5">
-                        <p class="text-[10px]" style="color:var(--text-secondary)">Asal Ruang</p>
-                        <p class="text-xs mt-0.5 truncate" style="color:var(--text-primary)">{{ item.asal_ruang ?? '-' }}</p>
-                    </div>
-                    <div class="pt-2.5">
-                        <p class="text-[10px]" style="color:var(--text-secondary)">Dokter</p>
-                        <p class="text-xs mt-0.5 truncate" style="color:var(--text-primary)">{{ item.Dokter ?? '-' }}</p>
-                    </div>
-                    <div v-if="item.nama_bed" class="pt-1.5 col-span-2">
-                        <p class="text-[10px]" style="color:var(--text-secondary)">Bed Dialokasikan</p>
-                        <p class="text-xs font-semibold mt-0.5" style="color:#2DD9A4">🏥 {{ item.nama_bed }} <span v-if="item.kebutuhan_bed">({{ item.kebutuhan_bed }})</span></p>
-                    </div>
-                    <div v-if="item.catatan_admisi" class="pt-1.5 col-span-2">
-                        <p class="text-[10px]" style="color:var(--text-secondary)">Catatan Admisi</p>
-                        <p class="text-xs mt-0.5" style="color:var(--text-primary)">{{ item.catatan_admisi }}</p>
-                    </div>
-                    <div v-if="item.alasan_tolak" class="pt-1.5 col-span-4">
-                        <p class="text-[10px]" style="color:var(--text-secondary)">Alasan Penolakan</p>
-                        <p class="text-xs mt-0.5" style="color:#E07050">{{ item.alasan_tolak }}</p>
-                    </div>
-                    <!-- Progress tracker -->
-                    <div class="pt-2 col-span-2 sm:col-span-4 flex items-center gap-1.5 flex-wrap">
-                        <template v-for="(step, i) in [
-                            { key:'pending_admisi', label:'Menunggu Admisi' },
-                            { key:'pending_icu',    label:'Menunggu ICU' },
-                            { key:'bed_verified',   label:'Bed Verified' },
-                        ]" :key="step.key">
-                            <div class="flex items-center gap-1.5">
-                                <div class="w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold flex-shrink-0"
-                                    :style="item.status === 'ditolak' && i > 0
-                                        ? 'background:rgba(224,112,80,.15); color:#E07050'
-                                        : ['bed_verified'].includes(item.status) || (item.status === 'pending_icu' && i === 0) || (item.status === 'bed_verified')
-                                            ? 'background:rgba(45,217,164,.2); color:#2DD9A4'
-                                            : item.status === step.key
-                                                ? 'background:rgba(224,146,58,.2); color:#E0923A'
-                                                : 'background:var(--bg-input); color:var(--text-muted)'">
-                                    {{ i + 1 }}
-                                </div>
-                                <span class="text-[9px]" style="color:var(--text-muted)">{{ step.label }}</span>
-                            </div>
-                            <div v-if="i < 2" class="w-6 h-px flex-shrink-0" style="background:var(--border-default)"></div>
-                        </template>
+                        <input v-model="fTgl" @change="applyFilters" type="date" class="flex-1 rounded-xl outline-none"
+                            style="padding:10px 14px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary); font-size:13px"/>
+                        <button v-if="fStatus||fNama||fTgl" @click="resetFilter"
+                            class="px-3.5 rounded-xl font-semibold text-xs flex items-center"
+                            style="background:rgba(231,76,60,.1); color:#E74C3C; border:1.5px solid rgba(231,76,60,.25)">
+                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- ═══════════════ MODALS ════════════════════════════════════════════ -->
-    <Transition enter-active-class="transition-all duration-200" enter-from-class="opacity-0" leave-to-class="opacity-0">
-        <div v-if="modal.open" class="fixed inset-0 z-50 flex items-center justify-center p-4"
-            style="background:rgba(0,0,0,0.6); backdrop-filter:blur(3px)" @click.self="closeModal">
+        <!-- ═══ EMPTY STATE ═════════════════════════════════════════════ -->
+        <div v-if="!spriList.length" class="rounded-2xl flex flex-col items-center justify-center py-20 px-8 text-center"
+            style="background:var(--bg-surface); border:1px solid var(--border-default); box-shadow:var(--shadow-card)">
+            <div class="w-20 h-20 rounded-3xl flex items-center justify-center mb-5"
+                style="background:rgba(52,152,219,.1); border:1.5px dashed rgba(52,152,219,.3)">
+                <svg class="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="#3498DB" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+            </div>
+            <p class="text-base font-bold mb-1.5" style="color:var(--text-primary)">Belum Ada SPRI</p>
+            <p class="text-sm max-w-xs" style="color:var(--text-muted)">Buat Surat Permintaan Rawat ICU baru dengan klik tombol di atas.</p>
+        </div>
 
-            <!-- Modal: Buat SPRI Baru -->
+        <!-- ═══ LIST SPRI ════════════════════════════════════════════════ -->
+        <div v-else class="space-y-4">
+            <div v-for="item in spriList" :key="item.id"
+                class="rounded-2xl overflow-hidden cursor-pointer transition-all duration-200"
+                style="background:var(--bg-surface); border:1px solid var(--border-default); box-shadow:var(--shadow-card)"
+                :style="`border-left:4px solid ${ss(item.status).dot}`"
+                @click="openModal('detail', item)"
+                onmouseenter="this.style.boxShadow='var(--shadow-card-hover)'; this.style.transform='translateY(-1px)'"
+                onmouseleave="this.style.boxShadow='var(--shadow-card)'; this.style.transform=''">
+                <!-- Top: pasien + status -->
+                <div class="px-5 py-4 flex items-center justify-between gap-4 flex-wrap">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 font-bold text-sm"
+                            style="background:rgba(0,168,132,.12); color:#00A884">
+                            {{ item.nama_pasien?.charAt(0)?.toUpperCase() ?? '?' }}
+                        </div>
+                        <div class="min-w-0">
+                            <p class="font-bold truncate" style="color:var(--text-primary); font-size:14px">{{ item.nama_pasien }}</p>
+                            <div class="flex items-center gap-2 mt-0.5">
+                                <span class="font-mono text-xs" style="color:var(--text-muted)">{{ item.No_MR }}</span>
+                                <span class="text-xs" style="color:var(--text-muted)">· {{ item.No_Reg }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3 flex-shrink-0">
+                        <span class="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full whitespace-nowrap"
+                            :style="`background:${ss(item.status).bg}; color:${ss(item.status).color}`">
+                            <span class="w-1.5 h-1.5 rounded-full" :style="`background:${ss(item.status).dot}`"></span>
+                            {{ item.status_label }}
+                        </span>
+                        <span class="font-mono text-xs" style="color:var(--text-muted)">{{ item.created_at_fmt }}</span>
+                    </div>
+                </div>
+                <!-- Detail -->
+                <div class="px-5 pb-4 grid grid-cols-2 sm:grid-cols-4 gap-4" style="border-top:1px solid var(--border-default); padding-top:14px">
+                    <div><p class="text-xs mb-0.5" style="color:var(--text-muted)">Diagnosa</p><p class="text-sm font-semibold truncate" style="color:var(--text-primary)">{{ item.Diagnosis }}</p></div>
+                    <div><p class="text-xs mb-0.5" style="color:var(--text-muted)">Indikasi RI</p><p class="text-sm font-semibold truncate" style="color:var(--text-primary)">{{ item.IndikasiRI }}</p></div>
+                    <div><p class="text-xs mb-0.5" style="color:var(--text-muted)">Asal Ruang</p><p class="text-sm truncate" style="color:var(--text-secondary)">{{ item.asal_ruang ?? '—' }}</p></div>
+                    <div><p class="text-xs mb-0.5" style="color:var(--text-muted)">Dokter</p><p class="text-sm truncate" style="color:var(--text-secondary)">{{ item.Dokter ?? '—' }}</p></div>
+                    <div v-if="item.nama_bed" class="col-span-2">
+                        <p class="text-xs mb-0.5" style="color:var(--text-muted)">Bed Dialokasikan</p>
+                        <p class="text-sm font-bold" style="color:#00A884">🏥 {{ item.nama_bed }}<span v-if="item.kebutuhan_bed" class="font-normal text-xs ml-1" style="color:var(--text-muted)">({{ item.kebutuhan_bed }})</span></p>
+                    </div>
+                    <div v-if="item.alasan_tolak" class="col-span-4 rounded-xl p-3" style="background:rgba(231,76,60,.06); border:1px solid rgba(231,76,60,.2)">
+                        <p class="text-xs font-bold mb-1" style="color:#E74C3C">Alasan Penolakan</p>
+                        <p class="text-sm" style="color:var(--text-primary)">{{ item.alasan_tolak }}</p>
+                    </div>
+                    <!-- Progress tracker -->
+                    <div class="col-span-2 sm:col-span-4 flex items-center gap-3 flex-wrap pt-1">
+                        <template v-for="(step, i) in [{key:'pending_admisi',label:'Menunggu Admisi'},{key:'pending_icu',label:'Menunggu ICU'},{key:'bed_verified',label:'Bed Verified'}]" :key="step.key">
+                            <div class="flex items-center gap-2">
+                                <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                                    :style="item.status==='ditolak'&&i>0 ? 'background:rgba(231,76,60,.15);color:#E74C3C'
+                                        : item.status==='bed_verified'||(item.status==='pending_icu'&&i===0) ? 'background:rgba(0,168,132,.2);color:#00A884'
+                                        : item.status===step.key ? 'background:rgba(230,126,34,.2);color:#E67E22'
+                                        : 'background:var(--bg-input);color:var(--text-muted)'">
+                                    {{ item.status==='bed_verified'||(item.status==='pending_icu'&&i===0) ? '✓' : (i+1) }}
+                                </div>
+                                <span class="text-xs" style="color:var(--text-muted)">{{ step.label }}</span>
+                            </div>
+                            <div v-if="i<2" class="w-8 h-px" style="background:var(--border-default)"></div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+    </div>
+
+    <!-- ═══════════════ MODALS ════════════════════════════════════════════ -->
+    <Transition enter-active-class="transition-all duration-300 ease-out" enter-from-class="opacity-0" leave-to-class="opacity-0">
+        <div v-if="modal.open" class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
+            style="background:rgba(0,0,0,0.65); backdrop-filter:blur(8px)" @click.self="closeModal">
+
+            <!-- ── Modal: Buat SPRI ──────────────────────────────────── -->
             <Transition enter-active-class="transition-all duration-200" enter-from-class="opacity-0 scale-95" leave-to-class="opacity-0 scale-95">
-                <div v-if="modal.type==='spri'" class="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl" style="background:var(--bg-sidebar); border:1px solid var(--border-default)">
-                    <div class="flex items-center justify-between px-5 py-4 sticky top-0 z-10" style="background:var(--bg-sidebar); border-bottom:1px solid var(--border-default)">
+                <div v-if="modal.type==='spri'" class="w-full max-w-2xl max-h-[92vh] overflow-y-auto"
+                    style="background:var(--bg-surface); border:1px solid var(--border-default); border-radius:20px; box-shadow:0 25px 60px rgba(0,0,0,0.2)">
+                    <!-- Header sticky -->
+                    <div class="flex items-center justify-between px-6 py-5 sticky top-0 z-10"
+                        style="background:var(--bg-surface); border-bottom:1px solid var(--border-default)">
                         <div>
-                            <p class="font-bold text-sm" style="color:var(--text-primary)">Surat Permintaan Rawat ICU</p>
+                            <h2 class="text-base font-bold" style="color:var(--text-primary)">Surat Permintaan Rawat ICU</h2>
                             <p class="text-xs mt-0.5" style="color:var(--text-secondary)">Pasien Internal — akan diteruskan ke Admisi</p>
                         </div>
-                        <button @click="closeModal" class="p-1.5 rounded-lg" style="background:var(--bg-input); color:var(--text-secondary)">
+                        <button @click="closeModal" class="w-8 h-8 rounded-xl flex items-center justify-center"
+                            style="background:var(--bg-input); color:var(--text-secondary)">
                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                         </button>
                     </div>
-                    <!-- Gradient header strip seperti SpriInternal.vue -->
-                    <div class="px-5 py-3" style="background:linear-gradient(90deg,#4A90D9,#2DD9A4)">
-                        <p class="text-sm font-bold text-white">Surat Permintaan Rawat ICU — Pasien Internal</p>
+                    <!-- Gradient strip -->
+                    <div class="px-6 py-3" style="background:linear-gradient(90deg,#3498DB,#00A884)">
+                        <p class="text-sm font-bold text-white">SPRI — Pasien Internal</p>
                     </div>
-
-                    <form @submit.prevent="submitSpri" class="p-5 space-y-5">
-
+                    <form @submit.prevent="submitSpri" class="p-6 space-y-6">
                         <!-- 1. Verifikasi Pasien -->
-                        <div>
-                            <p class="text-xs font-bold uppercase tracking-wide mb-3" style="color:var(--text-accent)">1. Verifikasi Pasien</p>
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <!-- No. MR -->
-                                <div>
-                                    <label class="block text-xs font-semibold mb-1" style="color:var(--text-primary)">
-                                        No. Medical Record <span style="color:#E07050">*</span>
-                                    </label>
+                        <div class="space-y-3">
+                            <p class="text-xs font-bold uppercase tracking-widest" style="color:var(--text-accent)">1. Verifikasi Pasien</p>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div class="space-y-1.5">
+                                    <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">No. Medical Record <span style="color:#E74C3C">*</span></label>
                                     <div class="relative">
                                         <input v-model="fmSpri.No_MR" required placeholder="Ketik No. MR..."
-                                            class="w-full px-3 py-2.5 text-sm rounded-xl outline-none font-mono pr-8"
-                                            :style="`border:1px solid ${fmSpri.errors.No_MR || lookupError ? '#E07050' : lookupResult?.found ? '#2DD9A4' : 'var(--border-default)'}; background:var(--bg-surface); color:var(--text-primary)`"/>
-                                        <div class="absolute right-2.5 top-1/2 -translate-y-1/2">
-                                            <svg v-if="lookupLoading" class="w-4 h-4 animate-spin" style="color:var(--text-secondary)" fill="none" viewBox="0 0 24 24">
-                                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                                            </svg>
-                                            <span v-else-if="lookupResult?.found" style="color:#2DD9A4" class="text-sm">✓</span>
-                                            <span v-else-if="lookupError" style="color:#E07050" class="text-sm">✕</span>
+                                            class="w-full rounded-xl outline-none font-mono pr-10"
+                                            style="padding:10px 14px; font-size:13px"
+                                            :style="`border:1.5px solid ${fmSpri.errors.No_MR||lookupError?'#E74C3C':lookupResult?.found?'#00A884':'var(--border-default)'}; background:var(--bg-input); color:var(--text-primary)`"/>
+                                        <div class="absolute right-3 top-1/2 -translate-y-1/2">
+                                            <svg v-if="lookupLoading" class="w-4 h-4 animate-spin" style="color:var(--text-muted)" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                                            <span v-else-if="lookupResult?.found" class="text-sm font-bold" style="color:#00A884">✓</span>
+                                            <span v-else-if="lookupError" class="text-sm font-bold" style="color:#E74C3C">✕</span>
                                         </div>
                                     </div>
-                                    <p v-if="fmSpri.errors.No_MR" class="text-xs mt-1" style="color:#E07050">{{ fmSpri.errors.No_MR }}</p>
-                                    <p v-else-if="lookupError" class="text-xs mt-1" style="color:#E07050">{{ lookupError }}</p>
-                                    <p v-else-if="lookupResult?.found" class="text-xs mt-1 font-semibold" style="color:#2DD9A4">✓ {{ lookupResult.nama_pasien }}</p>
+                                    <p v-if="lookupError" class="text-xs" style="color:#E74C3C">{{ lookupError }}</p>
+                                    <p v-else-if="lookupResult?.found" class="text-xs font-semibold" style="color:#00A884">✓ {{ lookupResult.nama_pasien }}</p>
                                 </div>
-                                <!-- No. Reg -->
-                                <div>
-                                    <label class="block text-xs font-semibold mb-1" style="color:var(--text-primary)">
-                                        No. Registrasi Kunjungan <span style="color:#E07050">*</span>
-                                    </label>
-                                    <select v-if="kunjungans.length > 1" v-model="fmSpri.No_Reg"
-                                        @change="onKunjunganChange(fmSpri.No_Reg)"
-                                        class="w-full px-3 py-2.5 text-sm rounded-xl outline-none"
-                                        style="border:1px solid var(--border-default); background:var(--bg-surface); color:var(--text-primary)">
-                                        <option value="" disabled>-- Pilih Kunjungan --</option>
-                                        <option v-for="k in kunjungans" :key="k.No_Reg" :value="k.No_Reg">
-                                            {{ k.No_Reg }}{{ k.asal_ruang ? ' — ' + k.asal_ruang : '' }}
-                                        </option>
+                                <div class="space-y-1.5">
+                                    <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">No. Registrasi Kunjungan <span style="color:#E74C3C">*</span></label>
+                                    <select v-if="kunjungans.length > 1" v-model="fmSpri.No_Reg" @change="onKunjunganChange(fmSpri.No_Reg)"
+                                        class="w-full rounded-xl outline-none" style="padding:10px 14px; font-size:13px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary)">
+                                        <option value="" disabled>— Pilih Kunjungan —</option>
+                                        <option v-for="k in kunjungans" :key="k.No_Reg" :value="k.No_Reg">{{ k.No_Reg }}{{ k.asal_ruang ? ' — '+k.asal_ruang : '' }}</option>
                                     </select>
-                                    <input v-else type="text" :value="fmSpri.No_Reg" readonly tabindex="-1"
-                                        class="w-full px-3 py-2.5 text-sm rounded-xl outline-none opacity-70 cursor-not-allowed"
-                                        :style="`border:1px solid ${fmSpri.errors.No_Reg ? '#E07050' : 'var(--border-default)'}; background:var(--bg-surface); color:var(--text-primary)`"
-                                        :placeholder="!lookupResult?.found ? 'Isi No. MR dulu' : (kunjungans.length === 0 ? 'Tidak ada kunjungan aktif' : '')"/>
-                                    <p v-if="fmSpri.errors.No_Reg" class="text-xs mt-1" style="color:#E07050">{{ fmSpri.errors.No_Reg }}</p>
+                                    <input v-else readonly :value="fmSpri.No_Reg" :placeholder="!lookupResult?.found?'Isi No. MR dulu':'Tidak ada kunjungan aktif'"
+                                        class="w-full rounded-xl outline-none cursor-not-allowed opacity-60"
+                                        style="padding:10px 14px; font-size:13px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary)"/>
                                 </div>
                             </div>
                         </div>
-
-                        <!-- 2. Data dari Rekam Medis (read-only, auto-fill) -->
-                        <div>
-                            <p class="text-xs font-bold uppercase tracking-wide mb-3" style="color:var(--text-accent)">2. Data dari Rekam Medis</p>
-                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                <div>
-                                    <label class="block text-xs font-semibold mb-1" style="color:var(--text-secondary)">Diagnosis (Rekam Medis)</label>
-                                    <input type="text" :value="diagnosisExisting" readonly
-                                        class="w-full px-3 py-2.5 text-sm rounded-xl outline-none opacity-70 cursor-not-allowed"
-                                        style="border:1px solid var(--border-default); background:var(--bg-surface); color:var(--text-primary)"
-                                        placeholder="Terisi otomatis"/>
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-semibold mb-1" style="color:var(--text-secondary)">Asal Ruang</label>
-                                    <input type="text" :value="fmSpri.asal_ruang" readonly
-                                        class="w-full px-3 py-2.5 text-sm rounded-xl outline-none opacity-70 cursor-not-allowed"
-                                        style="border:1px solid var(--border-default); background:var(--bg-surface); color:var(--text-primary)"
-                                        placeholder="Terisi otomatis"/>
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-semibold mb-1" style="color:var(--text-secondary)">Dokter DPJP</label>
-                                    <input type="text" :value="fmSpri.Dokter" readonly
-                                        class="w-full px-3 py-2.5 text-sm rounded-xl outline-none opacity-70 cursor-not-allowed"
-                                        style="border:1px solid var(--border-default); background:var(--bg-surface); color:var(--text-primary)"
-                                        placeholder="Terisi otomatis"/>
+                        <!-- 2. Data dari Rekam Medis -->
+                        <div class="space-y-3">
+                            <p class="text-xs font-bold uppercase tracking-widest" style="color:var(--text-accent)">2. Data dari Rekam Medis</p>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div v-for="(lbl,field) in {'diagnosisExisting':'Diagnosa (RM)','asal_ruang':'Asal Ruang','Dokter':'Dokter DPJP'}" :key="field" class="space-y-1.5">
+                                    <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">{{ lbl }}</label>
+                                    <input readonly :value="field==='diagnosisExisting'?diagnosisExisting:fmSpri[field]" placeholder="Terisi otomatis"
+                                        class="w-full rounded-xl outline-none cursor-not-allowed opacity-60"
+                                        style="padding:10px 14px; font-size:13px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary)"/>
                                 </div>
                             </div>
                         </div>
-
-                        <!-- 3. Data Klinis untuk ICU -->
-                        <div>
-                            <p class="text-xs font-bold uppercase tracking-wide mb-3" style="color:var(--text-accent)">3. Data Klinis untuk ICU</p>
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div>
-                                    <label class="block text-xs font-semibold mb-1" style="color:var(--text-primary)">
-                                        Diagnosis ICU <span style="color:#E07050">*</span>
-                                    </label>
-                                    <Icd10Search v-model="fmSpri.Diagnosis" placeholder="Cari kode / keterangan ICD10"
-                                        :required="true" :has-error="!!fmSpri.errors.Diagnosis"/>
-                                    <p v-if="fmSpri.errors.Diagnosis" class="text-xs mt-1" style="color:#E07050">{{ fmSpri.errors.Diagnosis }}</p>
+                        <!-- 3. Data Klinis ICU -->
+                        <div class="space-y-3">
+                            <p class="text-xs font-bold uppercase tracking-widest" style="color:var(--text-accent)">3. Data Klinis untuk ICU</p>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div class="space-y-1.5">
+                                    <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Diagnosis ICU <span style="color:#E74C3C">*</span></label>
+                                    <Icd10Search v-model="fmSpri.Diagnosis" placeholder="Cari kode / keterangan ICD10" :required="true" :has-error="!!fmSpri.errors.Diagnosis"/>
+                                    <p v-if="fmSpri.errors.Diagnosis" class="text-xs" style="color:#E74C3C">{{ fmSpri.errors.Diagnosis }}</p>
                                 </div>
-                                <div>
-                                    <label class="block text-xs font-semibold mb-1" style="color:var(--text-primary)">
-                                        Indikasi Rawat ICU <span style="color:#E07050">*</span>
-                                    </label>
+                                <div class="space-y-1.5">
+                                    <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Indikasi Rawat ICU <span style="color:#E74C3C">*</span></label>
                                     <input v-model="fmSpri.IndikasiRI" required placeholder="Alasan klinis butuh ICU"
-                                        class="w-full px-3 py-2.5 text-sm rounded-xl outline-none"
-                                        :style="`border:1px solid ${fmSpri.errors.IndikasiRI ? '#E07050' : 'var(--border-default)'}; background:var(--bg-surface); color:var(--text-primary)`"/>
-                                    <p v-if="fmSpri.errors.IndikasiRI" class="text-xs mt-1" style="color:#E07050">{{ fmSpri.errors.IndikasiRI }}</p>
+                                        class="w-full rounded-xl outline-none"
+                                        style="padding:10px 14px; font-size:13px"
+                                        :style="`border:1.5px solid ${fmSpri.errors.IndikasiRI?'#E74C3C':'var(--border-default)'}; background:var(--bg-input); color:var(--text-primary)`"/>
                                 </div>
-                                <div class="sm:col-span-2">
-                                    <label class="block text-xs font-semibold mb-1" style="color:var(--text-secondary)">Keterangan Klinis</label>
-                                    <textarea v-model="fmSpri.Keterangan" rows="2"
-                                        placeholder="Kondisi terkini, riwayat penyakit, catatan penting untuk ICU"
-                                        class="w-full px-3 py-2.5 text-sm rounded-xl outline-none resize-none"
-                                        style="border:1px solid var(--border-default); background:var(--bg-surface); color:var(--text-primary)"/>
+                                <div class="sm:col-span-2 space-y-1.5">
+                                    <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Keterangan Klinis</label>
+                                    <textarea v-model="fmSpri.Keterangan" rows="3" placeholder="Kondisi terkini, riwayat, catatan penting untuk ICU..."
+                                        class="w-full rounded-xl outline-none resize-none"
+                                        style="padding:10px 14px; font-size:13px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary); line-height:1.6"/>
                                 </div>
                             </div>
                         </div>
-
                         <!-- Actions -->
-                        <div class="flex items-center gap-2 pt-1" style="border-top:1px solid var(--border-default)">
+                        <div class="flex items-center gap-3 pt-2" style="border-top:1px solid var(--border-default)">
                             <button type="submit" :disabled="fmSpri.processing || !canSubmitSpri"
-                                class="flex items-center gap-2 text-sm font-bold px-5 py-2.5 rounded-xl disabled:opacity-40"
-                                style="background:#2DD9A4; color:#0D1A17">
-                                <svg v-if="fmSpri.processing" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                                </svg>
+                                class="flex items-center gap-2 font-bold px-6 py-3 rounded-xl transition-all duration-150 disabled:opacity-40 hover:-translate-y-px"
+                                style="background:#00A884; color:var(--text-on-accent); font-size:14px">
+                                <svg v-if="fmSpri.processing" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
                                 {{ fmSpri.processing ? 'Menyimpan...' : 'Kirim ke Admisi' }}
                             </button>
-                            <button type="button" @click="closeModal"
-                                class="px-5 py-2.5 text-sm rounded-xl"
-                                style="background:var(--bg-main); color:var(--text-secondary); border:1px solid var(--border-default)">Batal</button>
-                            <p v-if="!lookupResult?.found && fmSpri.No_MR.trim()" class="text-xs" style="color:#E0923A">
-                                ⚠ Menunggu verifikasi No. MR...
+                            <button type="button" @click="closeModal" class="px-6 py-3 rounded-xl font-medium"
+                                style="background:var(--bg-input); color:var(--text-secondary); border:1.5px solid var(--border-default); font-size:14px">Batal</button>
+                            <p v-if="!lookupResult?.found && fmSpri.No_MR.trim()" class="text-xs flex items-center gap-1.5" style="color:#E67E22">
+                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                                Menunggu verifikasi No. MR
                             </p>
                         </div>
                     </form>
                 </div>
             </Transition>
 
-            <!-- Modal: Detail SPRI -->
+            <!-- ── Modal: Detail SPRI ─────────────────────────────────── -->
             <Transition enter-active-class="transition-all duration-200" enter-from-class="opacity-0 scale-95" leave-to-class="opacity-0 scale-95">
-                <div v-if="modal.type==='detail' && modal.item" class="w-full max-w-md rounded-2xl overflow-hidden" style="background:var(--bg-sidebar); border:1px solid var(--border-default)">
-                    <div class="flex items-center justify-between px-5 py-4"
-                        :style="`border-bottom:1px solid var(--border-default); border-left:4px solid ${ss(modal.item.status).dot}`">
-                        <div>
-                            <p class="font-bold text-sm" style="color:var(--text-primary)">{{ modal.item.nama_pasien }}</p>
-                            <p class="text-xs mt-0.5 font-mono" style="color:var(--text-secondary)">{{ modal.item.No_MR }} · {{ modal.item.No_Reg }}</p>
+                <div v-if="modal.type==='detail' && modal.item" class="w-full max-w-lg"
+                    style="background:var(--bg-surface); border:1px solid var(--border-default); border-radius:20px; box-shadow:0 25px 60px rgba(0,0,0,0.2); overflow:hidden">
+                    <!-- Header -->
+                    <div class="flex items-start justify-between px-6 py-5"
+                        style="border-bottom:1px solid var(--border-default)"
+                        :style="`border-left:4px solid ${ss(modal.item.status).dot}`">
+                        <div class="flex-1 min-w-0 pr-3">
+                            <div class="flex items-center gap-2 flex-wrap mb-2">
+                                <span class="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full"
+                                    :style="`background:${ss(modal.item.status).bg}; color:${ss(modal.item.status).color}`">
+                                    <span class="w-1.5 h-1.5 rounded-full" :style="`background:${ss(modal.item.status).dot}`"></span>
+                                    {{ modal.item.status_label }}
+                                </span>
+                            </div>
+                            <h2 class="text-base font-bold truncate" style="color:var(--text-primary)">{{ modal.item.nama_pasien }}</h2>
+                            <p class="text-xs font-mono mt-0.5" style="color:var(--text-muted)">{{ modal.item.No_MR }} · {{ modal.item.No_Reg }}</p>
                         </div>
-                        <div class="flex items-center gap-2">
-                            <span class="text-[10px] font-bold px-2.5 py-1 rounded-full"
-                                :style="`background:${ss(modal.item.status).bg}; color:${ss(modal.item.status).color}`">
-                                {{ modal.item.status_label }}
-                            </span>
-                            <button @click="closeModal" class="p-1.5 rounded-lg" style="background:var(--bg-input); color:var(--text-secondary)">
-                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-                            </button>
-                        </div>
+                        <button @click="closeModal" class="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+                            style="background:var(--bg-input); color:var(--text-secondary)">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
                     </div>
-                    <div class="p-5 space-y-3 text-xs">
-                        <div class="grid grid-cols-2 gap-2.5">
-                            <div class="rounded-lg p-2.5" style="background:var(--bg-input)">
-                                <p style="color:var(--text-secondary)">Diagnosa</p>
-                                <p class="font-semibold mt-0.5" style="color:var(--text-primary)">{{ modal.item.Diagnosis }}</p>
+                    <!-- Body -->
+                    <div class="p-6 space-y-4">
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="space-y-0.5">
+                                <p class="text-xs" style="color:var(--text-muted)">Diagnosa</p>
+                                <p class="text-sm font-semibold" style="color:var(--text-primary)">{{ modal.item.Diagnosis }}</p>
                             </div>
-                            <div class="rounded-lg p-2.5" style="background:var(--bg-input)">
-                                <p style="color:var(--text-secondary)">Indikasi RI</p>
-                                <p class="font-semibold mt-0.5" style="color:var(--text-primary)">{{ modal.item.IndikasiRI }}</p>
+                            <div class="space-y-0.5">
+                                <p class="text-xs" style="color:var(--text-muted)">Indikasi RI</p>
+                                <p class="text-sm font-semibold" style="color:var(--text-primary)">{{ modal.item.IndikasiRI }}</p>
                             </div>
-                            <div class="rounded-lg p-2.5" style="background:var(--bg-input)">
-                                <p style="color:var(--text-secondary)">Asal Ruang</p>
-                                <p class="font-semibold mt-0.5" style="color:var(--text-primary)">{{ modal.item.asal_ruang ?? '-' }}</p>
+                            <div class="space-y-0.5">
+                                <p class="text-xs" style="color:var(--text-muted)">Asal Ruang</p>
+                                <p class="text-sm" style="color:var(--text-secondary)">{{ modal.item.asal_ruang ?? '—' }}</p>
                             </div>
-                            <div class="rounded-lg p-2.5" style="background:var(--bg-input)">
-                                <p style="color:var(--text-secondary)">Dokter</p>
-                                <p class="font-semibold mt-0.5" style="color:var(--text-primary)">{{ modal.item.Dokter ?? '-' }}</p>
+                            <div class="space-y-0.5">
+                                <p class="text-xs" style="color:var(--text-muted)">Dokter DPJP</p>
+                                <p class="text-sm" style="color:var(--text-secondary)">{{ modal.item.Dokter ?? '—' }}</p>
                             </div>
-                            <div v-if="modal.item.spesialis" class="rounded-lg p-2.5" style="background:var(--bg-input)">
-                                <p style="color:var(--text-secondary)">Spesialis</p>
-                                <p class="font-semibold mt-0.5" style="color:var(--text-primary)">{{ modal.item.spesialis }}</p>
+                            <div v-if="modal.item.nama_bed" class="col-span-2 rounded-xl p-3.5"
+                                style="background:rgba(0,168,132,.08); border:1.5px solid rgba(0,168,132,.2)">
+                                <p class="text-xs mb-1" style="color:#00A884">Bed Dialokasikan</p>
+                                <p class="text-sm font-bold" style="color:#00A884">🏥 {{ modal.item.nama_bed }}<span v-if="modal.item.kebutuhan_bed" class="font-normal text-xs ml-1" style="color:var(--text-muted)">({{ modal.item.kebutuhan_bed }})</span></p>
                             </div>
-                            <div v-if="modal.item.nama_bed" class="rounded-lg p-2.5 col-span-2" style="background:rgba(45,217,164,.08); border:1px solid rgba(45,217,164,.2)">
-                                <p style="color:#2DD9A4">Bed Dialokasikan</p>
-                                <p class="font-bold mt-0.5" style="color:#2DD9A4">🏥 {{ modal.item.nama_bed }} ({{ modal.item.kebutuhan_bed }})</p>
+                            <div v-if="modal.item.catatan_admisi" class="col-span-2 rounded-xl p-3.5" style="background:var(--bg-input)">
+                                <p class="text-xs mb-1" style="color:var(--text-muted)">Catatan Admisi</p>
+                                <p class="text-sm" style="color:var(--text-primary)">{{ modal.item.catatan_admisi }}</p>
                             </div>
-                            <div v-if="modal.item.catatan_admisi" class="rounded-lg p-2.5 col-span-2" style="background:var(--bg-input)">
-                                <p style="color:var(--text-secondary)">Catatan Admisi</p>
-                                <p class="mt-0.5" style="color:var(--text-primary)">{{ modal.item.catatan_admisi }}</p>
-                            </div>
-                            <div v-if="modal.item.alasan_tolak" class="rounded-lg p-2.5 col-span-2" style="background:rgba(224,112,80,.08); border:1px solid rgba(224,112,80,.2)">
-                                <p style="color:#E07050">Alasan Penolakan</p>
-                                <p class="mt-0.5" style="color:#E07050">{{ modal.item.alasan_tolak }}</p>
+                            <div v-if="modal.item.alasan_tolak" class="col-span-2 rounded-xl p-3.5"
+                                style="background:rgba(231,76,60,.06); border:1.5px solid rgba(231,76,60,.2)">
+                                <p class="text-xs font-bold mb-1" style="color:#E74C3C">Alasan Penolakan</p>
+                                <p class="text-sm" style="color:var(--text-primary)">{{ modal.item.alasan_tolak }}</p>
                             </div>
                         </div>
-                        <div class="pt-1 flex items-center justify-between text-[10px]" style="color:var(--text-muted)">
+                        <div class="flex items-center justify-between pt-1" style="color:var(--text-muted); font-size:11px">
                             <span>Dibuat: {{ modal.item.created_at_fmt }}</span>
                             <span v-if="modal.item.approved_by">Disetujui: {{ modal.item.approved_by }}</span>
-                            <span v-if="modal.item.verified_by">Diverifikasi: {{ modal.item.verified_by }}</span>
                         </div>
                     </div>
                 </div>

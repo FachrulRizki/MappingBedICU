@@ -51,14 +51,14 @@ const doMasuk = (id, nama) => openConfirm({ title: 'Antar ke Ruangan?', message:
             <!-- Tabs -->
             <div class="flex gap-1 p-1 rounded-xl w-full sm:w-fit overflow-x-auto" style="background:var(--bg-main); border:1px solid var(--border-default)">
                 <button @click="activeTab='alokasi'" class="flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-sm font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap"
-                    :style="activeTab==='alokasi' ? 'background:var(--bg-surface); color:#1A9E8F; box-shadow:0 1px 4px rgba(26,158,143,.1)' : 'color:var(--text-secondary)'">
+                    :style="activeTab==='alokasi' ? 'background:var(--bg-surface); color:#008C6E; box-shadow:0 1px 4px rgba(26,158,143,.1)' : 'color:var(--text-secondary)'">
                     Waiting & Booking
                     <span class="text-xs px-1.5 rounded-full" style="background:#FDF2F2; color:#E05A5A">{{ waiting.length + booking.length }}</span>
                 </button>
                 <button @click="activeTab='denah'" class="flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-sm font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap"
-                    :style="activeTab==='denah' ? 'background:var(--bg-surface); color:#1A9E8F; box-shadow:0 1px 4px rgba(26,158,143,.1)' : 'color:var(--text-secondary)'">
+                    :style="activeTab==='denah' ? 'background:var(--bg-surface); color:#008C6E; box-shadow:0 1px 4px rgba(26,158,143,.1)' : 'color:var(--text-secondary)'">
                     Denah Bed
-                    <span class="text-xs px-1.5 rounded-full" style="background:#F0FBF9; color:#1A9E8F">{{ semuaKamar.length }}</span>
+                    <span class="text-xs px-1.5 rounded-full" style="background:#F0FBF9; color:#008C6E">{{ semuaKamar.length }}</span>
                 </button>
             </div>
 
@@ -75,7 +75,7 @@ const doMasuk = (id, nama) => openConfirm({ title: 'Antar ke Ruangan?', message:
                             <div>
                                 <p class="text-sm font-semibold" style="color:var(--text-primary)">{{ p.nama_pasien }}</p>
                                 <p class="text-xs font-mono mt-0.5" style="color:var(--text-secondary)">{{ p.No_Reg }}</p>
-                                <span class="inline-block mt-1.5 text-xs px-2 py-0.5 rounded-full font-semibold" style="background:#FDE8CC; color:#E0923A">{{ p.required_bed_type }}</span>
+                                <span class="inline-block mt-1.5 text-xs px-2 py-0.5 rounded-full font-semibold" style="background:#FDE8CC; color:#E67E22">{{ p.required_bed_type }}</span>
                             </div>
                             <div class="flex gap-2 flex-wrap">
                                 <select v-model="bedPilihan[p.id]" :disabled="bedCocok(p.required_bed_type).length===0"
@@ -85,7 +85,7 @@ const doMasuk = (id, nama) => openConfirm({ title: 'Antar ke Ruangan?', message:
                                     <option v-for="b in bedCocok(p.required_bed_type)" :key="b.Kode_Ruang" :value="b.Kode_Ruang">{{ b.nama_ruang }}</option>
                                 </select>
                                 <button v-if="bedCocok(p.required_bed_type).length>0" @click="doAlokasi(p.id,p.nama_pasien)"
-                                    class="flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl text-white flex-shrink-0" style="background:#1A9E8F">
+                                    class="flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl text-white flex-shrink-0" style="background:#008C6E">
                                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
                                     Alokasi
                                 </button>
@@ -97,18 +97,18 @@ const doMasuk = (id, nama) => openConfirm({ title: 'Antar ke Ruangan?', message:
                 <!-- Booking -->
                 <div>
                     <p class="text-xs font-bold uppercase tracking-wide mb-3 flex items-center gap-1.5" style="color:var(--text-secondary)">
-                        <span class="w-2 h-2 rounded-full" style="background:#1A9E8F"></span> Siap Transfer ({{ booking.length }})
+                        <span class="w-2 h-2 rounded-full" style="background:#008C6E"></span> Siap Transfer ({{ booking.length }})
                     </p>
                     <div v-if="booking.length===0" class="card-teal text-center py-8" style="color:var(--text-secondary)"><p class="text-sm">Tidak ada booking</p></div>
-                    <div v-for="p in booking" :key="p.id" class="card-teal p-4 mb-3" style="border-left:4px solid #1A9E8F">
+                    <div v-for="p in booking" :key="p.id" class="card-teal p-4 mb-3" style="border-left:4px solid #008C6E">
                         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                             <div>
                                 <p class="text-sm font-semibold" style="color:var(--text-primary)">{{ p.nama_pasien }}</p>
                                 <p class="text-xs font-mono mt-0.5" style="color:var(--text-secondary)">{{ p.No_Reg }} · {{ p.required_bed_type }}</p>
-                                <span class="inline-block mt-1.5 text-xs px-2 py-0.5 rounded-full" style="background:#F0FBF9; color:#1A9E8F">🏥 {{ p.nama_bed }}</span>
+                                <span class="inline-block mt-1.5 text-xs px-2 py-0.5 rounded-full" style="background:#F0FBF9; color:#008C6E">🏥 {{ p.nama_bed }}</span>
                             </div>
                             <button @click="doMasuk(p.id, p.nama_pasien)"
-                                class="flex items-center justify-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl text-white w-full sm:w-auto flex-shrink-0" style="background:#1A9E8F">
+                                class="flex items-center justify-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl text-white w-full sm:w-auto flex-shrink-0" style="background:#008C6E">
                                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
                                 Antar ke Ruangan
                             </button>

@@ -8,11 +8,11 @@ defineProps({
 });
 
 const accents = {
-    teal:  { top: '#1A9E8F', badge: '#F0FBF9', badgeText: '#1A9E8F' },
+    teal:  { top: '#008C6E', badge: '#F0FBF9', badgeText: '#008C6E' },
     mint:  { top: '#2DC5B2', badge: '#E8F9F7', badgeText: '#2DC5B2' },
     coral: { top: '#E05A5A', badge: '#FDF2F2', badgeText: '#E05A5A' },
-    amber: { top: '#E0923A', badge: '#FDF6EE', badgeText: '#E0923A' },
-    sky:   { top: '#4A90D9', badge: '#EEF5FC', badgeText: '#4A90D9' },
+    amber: { top: '#E67E22', badge: '#FDF6EE', badgeText: '#E67E22' },
+    sky:   { top: '#3498DB', badge: '#EEF5FC', badgeText: '#3498DB' },
     gray:  { top: '#8A9E9E', badge: '#F4F7F6', badgeText: '#8A9E9E' },
 };
 </script>

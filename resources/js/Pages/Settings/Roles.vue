@@ -45,7 +45,7 @@ const permLabel = (key) => ({
 const hasPerm = (roles, roleValue) => roles.includes(roleValue);
 
 // ── Role color ─────────────────────────────────────────────
-const roleColor = (value) => props.roles.find(r => r.value === value)?.color ?? '#8EA89E';
+const roleColor = (value) => props.roles.find(r => r.value === value)?.color ?? '#5A6B7C';
 const roleLabel = (value) => props.roles.find(r => r.value === value)?.label ?? value;
 
 // ── Matrix as flat rows for table ─────────────────────────
@@ -86,7 +86,7 @@ const rolePerms = computed(() => {
     <AppLayout :flash="flash" page-title="Role & Permission">
         <AlertModal v-bind="alert" @close="alert.show = false"/>
 
-        <div class="p-4 sm:p-6 space-y-4" style="font-family:'Plus Jakarta Sans',sans-serif">
+        <div class="p-4 sm:p-6 space-y-4" style="font-family:'Inter','Plus Jakarta Sans',sans-serif">
 
             <!-- Header -->
             <div>
@@ -123,7 +123,7 @@ const rolePerms = computed(() => {
                     @click="activeTab = tab.key"
                     class="flex-shrink-0 px-4 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all"
                     :style="activeTab === tab.key
-                        ? 'background:var(--bg-surface); color:#2DD9A4; box-shadow:0 1px 4px rgba(45,217,164,.15)'
+                        ? 'background:var(--bg-surface); color:#00A884; box-shadow:0 1px 4px rgba(0,168,132,.15)'
                         : 'color:var(--text-secondary)'">
                     {{ tab.label }}
                 </button>
@@ -243,9 +243,9 @@ const rolePerms = computed(() => {
 
                 <!-- Catatan penting -->
                 <div class="p-4 rounded-xl text-xs space-y-1.5"
-                    style="background:rgba(224,146,58,0.08); border:1px solid rgba(224,146,58,0.2)">
-                    <p class="font-bold" style="color:#E0923A">⚠ Catatan Penting</p>
-                    <p style="color:var(--text-secondary)">Permission di atas bersifat <strong>tetap berdasarkan role</strong>. Untuk mengubah role seorang user, gunakan halaman <a href="/settings/users" style="color:#2DD9A4; text-decoration:underline">Kelola User</a>.</p>
+                    style="background:rgba(230,126,34,0.08); border:1px solid rgba(230,126,34,0.2)">
+                    <p class="font-bold" style="color:#E67E22">⚠ Catatan Penting</p>
+                    <p style="color:var(--text-secondary)">Permission di atas bersifat <strong>tetap berdasarkan role</strong>. Untuk mengubah role seorang user, gunakan halaman <a href="/settings/users" style="color:#00A884; text-decoration:underline">Kelola User</a>.</p>
                     <p style="color:var(--text-secondary)">Integrasi Keycloak akan menggantikan mekanisme login ini dan mapping role akan dilakukan dari claim JWT Keycloak.</p>
                 </div>
             </div>
