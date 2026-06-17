@@ -95,9 +95,9 @@ const loginSSO = () => {
                 <p class="text-sm mt-1" style="color:var(--text-secondary)">Sistem Monitoring Bed ICU</p>
             </div>
 
-            <h2 class="text-xl font-bold mb-1" style="color:var(--text-primary)">Selamat Datang</h2>
-            <p class="text-sm mb-7" style="color:var(--text-secondary)">Masuk ke akun Anda untuk melanjutkan</p>
-
+            <h2 class="text-xl font-bold mb-1 text-center" style="color:var(--text-primary)">Selamat Datang</h2>
+            <p class="text-sm mb-7 text-center" style="color:var(--text-secondary)">Masuk ke akun Anda untuk melanjutkan</p>
+            
             <!-- Card -->
             <div class="card-dark p-6 sm:p-7 space-y-5">
 
