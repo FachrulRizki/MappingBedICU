@@ -490,10 +490,7 @@ const jenisOptions = [
         </div>
     </div>
 
-    <!-- ═══════════════ MODAL ═══════════════════════════════════════════
-         Pola sama dengan Menu ICU: satu container tetap + inner Transition
-         mode="out-in" → smooth crossfade antar view, tidak ada popping.
-    ══════════════════════════════════════════════════════════════════════ -->
+    <!-- Modal  -->
     <Transition enter-active-class="transition-all duration-300 ease-out" enter-from-class="opacity-0" leave-to-class="opacity-0">
         <div v-if="modal.open" class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
             style="background:rgba(0,0,0,0.65); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px)"

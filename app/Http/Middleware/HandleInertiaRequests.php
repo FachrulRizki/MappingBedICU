@@ -47,6 +47,7 @@ class HandleInertiaRequests extends Middleware
                     'role_color'    => $request->user()->roleColor(),
                     'unit_kerja'    => $request->user()->unit_kerja,
                     'auth_provider' => $request->user()->auth_provider ?? 'local',
+                    'ward_ids'      => $request->user()->getWardIdsArray(),
                 ] : null,
             ],
         ];

@@ -20,7 +20,25 @@ const canSee = (roles) => {
     return roles.includes(userRole.value);
 };
 
-const doLogout = () => router.post(route('logout'));
+const doLogout = () => {
+    // WAJIB pakai form submit biasa, bukan router.post() / fetch
+    // router.post() = XHR → browser blok redirect cross-origin ke Keycloak (CORS error)
+    // Form submit = full page navigation → CORS tidak berlaku
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = route('logout');
+
+    const csrf = document.createElement('input');
+    csrf.type  = 'hidden';
+    csrf.name  = '_token';
+    csrf.value = usePage().props.csrf_token
+        ?? document.querySelector('meta[name="csrf-token"]')?.content
+        ?? '';
+
+    form.appendChild(csrf);
+    document.body.appendChild(form);
+    form.submit();
+};
 
 // ── Theme ──────────────────────────────────────────────────
 const { theme, toggle, init: initTheme } = useTheme();
@@ -82,17 +100,17 @@ const navItems = [
         icon:  'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z',
     },
     {
-        label: 'Petugas Ruang',
+        label: 'Rawat Inap',
         href:  '/icu/menu-petugas',
         roles: ['admin','petugas_ruang'],
         icon:  'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',
     },
-    {
-        label: 'Informasi Bed',
-        href:  '/icu/denah-bed',
-        roles: ['admin','admisi','petugas_icu','petugas_ruang'],
-        icon:  'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4',
-    },
+    // {
+    //     label: 'Informasi Bed',
+    //     href:  '/icu/denah-bed',
+    //     roles: ['admin','admisi','petugas_icu','petugas_ruang'],
+    //     icon:  'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4',
+    // },
 ];
 
 const moreItems = [

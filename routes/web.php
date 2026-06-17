@@ -61,11 +61,10 @@ Route::middleware('auth')->group(function () {
     });
 
     // ── MENU PETUGAS RUANG ────────────────────────────────────────────────
-    Route::get('/icu/menu-petugas', [MenuPetugasController::class, 'index'])->name('icu.menu_petugas');
-
-    Route::post('/icu/menu-petugas/spri', [MenuPetugasController::class, 'storeSpri'])
-        ->name('icu.menu_petugas.spri.store')
-        ->middleware('role:petugas_ruang');
+    Route::get('/icu/menu-petugas',              [MenuPetugasController::class, 'index'])->name('icu.menu_petugas');
+    Route::get('/icu/menu-petugas/pasien-aktif', [MenuPetugasController::class, 'pasienAktifSearch'])->name('icu.menu_petugas.pasien_aktif');
+    Route::get('/icu/menu-petugas/lookup',       [MenuPetugasController::class, 'lookupPasien'])->name('icu.menu_petugas.lookup');
+    Route::post('/icu/menu-petugas/spri',        [MenuPetugasController::class, 'storeSpri'])->name('icu.menu_petugas.spri.store')->middleware('role:petugas_ruang');
 
     // ── SETTINGS (admin only) ─────────────────────────────────────────────
     Route::middleware('role:admin')->group(function () {

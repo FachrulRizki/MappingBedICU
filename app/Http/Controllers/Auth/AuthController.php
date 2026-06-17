@@ -75,18 +75,23 @@ class AuthController extends Controller
                 'auth_provider'     => 'keycloak',
                 'is_active'         => true,
                 'password'          => null,
+                // ward_ids: bangsal scope dari Keycloak token
+                'ward_ids'          => $tokenPayload['ward_ids'] ?? null,
             ]
         );
 
-        // Hapus semua sessions lama milik user ini sebelum buat yang baru
-        // Mencegah session lama yang tersisa di database bisa digunakan kembali
-        \Illuminate\Support\Facades\DB::table('sessions')
-            ->where('user_id', $user->id)
-            ->delete();
+        // Hapus semua sessions lama milik user ini SETELAH kita sudah dapat user object
+        // Jangan hapus sebelum Auth::login karena session OAuth state masih dibutuhkan Socialite
+        $newSessionId = $request->session()->getId(); // simpan dulu session ID saat ini
 
-        // Login tanpa remember — SSO user tidak boleh punya persistent cookie
         Auth::login($user, remember: false);
         $request->session()->regenerate();
+
+        // Hapus session lama milik user ini KECUALI session yang baru saja dibuat
+        \Illuminate\Support\Facades\DB::table('sessions')
+            ->where('user_id', $user->id)
+            ->where('id', '!=', $request->session()->getId())
+            ->delete();
 
         // Simpan id_token asli untuk keperluan logout SSO
         $request->session()->put('auth_via', 'keycloak');

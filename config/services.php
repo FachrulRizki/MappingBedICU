@@ -35,9 +35,7 @@ return [
         ],
     ],
 
-    // ── Keycloak SSO ──────────────────────────────────────────────────────
-    // Digunakan saat aplikasi diakses dari jaringan RS (Keycloak reachable).
-    // Fallback ke login lokal jika Keycloak tidak bisa dijangkau.
+    // Keycloak SSO 
     'keycloak' => [
         'client_id'     => env('KEYCLOAK_CLIENT_ID'),
         'client_secret' => env('KEYCLOAK_CLIENT_SECRET'),

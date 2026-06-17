@@ -21,7 +21,8 @@ class User extends Authenticatable
         // SSO Keycloak
         'keycloak_id',
         'keycloak_username',
-        'auth_provider',    // 'local' | 'keycloak'
+        'auth_provider',
+        'ward_ids',
     ];
 
     protected $hidden = ['password', 'remember_token'];
@@ -32,7 +33,17 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password'          => 'hashed',
             'is_active'         => 'boolean',
+            'ward_ids'          => 'array',
         ];
+    }
+
+    /**
+     * Kode bangsal yang menjadi scope akses user ini.
+     * Dari Keycloak token field 'ward_ids'.
+     */
+    public function getWardIdsArray(): array
+    {
+        return $this->ward_ids ?? [];
     }
 
     // ── Auth provider helpers ──────────────────────────────────────────────
