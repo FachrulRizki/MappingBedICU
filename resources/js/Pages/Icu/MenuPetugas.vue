@@ -80,7 +80,9 @@ const pasienSectionDesc = computed(() =>
 )
 
 // ── Daftar pasien untuk pilih / buat SPRI ─────────────────────────────────────
-const showPasienPanel = ref(false)
+// Panel pasien ditampilkan DI DALAM modal (tab), bukan di halaman utama
+// showPasienPanel hanya untuk mode modal tab
+const modalTab = ref('pasien') // 'pasien' | 'manual' — tab di dalam modal SPRI
 const cariPasien  = ref('')
 const pasienList  = ref(props.pasienAktif ?? [])
 const cariLoading = ref(false)
@@ -109,7 +111,14 @@ const pasienPerRuang = computed(() => {
 
 // ── Modal / Form SPRI ────────────────────────────────────────────────────────
 const modal = ref({ open: false, type: '' })
-const openModal  = (type) => { if (type === 'spri') resetSpri(); modal.value = { open: true, type } }
+const openModal = (type) => {
+    if (type === 'spri') {
+        resetSpri()
+        // Default tab: jika SSO dan ada pasien → tab pasien; selain itu → tab manual
+        modalTab.value = (isSSO.value || pasienList.value.length > 0) ? 'pasien' : 'manual'
+    }
+    modal.value = { open: true, type }
+}
 const closeModal = () => { modal.value.open = false; setTimeout(() => { modal.value = { open: false, type: '' } }, 200) }
 
 const lookupLoading     = ref(false)
@@ -157,8 +166,9 @@ const onKunjunganChange = (nr) => {
 const pilihPasien = (p) => {
     resetSpri()
     fmSpri.No_MR = p.No_MR; fmSpri.No_Reg = p.No_Reg ?? ''; fmSpri.asal_ruang = p.Nama_RuangM ?? ''
-    showPasienPanel.value = false
-    openModal('spri')
+    // Setelah pilih pasien, otomatis lookup dan pindah ke tab form klinis
+    modalTab.value = 'manual'
+    if (p.No_MR) doLookup(p.No_MR)
 }
 const submitSpri = () => fmSpri.post(route('icu.menu_petugas.spri.store'), { onSuccess: closeModal })
 const canSubmit  = computed(() =>
@@ -196,21 +206,7 @@ const canSubmit  = computed(() =>
         </div>
     </div>
     <div class="flex items-center gap-2">
-        <!-- Tombol Pilih Pasien (toggle panel) -->
-        <button @click="showPasienPanel = !showPasienPanel"
-            class="flex items-center gap-2 font-semibold px-4 py-2.5 rounded-xl transition-all duration-150 hover:-translate-y-px"
-            :style="showPasienPanel
-                ? 'background:rgba(52,152,219,.15); color:#3498DB; border:1.5px solid rgba(52,152,219,.3); font-size:13px'
-                : 'background:var(--bg-surface); color:var(--text-secondary); border:1.5px solid var(--border-default); font-size:13px'">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
-            </svg>
-            Pilih Pasien
-            <span v-if="pasienList.length" class="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-                style="background:rgba(52,152,219,.2)">{{ pasienList.length }}</span>
-        </button>
-        <!-- Tombol Buat SPRI manual -->
+        <!-- SATU tombol untuk semua: buka modal yang punya tab pilih pasien + form -->
         <button v-if="canBuatSpriInternal || isAdmin" @click="openModal('spri')"
             class="flex items-center gap-2 font-bold px-5 py-2.5 rounded-xl transition-all duration-150 hover:-translate-y-px"
             style="background:#00A884; color:#fff; font-size:14px; box-shadow:0 4px 14px rgba(0,168,132,0.3)">
@@ -236,136 +232,7 @@ const canSubmit  = computed(() =>
     </button>
 </div>
 
-<!-- ═══ PANEL PILIH PASIEN (toggle) ═════════════════════════════════════════ -->
-<Transition
-    enter-active-class="transition-all duration-300 ease-out"
-    enter-from-class="opacity-0 -translate-y-3"
-    leave-active-class="transition-all duration-200 ease-in"
-    leave-to-class="opacity-0 -translate-y-3">
-<div v-if="showPasienPanel" class="rounded-2xl overflow-hidden"
-    style="background:var(--bg-surface); border:1.5px solid rgba(52,152,219,.3); box-shadow:0 8px 32px rgba(52,152,219,.1)">
-    <!-- Header panel -->
-    <div class="px-5 py-3.5 flex items-center justify-between gap-3 flex-wrap"
-        style="background:rgba(52,152,219,.06); border-bottom:1px solid rgba(52,152,219,.2)">
-        <div class="flex items-center gap-2.5">
-            <div class="w-8 h-8 rounded-xl flex items-center justify-center" style="background:rgba(52,152,219,.15)">
-                <svg class="w-4 h-4" style="color:#3498DB" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round"
-                        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
-                </svg>
-            </div>
-            <div>
-                <p class="text-sm font-bold" style="color:var(--text-primary)">{{ pasienSectionTitle }}</p>
-                <p class="text-xs" style="color:var(--text-secondary)">{{ pasienSectionDesc }}</p>
-            </div>
-            <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                :style="isSSO ? 'background:rgba(0,168,132,.12);color:#00A884' : 'background:rgba(52,152,219,.12);color:#3498DB'">
-                {{ isSSO ? 'SSO · Live' : 'Dev · Lokal' }}
-            </span>
-        </div>
-        <!-- Search -->
-        <div class="relative w-full sm:w-72">
-            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style="color:var(--text-muted)"
-                fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-            </svg>
-            <input v-model="cariPasien"
-                :placeholder="isSSO ? 'Cari nama / No. MR...' : 'Cari pasien...'"
-                class="w-full text-sm pl-9 pr-9 py-2.5 rounded-xl outline-none"
-                style="border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary)"/>
-            <svg v-if="cariLoading" class="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin"
-                style="color:var(--text-muted)" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-            </svg>
-        </div>
-    </div>
-    <!-- Empty state -->
-    <div v-if="!pasienList.length" class="py-14 text-center">
-        <div class="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3" style="background:var(--bg-input)">
-            <svg class="w-6 h-6" style="color:var(--text-muted)" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
-            </svg>
-        </div>
-        <p class="text-sm font-semibold" style="color:var(--text-secondary)">
-            {{ cariPasien ? 'Tidak ada hasil pencarian' : (isSSO ? 'Tidak ada pasien rawat inap aktif' : 'Tidak ada data pasien lokal') }}
-        </p>
-        <p v-if="cariPasien" class="text-xs mt-1" style="color:var(--text-muted)">Coba kata kunci lain atau ketik No. MR langsung</p>
-        <p v-else-if="!isSSO" class="text-xs mt-1" style="color:var(--text-muted)">Jalankan seeder untuk mengisi data dev</p>
-        <p v-else-if="wardIds.length === 0" class="text-xs mt-1 max-w-xs mx-auto" style="color:var(--text-muted)">
-            Ward belum terkonfigurasi di token Keycloak Anda.
-        </p>
-    </div>
-    <!-- Pasien list grouped by ruang — tabel mini -->
-    <div v-else class="overflow-x-auto">
-        <table class="w-full" style="border-collapse:collapse; min-width:560px">
-            <thead>
-                <tr style="background:var(--bg-surface-2,var(--bg-main))">
-                    <th class="px-5 py-3 text-left" style="color:var(--text-muted); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; border-bottom:1.5px solid var(--border-default)">Pasien</th>
-                    <th class="px-5 py-3 text-left" style="color:var(--text-muted); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; border-bottom:1.5px solid var(--border-default)">No. MR</th>
-                    <th class="px-5 py-3 text-left" style="color:var(--text-muted); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; border-bottom:1.5px solid var(--border-default)">No. Reg</th>
-                    <th class="px-5 py-3 text-left" style="color:var(--text-muted); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; border-bottom:1.5px solid var(--border-default)">Ruang Asal</th>
-                    <th class="px-5 py-3 text-center w-28" style="border-bottom:1.5px solid var(--border-default)"></th>
-                </tr>
-            </thead>
-            <tbody>
-                <template v-for="(pasiens, ruang) in pasienPerRuang" :key="ruang">
-                    <!-- Group header -->
-                    <tr>
-                        <td colspan="5" class="px-5 py-2"
-                            style="background:var(--bg-main); border-bottom:1px solid var(--border-default)">
-                            <div class="flex items-center gap-2">
-                                <span style="font-size:12px">🏥</span>
-                                <span class="text-[10px] font-bold uppercase tracking-widest" style="color:var(--text-accent)">{{ ruang }}</span>
-                                <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
-                                    style="background:rgba(52,152,219,.12); color:#3498DB">{{ pasiens.length }}</span>
-                            </div>
-                        </td>
-                    </tr>
-                    <!-- Rows -->
-                    <tr v-for="p in pasiens" :key="p.No_MR"
-                        @click="pilihPasien(p)"
-                        class="cursor-pointer group"
-                        style="border-bottom:1px solid var(--border-row,var(--border-default)); transition:background .12s"
-                        @mouseenter="e => e.currentTarget.style.background='var(--bg-row-hover,var(--bg-surface))'"
-                        @mouseleave="e => e.currentTarget.style.background=''">
-                        <td class="px-5 py-3.5">
-                            <div class="flex items-center gap-2.5">
-                                <div class="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 text-sm font-bold"
-                                    :style="`background:${gColor(p.jenis_kelamin)}18; color:${gColor(p.jenis_kelamin)}`">
-                                    {{ gIcon(p.jenis_kelamin) }}
-                                </div>
-                                <span class="font-semibold text-sm" style="color:var(--text-primary)">{{ p.Nama_Pasien }}</span>
-                            </div>
-                        </td>
-                        <td class="px-5 py-3.5">
-                            <span class="font-mono text-xs" style="color:var(--text-secondary)">{{ p.No_MR }}</span>
-                        </td>
-                        <td class="px-5 py-3.5">
-                            <span v-if="p.No_Reg" class="text-xs font-mono px-2 py-0.5 rounded-lg"
-                                style="background:rgba(52,152,219,.1); color:#3498DB">{{ p.No_Reg }}</span>
-                            <span v-else class="text-xs italic" style="color:var(--text-muted)">—</span>
-                        </td>
-                        <td class="px-5 py-3.5">
-                            <span class="text-xs" style="color:var(--text-secondary)">{{ p.Nama_RuangM ?? '—' }}</span>
-                        </td>
-                        <td class="px-5 py-3.5 text-center">
-                            <button class="inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-1.5 rounded-xl transition-all group-hover:scale-105"
-                                style="background:rgba(0,168,132,.12); color:#00A884; border:1px solid rgba(0,168,132,.3)">
-                                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
-                                </svg>
-                                Buat SPRI
-                            </button>
-                        </td>
-                    </tr>
-                </template>
-            </tbody>
-        </table>
-    </div>
-</div><!-- end panel pasien -->
-</Transition>
+<!-- (Panel pasien dipindah ke dalam modal — tidak ada panel inline di halaman) -->
 
 <!-- ═══ FILTER BAR ════════════════════════════════════════════════════════════ -->
 <div class="rounded-2xl p-5 sm:p-6 space-y-4"

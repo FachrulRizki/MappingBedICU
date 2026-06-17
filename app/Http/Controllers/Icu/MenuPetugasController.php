@@ -88,6 +88,8 @@ class MenuPetugasController extends Controller
             'pasienAktif'  => $this->getPasienAktif(''),
             'wardIds'      => $this->userWardIds(),
             'authProvider' => auth()->user()?->auth_provider ?? 'local',
+            'isIgdUser'    => $this->isIgdUser(),
+            'unitKerja'    => auth()->user()?->unit_kerja ?? '',
             'kamarKosong'  => MRuangMaster::bedKosong(),
             'masterKelas'  => MRuangMaster::jenisIcuTersedia(),
             'flash'        => ['success' => session('success'), 'error' => session('error')],
@@ -96,8 +98,11 @@ class MenuPetugasController extends Controller
 
     /**
      * Ambil daftar pasien aktif:
-     * - Login SSO (Keycloak) → SQL Server, filter ward_ids dari token
-     * - Login lokal (MySQL)  → registrasi_pasien MySQL untuk dev/testing
+     * - Login SSO (Keycloak) → SQL Server
+     *   • Petugas Bangsal (ward_ids): filter Kode_Bangsal dari ward_ids, Status_Pulang = Belum
+     *   • Petugas IGD (ward_ids berisi kode IGD, atau ditandai dari unit_kerja):
+     *     filter Kode_Masuk = '1' (IGD), Status_Pulang = Belum, ambil pasien aktif IGD
+     * - Login lokal (MySQL) → registrasi_pasien untuk dev/testing
      */
     private function getPasienAktif(string $cari): array
     {
@@ -111,6 +116,34 @@ class MenuPetugasController extends Controller
         return $this->getPasienAktifLokal($cari);
     }
 
+    /**
+     * Deteksi apakah user adalah petugas IGD.
+     * IGD ditandai jika ward_ids-nya mengandung kode yang mengandung 'IGD' / 'UGD',
+     * atau unit_kerja user mengandung kata IGD/UGD/Emergency.
+     */
+    private function isIgdUser(): bool
+    {
+        $user = auth()->user();
+        if (! $user) return false;
+
+        // Cek dari unit_kerja field
+        $unitKerja = strtoupper($user->unit_kerja ?? '');
+        if (str_contains($unitKerja, 'IGD') || str_contains($unitKerja, 'UGD') || str_contains($unitKerja, 'EMERGENCY')) {
+            return true;
+        }
+
+        // Cek dari ward_ids — jika semua kode mengandung IGD/UGD
+        $wardIds = $this->userWardIds();
+        foreach ($wardIds as $ward) {
+            $ward = strtoupper($ward);
+            if (str_contains($ward, 'IGD') || str_contains($ward, 'UGD')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private function getPasienAktifSSO(string $cari): array
     {
         $wardIds = $this->userWardIds();
@@ -120,14 +153,35 @@ class MenuPetugasController extends Controller
             $q = DB::connection('sqlsrv_rsus')
                 ->table('PENDAFTARAN as p')
                 ->join('REGISTER_PASIEN as rp', 'p.No_MR', '=', 'rp.No_MR')
-                ->join('M_RUANG_MASTER as rm', 'p.Kode_Ruang', '=', 'rm.Kode_RuangM')
-                ->join('M_BANGSAL as b', 'rm.Kode_Bangsal', '=', 'b.Kode_Bangsal')
-                ->where('p.Medis', 'RAWAT INAP')
+                ->leftJoin('M_RUANG_MASTER as rm', 'p.Kode_Ruang', '=', 'rm.Kode_RuangM')
+                ->leftJoin('M_BANGSAL as b', 'rm.Kode_Bangsal', '=', 'b.Kode_Bangsal')
+                ->leftJoin('DOKTER as d', 'p.Kode_Dokter', '=', 'd.Kode_Dokter')
                 ->where('p.Status', '1')
                 ->where('p.Status_Pulang', 'Belum')
-                ->whereIn('rm.Kode_Bangsal', $wardIds)
-                ->select(['p.No_MR','p.No_Reg','rp.Nama_Pasien','rp.jenis_kelamin',
-                          'rm.Kode_RuangM','rm.Nama_RuangM','b.Kode_Bangsal','b.Nama_Bangsal']);
+                ->select([
+                    'p.No_MR', 'p.No_Reg', 'p.Kode_Masuk', 'p.Kode_Ruang',
+                    'rp.Nama_Pasien', 'rp.jenis_kelamin',
+                    DB::raw("ISNULL(rm.Kode_RuangM, p.Kode_Ruang) as Kode_RuangM"),
+                    DB::raw("ISNULL(rm.Nama_RuangM, p.Kode_Ruang) as Nama_RuangM"),
+                    DB::raw("ISNULL(b.Kode_Bangsal, '') as Kode_Bangsal"),
+                    DB::raw("ISNULL(b.Nama_Bangsal, '') as Nama_Bangsal"),
+                    DB::raw("ISNULL(d.Nama_Dokter, p.PermintaanDPJP) as Nama_Dokter"),
+                ]);
+
+            if ($this->isIgdUser()) {
+                // Petugas IGD: tampilkan pasien yang masuk lewat IGD (Kode_Masuk = '1')
+                // dan ward_ids-nya mengandung kode IGD/UGD atau semua pasien IGD aktif
+                $q->where('p.Kode_Masuk', '1');
+                // Jika ward_ids berisi kode bangsal tertentu, tetap filter
+                $nonIgdWards = array_filter($wardIds, fn($w) => ! (str_contains(strtoupper($w), 'IGD') || str_contains(strtoupper($w), 'UGD')));
+                if (! empty($nonIgdWards)) {
+                    $q->whereIn('rm.Kode_Bangsal', array_values($nonIgdWards));
+                }
+            } else {
+                // Petugas Bangsal Rawat Inap
+                $q->where('p.Medis', 'RAWAT INAP')
+                  ->whereIn('rm.Kode_Bangsal', $wardIds);
+            }
 
             if ($cari) {
                 $q->where(fn ($qq) => $qq
@@ -136,16 +190,18 @@ class MenuPetugasController extends Controller
                 );
             }
 
-            return $q->orderBy('rm.Nama_RuangM')->orderBy('rp.Nama_Pasien')->limit(100)->get()
+            return $q->orderBy('Nama_RuangM')->orderBy('rp.Nama_Pasien')->limit(200)->get()
                 ->map(fn ($r) => [
                     'No_MR'         => $r->No_MR,
                     'No_Reg'        => $r->No_Reg,
+                    'Kode_Masuk'    => $r->Kode_Masuk,
                     'Nama_Pasien'   => $r->Nama_Pasien,
                     'jenis_kelamin' => strtoupper($r->jenis_kelamin ?? ''),
                     'Kode_RuangM'   => $r->Kode_RuangM,
                     'Nama_RuangM'   => $r->Nama_RuangM,
                     'Kode_Bangsal'  => $r->Kode_Bangsal,
                     'Nama_Bangsal'  => $r->Nama_Bangsal,
+                    'Dokter'        => $r->Nama_Dokter ?? '',
                 ])->toArray();
         } catch (\Exception $e) {
             Log::error('[getPasienAktifSSO] ' . $e->getMessage());
@@ -296,9 +352,21 @@ class MenuPetugasController extends Controller
             'Keterangan' => 'nullable|string|max:500',
         ]);
 
-        $spri = IcuSpriInternal::create([...$validated, 'NameUser' => $this->actor(), 'status' => 'pending_admisi']);
+        $user = auth()->user();
+        $spri = IcuSpriInternal::create([
+            ...$validated,
+            'NameUser' => $this->actor(),
+            'status'   => 'pending_admisi',
+        ]);
 
-        return back()->with('success', "SPRI untuk No. MR {$spri->No_MR} berhasil dibuat.");
+        $nama = $spri->No_MR;
+        // Coba ambil nama pasien untuk flash message yang informatif
+        try {
+            $pasien = RegistrasiPasien::where('No_MR', $spri->No_MR)->first();
+            if ($pasien) $nama = $pasien->Nama_Pasien . ' (' . $spri->No_MR . ')';
+        } catch (\Exception) {}
+
+        return back()->with('success', "SPRI untuk {$nama} berhasil dikirim ke Admisi.");
     }
 
     private function format(IcuSpriInternal $s, $pasienMap = null): array
