@@ -99,6 +99,15 @@ class MenuPetugasController extends Controller
             'ditolak'        => $allData->filter(fn ($i) => $i->status === 'ditolak')->count(),
         ];
 
+        Log::info('[DEBUG] actorNames: ' . json_encode($this->actorNames()));
+        Log::info('[DEBUG] ward_ids: ' . json_encode(auth()->user()?->ward_ids));
+
+        $data = $q->get();
+        Log::info('[DEBUG] total rows: ' . $data->count());
+
+        // Cek langsung di DB nama kolom yang dipakai
+        Log::info('[DEBUG] nameUserColumn: ' . $this->nameUserColumn());
+
         return Inertia::render('Icu/MenuPetugas', [
             'spriList'     => $spriList,
             'summary'      => $summary,
@@ -126,29 +135,6 @@ class MenuPetugasController extends Controller
         return $this->getPasienAktifLokal($cari);
     }
 
-    /**
-     * Pisahkan ward_ids menjadi dua grup:
-     * - igdWards:    kode yang mengindikasikan IGD/UGD/Emergency
-     * - bangsalWards: kode bangsal rawat inap biasa
-     */
-    private function splitWardIds(): array
-    {
-        $wardIds      = $this->userWardIds();
-        $igdWards     = [];
-        $bangsalWards = [];
-
-        foreach ($wardIds as $w) {
-            $upper = strtoupper($w);
-            if (str_contains($upper, 'IGD') || str_contains($upper, 'UGD') || str_contains($upper, 'EMR')) {
-                $igdWards[] = $w;
-            } else {
-                $bangsalWards[] = $w;
-            }
-        }
-
-        return [$igdWards, $bangsalWards];
-    }
-
     private function isIgdUser(): bool
     {
         $user = auth()->user();
@@ -161,8 +147,14 @@ class MenuPetugasController extends Controller
         }
 
         // Cek apakah ada kode IGD/UGD di ward_ids
-        [$igdWards] = $this->splitWardIds();
-        return ! empty($igdWards);
+        foreach ($this->userWardIds() as $w) {
+            $upper = strtoupper((string) $w);
+            if (str_contains($upper, 'IGD') || str_contains($upper, 'UGD') || str_contains($upper, 'EMR')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function getPasienAktifSSO(string $cari): array
@@ -171,55 +163,36 @@ class MenuPetugasController extends Controller
         if (empty($wardIds) || ! RegistrasiPasien::rsusAvailable()) return [];
 
         try {
+            $isIgd = $this->isIgdUser();
+
             $q = DB::connection('sqlsrv_rsus')
                 ->table('PENDAFTARAN as p')
                 ->join('REGISTER_PASIEN as rp', 'p.No_MR', '=', 'rp.No_MR')
                 ->leftJoin('M_RUANG_MASTER as rm', 'p.Kode_Ruang', '=', 'rm.Kode_RuangM')
                 ->leftJoin('M_BANGSAL as b', 'rm.Kode_Bangsal', '=', 'b.Kode_Bangsal')
+                // Join tabel DOKTER untuk resolve nama dari kode
                 ->leftJoin('DOKTER as d', 'p.Kode_Dokter', '=', 'd.Kode_Dokter')
                 ->where('p.Status', '1')
                 ->where('p.Status_Pulang', 'Belum')
                 ->select([
                     'p.No_MR', 'p.No_Reg', 'p.Kode_Masuk', 'p.Kode_Ruang',
+                    'p.PermintaanDPJP',
                     'rp.Nama_Pasien', 'rp.jenis_kelamin',
                     DB::raw("ISNULL(rm.Kode_RuangM, p.Kode_Ruang) as Kode_RuangM"),
                     DB::raw("ISNULL(rm.Nama_RuangM, p.Kode_Ruang) as Nama_RuangM"),
                     DB::raw("ISNULL(b.Kode_Bangsal, '') as Kode_Bangsal"),
                     DB::raw("ISNULL(b.Nama_Bangsal, '') as Nama_Bangsal"),
-                    DB::raw("ISNULL(d.Nama_Dokter, p.PermintaanDPJP) as Nama_Dokter"),
+                    // Prioritaskan nama dari tabel DOKTER, fallback ke PermintaanDPJP
+                    DB::raw("ISNULL(NULLIF(LTRIM(RTRIM(d.Nama_Dokter)),''), p.PermintaanDPJP) as Nama_Dokter"),
                 ]);
 
-            if ($this->isIgdUser()) {
-                // ── Petugas IGD (atau campuran IGD + bangsal) ─────────────────
-                // splitWardIds() memisah ["IGD","EDP"] → igdWards=["IGD"], bangsalWards=["EDP"]
-                // "EDP" adalah kode unit kerja user, bukan bangsal pasien → diabaikan.
-                // Jika user punya ward_ids campuran ["IGD","KAJA"]:
-                //   → tampilkan pasien IGD (Kode_Masuk IGD) ATAU pasien Bangsal Kaja
-                [, $bangsalWards] = $this->splitWardIds();
-
-                $q->where(function ($outer) use ($bangsalWards) {
-                    // Kondisi 1: pasien masuk via IGD/UGD
-                    $outer->where(function ($igd) {
-                        $igd->where('p.Kode_Masuk', '1')
-                            ->orWhere('p.Kode_Masuk', '4')
-                            ->orWhere('p.Kode_Masuk', 'like', 'IGD%')
-                            ->orWhere('p.Kode_Masuk', 'like', 'UGD%')
-                            ->orWhere('p.Kode_Masuk', 'like', 'EMR%');
-                    });
-                    // Kondisi 2 (opsional): jika ada kode bangsal rawat inap di ward_ids
-                    if (! empty($bangsalWards)) {
-                        $outer->orWhereIn('rm.Kode_Bangsal', $bangsalWards);
-                    }
-                });
-
-                Log::info('[getPasienAktifSSO] Mode IGD — ward_ids: ' . json_encode($wardIds));
+            if ($isIgd) {
+                $q->where('p.Kode_Masuk', '1');
+                Log::info('[getPasienAktifSSO] Mode IGD, filter Kode_Masuk=1');
             } else {
-                // ── Petugas Bangsal Rawat Inap ─────────────────────────────────
-                // Filter berdasarkan Kode_Bangsal yang ada di ward_ids user.
                 $q->where('p.Medis', 'RAWAT INAP')
                   ->whereIn('rm.Kode_Bangsal', $wardIds);
-
-                Log::info('[getPasienAktifSSO] Mode Bangsal — ward_ids: ' . json_encode($wardIds));
+                Log::info('[getPasienAktifSSO] Mode Bangsal, ward_ids: ' . json_encode($wardIds));
             }
 
             if ($cari) {
@@ -230,25 +203,33 @@ class MenuPetugasController extends Controller
             }
 
             $results = $q->orderBy('Nama_RuangM')->orderBy('rp.Nama_Pasien')->limit(200)->get();
-
-            Log::info('[getPasienAktifSSO] Jumlah pasien: ' . $results->count());
+            Log::info('[getPasienAktifSSO] Jumlah: ' . $results->count());
 
             return $results->map(fn ($r) => [
-                    'No_MR'         => $r->No_MR,
-                    'No_Reg'        => $r->No_Reg,
-                    'Kode_Masuk'    => $r->Kode_Masuk,
-                    'Nama_Pasien'   => $r->Nama_Pasien,
-                    'jenis_kelamin' => strtoupper($r->jenis_kelamin ?? ''),
-                    'Kode_RuangM'   => $r->Kode_RuangM,
-                    'Nama_RuangM'   => $r->Nama_RuangM,
-                    'Kode_Bangsal'  => $r->Kode_Bangsal,
-                    'Nama_Bangsal'  => $r->Nama_Bangsal,
-                    'Dokter'        => $r->Nama_Dokter ?? '',
-                ])->toArray();
+                'No_MR'         => $r->No_MR,
+                'No_Reg'        => $r->No_Reg,
+                'Kode_Masuk'    => $r->Kode_Masuk,
+                'Nama_Pasien'   => $r->Nama_Pasien,
+                'jenis_kelamin' => strtoupper($r->jenis_kelamin ?? ''),
+                'Kode_RuangM'   => $r->Kode_RuangM,
+                'Nama_RuangM'   => $r->Nama_RuangM,
+                'Kode_Bangsal'  => $r->Kode_Bangsal,
+                'Nama_Bangsal'  => $r->Nama_Bangsal,
+                // Format nama dokter ke Title Case agar tidak ALL CAPS
+                'Dokter'        => $this->formatNamaDokter($r->Nama_Dokter ?? ''),
+            ])->toArray();
+
         } catch (\Exception $e) {
-            Log::error('[getPasienAktifSSO] ' . $e->getMessage());
+            Log::error('[getPasienAktifSSO] Error: ' . $e->getMessage());
             return [];
         }
+    }
+
+    private function formatNamaDokter(string $nama): string
+    {
+        $nama = trim($nama);
+        if (empty($nama)) return '';
+        return mb_convert_case(mb_strtolower($nama), MB_CASE_TITLE, 'UTF-8');
     }
 
     private function getPasienAktifLokal(string $cari): array
