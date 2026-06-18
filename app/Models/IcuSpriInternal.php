@@ -16,7 +16,8 @@ class IcuSpriInternal extends Model
     protected $fillable = [
         'No_MR', 'No_Reg',
         'Diagnosis', 'IndikasiRI', 'kebutuhan_bed',
-        'asal_ruang', 'Dokter', 'spesialis', 'Keterangan', 'NameUser',
+        'asal_ruang', 'Dokter', 'spesialis', 'Keterangan',
+        'NameUser', 'NamaUser',   // support kedua nama kolom
         'catatan_admisi',
         'allocated_bed_id', 'nama_bed',
         'status', 'alasan_tolak',

@@ -31,6 +31,24 @@ class MenuPetugasController extends Controller
         return array_unique(array_filter($names));
     }
 
+    /**
+     * Cek nama kolom user di tabel icu_spri_internal.
+     * Beberapa environment memakai 'NameUser', lainnya 'NamaUser'.
+     * Return nama kolom yang benar.
+     */
+    private function nameUserColumn(): string
+    {
+        static $col = null;
+        if ($col !== null) return $col;
+        try {
+            $cols = DB::connection('mysql')->getSchemaBuilder()->getColumnListing('icu_spri_internal');
+            $col  = in_array('NamaUser', $cols) ? 'NamaUser' : 'NameUser';
+        } catch (\Exception) {
+            $col = 'NameUser'; // fallback ke migration default
+        }
+        return $col;
+    }
+
     private function userWardIds(): array
     {
         return auth()->user()?->getWardIdsArray() ?? [];
@@ -46,7 +64,7 @@ class MenuPetugasController extends Controller
         $sortBy   = $request->query('sort', 'created_at');
         $sortDir  = $request->query('dir', 'desc') === 'asc' ? 'asc' : 'desc';
 
-        $q = IcuSpriInternal::query()->whereIn('NameUser', $this->actorNames());
+        $q = IcuSpriInternal::query()->whereIn($this->nameUserColumn(), $this->actorNames());
         if ($fStatus) $q->where('status', $fStatus);
         if ($fNama) {
             $ids = RegistrasiPasien::where('Nama_Pasien', 'like', "%{$fNama}%")->pluck('No_MR')->toArray();
@@ -72,7 +90,7 @@ class MenuPetugasController extends Controller
         }
 
         // Summary dihitung dari SEMUA data user (tanpa filter status), agar card summary selalu akurat
-        $allData = IcuSpriInternal::query()->whereIn('NameUser', $this->actorNames())->get();
+        $allData = IcuSpriInternal::query()->whereIn($this->nameUserColumn(), $this->actorNames())->get();
         $summary = [
             'total'          => $allData->count(),
             'pending_admisi' => $allData->filter(fn ($i) => $i->status === 'pending_admisi')->count(),
@@ -108,6 +126,29 @@ class MenuPetugasController extends Controller
         return $this->getPasienAktifLokal($cari);
     }
 
+    /**
+     * Pisahkan ward_ids menjadi dua grup:
+     * - igdWards:    kode yang mengindikasikan IGD/UGD/Emergency
+     * - bangsalWards: kode bangsal rawat inap biasa
+     */
+    private function splitWardIds(): array
+    {
+        $wardIds      = $this->userWardIds();
+        $igdWards     = [];
+        $bangsalWards = [];
+
+        foreach ($wardIds as $w) {
+            $upper = strtoupper($w);
+            if (str_contains($upper, 'IGD') || str_contains($upper, 'UGD') || str_contains($upper, 'EMR')) {
+                $igdWards[] = $w;
+            } else {
+                $bangsalWards[] = $w;
+            }
+        }
+
+        return [$igdWards, $bangsalWards];
+    }
+
     private function isIgdUser(): bool
     {
         $user = auth()->user();
@@ -119,16 +160,9 @@ class MenuPetugasController extends Controller
             return true;
         }
 
-        // Cek dari ward_ids — jika semua kode mengandung IGD/UGD
-        $wardIds = $this->userWardIds();
-        foreach ($wardIds as $ward) {
-            $ward = strtoupper($ward);
-            if (str_contains($ward, 'IGD') || str_contains($ward, 'UGD')) {
-                return true;
-            }
-        }
-
-        return false;
+        // Cek apakah ada kode IGD/UGD di ward_ids
+        [$igdWards] = $this->splitWardIds();
+        return ! empty($igdWards);
     }
 
     private function getPasienAktifSSO(string $cari): array
@@ -156,18 +190,36 @@ class MenuPetugasController extends Controller
                 ]);
 
             if ($this->isIgdUser()) {
-                // Petugas IGD: tampilkan pasien yang masuk lewat IGD (Kode_Masuk = '1')
-                // dan ward_ids-nya mengandung kode IGD/UGD atau semua pasien IGD aktif
-                $q->where('p.Kode_Masuk', '1');
-                // Jika ward_ids berisi kode bangsal tertentu, tetap filter
-                $nonIgdWards = array_filter($wardIds, fn($w) => ! (str_contains(strtoupper($w), 'IGD') || str_contains(strtoupper($w), 'UGD')));
-                if (! empty($nonIgdWards)) {
-                    $q->whereIn('rm.Kode_Bangsal', array_values($nonIgdWards));
-                }
+                // ── Petugas IGD (atau campuran IGD + bangsal) ─────────────────
+                // splitWardIds() memisah ["IGD","EDP"] → igdWards=["IGD"], bangsalWards=["EDP"]
+                // "EDP" adalah kode unit kerja user, bukan bangsal pasien → diabaikan.
+                // Jika user punya ward_ids campuran ["IGD","KAJA"]:
+                //   → tampilkan pasien IGD (Kode_Masuk IGD) ATAU pasien Bangsal Kaja
+                [, $bangsalWards] = $this->splitWardIds();
+
+                $q->where(function ($outer) use ($bangsalWards) {
+                    // Kondisi 1: pasien masuk via IGD/UGD
+                    $outer->where(function ($igd) {
+                        $igd->where('p.Kode_Masuk', '1')
+                            ->orWhere('p.Kode_Masuk', '4')
+                            ->orWhere('p.Kode_Masuk', 'like', 'IGD%')
+                            ->orWhere('p.Kode_Masuk', 'like', 'UGD%')
+                            ->orWhere('p.Kode_Masuk', 'like', 'EMR%');
+                    });
+                    // Kondisi 2 (opsional): jika ada kode bangsal rawat inap di ward_ids
+                    if (! empty($bangsalWards)) {
+                        $outer->orWhereIn('rm.Kode_Bangsal', $bangsalWards);
+                    }
+                });
+
+                Log::info('[getPasienAktifSSO] Mode IGD — ward_ids: ' . json_encode($wardIds));
             } else {
-                // Petugas Bangsal Rawat Inap
+                // ── Petugas Bangsal Rawat Inap ─────────────────────────────────
+                // Filter berdasarkan Kode_Bangsal yang ada di ward_ids user.
                 $q->where('p.Medis', 'RAWAT INAP')
                   ->whereIn('rm.Kode_Bangsal', $wardIds);
+
+                Log::info('[getPasienAktifSSO] Mode Bangsal — ward_ids: ' . json_encode($wardIds));
             }
 
             if ($cari) {
@@ -177,8 +229,11 @@ class MenuPetugasController extends Controller
                 );
             }
 
-            return $q->orderBy('Nama_RuangM')->orderBy('rp.Nama_Pasien')->limit(200)->get()
-                ->map(fn ($r) => [
+            $results = $q->orderBy('Nama_RuangM')->orderBy('rp.Nama_Pasien')->limit(200)->get();
+
+            Log::info('[getPasienAktifSSO] Jumlah pasien: ' . $results->count());
+
+            return $results->map(fn ($r) => [
                     'No_MR'         => $r->No_MR,
                     'No_Reg'        => $r->No_Reg,
                     'Kode_Masuk'    => $r->Kode_Masuk,
@@ -342,7 +397,7 @@ class MenuPetugasController extends Controller
         $user = auth()->user();
         $spri = IcuSpriInternal::create([
             ...$validated,
-            'NameUser' => $this->actor(),
+            $this->nameUserColumn() => $this->actor(),
             'status'   => 'pending_admisi',
         ]);
 

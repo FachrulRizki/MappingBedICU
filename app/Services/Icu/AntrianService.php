@@ -195,7 +195,7 @@ class AntrianService
             'alasan_tolak'   => $s->alasan_tolak,
             'created_at'     => $s->created_at?->format('Y-m-d H:i'),
             'created_at_fmt' => $s->created_at?->format('d/m/Y H:i'),
-            'created_by'     => $s->NameUser ?? '-',
+            'created_by'     => $s->NameUser ?? $s->NamaUser ?? '-',
             'approved_by'    => $s->approved_by,
             'verified_by'    => $s->verified_by,
         ];
