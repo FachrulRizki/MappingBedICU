@@ -19,7 +19,7 @@ class DashboardController extends Controller
     public function index(): Response
     {
         return Inertia::render('Dashboard', [
-            ...$this->dashboardService->getDashboardData(),
+            ...$this->dashboardService->getDashboardData(auth()->user()),
             'flash' => [
                 'success' => session('success'),
                 'error'   => session('error'),

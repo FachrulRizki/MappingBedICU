@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
 import { Doughnut } from 'vue-chartjs';
@@ -14,16 +14,17 @@ const page   = usePage();
 const authUser = computed(() => page.props.auth?.user ?? null);
 const logoUrl  = `${import.meta.env.BASE_URL}images/logo-urip.png`;
 
-// ── Props ──────────────────────────────────────────────────
+// â”€â”€ Props â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const props = defineProps({
     semuaKamar:    { type: Array,  default: () => [] },
     statsExternal: { type: Object, default: () => ({ pending: 0, bed_confirmed: 0, terverifikasi: 0 }) },
     statsInternal: { type: Object, default: () => ({ pending_admisi: 0, pending_icu: 0, bed_verified: 0 }) },
     listAktif:     { type: Array,  default: () => [] },
     flash:         { type: Object, default: () => ({}) },
+    userRole:      { type: String, default: 'guest' },
 });
 
-// ── Bed stats ──────────────────────────────────────────────
+// â”€â”€ Bed stats â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const bedKosong  = computed(() => props.semuaKamar.filter(k => k.Status === 'KOSONG').length);
 const bedBooking = computed(() => props.semuaKamar.filter(k => k.Status === 'BOOKING').length);
 const bedTerisi  = computed(() => props.semuaKamar.filter(k => k.Status === 'ISI').length);
@@ -46,7 +47,7 @@ const bedPerKelas = computed(() => {
     return Object.values(map);
 });
 
-// ── Donut ──────────────────────────────────────────────────
+// â”€â”€ Donut â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const donutData = computed(() => ({
     datasets: [{
         data: [
@@ -66,7 +67,7 @@ const donutOptions = {
     plugins: { legend: { display: false }, tooltip: { enabled: false } },
 };
 
-// ── Clock ──────────────────────────────────────────────────
+// â”€â”€ Clock â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const now = ref(new Date());
 let clockTimer = null;
 const formattedTime = computed(() =>
@@ -76,15 +77,15 @@ const formattedDate = computed(() =>
     now.value.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 );
 
-// ── Auto-refresh ───────────────────────────────────────────
+// â”€â”€ Auto-refresh â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const countdown = ref(30);
 let refreshTimer = null;
 const manualRefresh = () => {
-    router.reload({ only: ['semuaKamar', 'statsExternal', 'statsInternal', 'listAktif'] });
+    router.reload({ only: ['semuaKamar', 'statsExternal', 'statsInternal', 'listAktif', 'userRole'] });
     countdown.value = 30;
 };
 
-// ── Ticker pasien berjalan ─────────────────────────────────
+// â”€â”€ Ticker pasien berjalan â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const tickerIdx   = ref(0);
 const tickerPause = ref(false);
 let tickerTimer   = null;
@@ -95,7 +96,7 @@ const tickerItem = computed(() =>
         : null
 );
 
-// ── Filter list ────────────────────────────────────────────
+// â”€â”€ Filter list â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const filterJenis  = ref('semua');
 const filterTglMul = ref('');
 const filterTglAkh = ref('');
@@ -125,7 +126,7 @@ onMounted(() => {
     refreshTimer = setInterval(() => {
         countdown.value--;
         if (countdown.value <= 0) {
-            router.reload({ only: ['semuaKamar', 'statsExternal', 'statsInternal', 'listAktif'] });
+            router.reload({ only: ['semuaKamar', 'statsExternal', 'statsInternal', 'listAktif', 'userRole'] });
             countdown.value = 30;
         }
     }, 1000);
@@ -136,10 +137,10 @@ onUnmounted(() => {
     clearInterval(refreshTimer);
 });
 
-// ── Helpers (palet design.md v3.1) ────────────────────────
+// â”€â”€ Helpers (palet design.md v3.1) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const gBg   = (g) => g === 'L' ? 'rgba(52,152,219,0.15)' : g === 'P' ? 'rgba(142,68,173,0.15)' : 'rgba(90,107,124,0.12)';
 const gTxt  = (g) => g === 'L' ? '#3498DB' : g === 'P' ? '#8E44AD' : '#5A6B7C';
-const gIcon = (g) => g === 'L' ? '♂' : g === 'P' ? '♀' : '?';
+const gIcon = (g) => g === 'L' ? 'â™‚' : g === 'P' ? 'â™€' : '?';
 
 const statusInfo = (status) => ({
     pending_icu:     { color: '#E67E22', label: 'Menunggu ICU',       bg: '#FDF3E9' },
@@ -173,7 +174,7 @@ const getInitials = (name) => {
     return p.length >= 2 ? (p[0][0] + p[1][0]).toUpperCase() : name.slice(0, 2).toUpperCase();
 };
 
-// Soft avatar palette — light & dark compatible
+// Soft avatar palette â€” light & dark compatible
 const avatarPalette = [
     ['rgba(0,168,132,0.15)',  '#00A884'],
     ['rgba(52,152,219,0.15)', '#3498DB'],
@@ -188,7 +189,7 @@ const av = (i) => avatarPalette[i % avatarPalette.length];
     <AppLayout :flash="flash" page-title="Dashboard ICU">
         <div class="min-h-screen" style="background:var(--bg-main); font-family:'Inter','Plus Jakarta Sans',sans-serif">
 
-            <!-- ══════════════ HERO BANNER ══════════════════════════════ -->
+            <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â• HERO BANNER â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
             <div class="p-4 sm:p-6 pb-0">
                 <div class="hero-banner relative overflow-hidden" style="min-height:180px; border-radius:20px">
 
@@ -250,7 +251,7 @@ const av = (i) => avatarPalette[i % avatarPalette.length];
                         <!-- Content -->
                         <div class="flex items-center gap-3 overflow-hidden flex-1" style="font-size:clamp(11px,1.1vw,15px)">
                             <span class="font-bold text-white truncate">{{ tickerItem.nama_pasien }}</span>
-                            <span style="color:rgba(255,255,255,0.4)">·</span>
+                            <span style="color:rgba(255,255,255,0.4)">Â·</span>
                             <span class="px-2 py-0.5 rounded-full flex-shrink-0 text-xs font-semibold"
                                 :style="`background:${jalurInfo(tickerItem.jalur).bg}; color:${jalurInfo(tickerItem.jalur).color}`">
                                 {{ jalurInfo(tickerItem.jalur).label }}
@@ -260,7 +261,7 @@ const av = (i) => avatarPalette[i % avatarPalette.length];
                                 {{ statusInfo(tickerItem.status).label }}
                             </span>
                             <span v-if="tickerItem.nama_bed" class="text-xs flex-shrink-0" style="color:rgba(255,255,255,0.75)">
-                                🏥 {{ tickerItem.nama_bed }}
+                                ðŸ¥ {{ tickerItem.nama_bed }}
                             </span>
                             <span class="text-xs truncate" style="color:rgba(255,255,255,0.5)">
                                 {{ tickerItem.diagnosa ?? tickerItem.Diagnosis ?? '' }}
@@ -280,9 +281,27 @@ const av = (i) => avatarPalette[i % avatarPalette.length];
                 </div>
             </div>
 
-            <!-- ══════════════ BODY ══════════════════════════════════════ -->
+            <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â• BODY â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
             <div class="p-4 sm:p-6 space-y-5">
-                <div class="card-dark overflow-hidden">
+
+                <!-- Stats ring ringkas berdasarkan role -->
+                <div v-if="userRole === 'petugas_ruang'" class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div v-for="c in [
+                        { label:'Total SPRI Saya', val: statsInternal.pending_admisi + statsInternal.pending_icu + statsInternal.bed_verified, color:'#5A6B7C' },
+                        { label:'Menunggu Admisi', val: statsInternal.pending_admisi, color:'#E67E22' },
+                        { label:'Menunggu ICU',    val: statsInternal.pending_icu,    color:'#3498DB' },
+                        { label:'Bed Verified',   val: statsInternal.bed_verified,   color:'#00A884' },
+                    ]" :key="c.label"
+                        class="rounded-2xl p-4 flex flex-col gap-1"
+                        style="background:var(--bg-card); border:1px solid var(--border-default); box-shadow:var(--shadow-card)">
+                        <span class="text-2xl font-bold" :style="`color:${c.color}`">{{ c.val }}</span>
+                        <span class="text-xs" style="color:var(--text-secondary)">{{ c.label }}</span>
+                    </div>
+                </div>
+
+                <!-- Tabel pasien aktif -->
+                <div class="rounded-2xl overflow-hidden"
+                    style="background:var(--bg-card); border:1px solid var(--border-default); box-shadow:var(--shadow-card)">
                     <!-- Header + filter -->
                     <div class="px-5 pt-4 pb-3 space-y-3" style="border-bottom:1px solid var(--border-default)">
                         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -335,7 +354,7 @@ const av = (i) => avatarPalette[i % avatarPalette.length];
                                 @click="filterJenis='semua';filterTglMul='';filterTglAkh='';searchQuery=''"
                                 class="text-xs px-2.5 py-1.5 rounded-lg"
                                 style="background:var(--pill-reject-bg); color:var(--pill-reject-color); border:1px solid rgba(231,76,60,0.2)">
-                                ✕ Reset
+                                âœ• Reset
                             </button>
                         </div>
                     </div>
@@ -361,7 +380,12 @@ const av = (i) => avatarPalette[i % avatarPalette.length];
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2"
                                                 d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                                         </svg>
-                                        <p class="text-sm" style="color:var(--text-secondary)">Tidak ada pasien aktif</p>
+                                        <p class="text-sm font-semibold" style="color:var(--text-secondary)">
+                                            {{ userRole === 'petugas_ruang' ? 'Belum ada SPRI yang Anda buat' : 'Tidak ada pasien aktif' }}
+                                        </p>
+                                        <p v-if="userRole === 'petugas_ruang'" class="text-xs mt-1" style="color:var(--text-muted)">
+                                            Buka Menu Rawat Inap untuk membuat SPRI bagi pasien Anda
+                                        </p>
                                     </td>
                                 </tr>
                                 <tr v-for="(p, i) in listFiltered" :key="p.id"
@@ -395,13 +419,13 @@ const av = (i) => avatarPalette[i % avatarPalette.length];
                                     <!-- Diagnosa -->
                                     <td class="px-3 py-3 hidden sm:table-cell">
                                         <p class="text-xs truncate" style="color:var(--text-primary); max-width:170px">
-                                            {{ p.diagnosa ?? p.Diagnosis ?? '—' }}
+                                            {{ p.diagnosa ?? p.Diagnosis ?? 'â€”' }}
                                         </p>
                                     </td>
                                     <!-- Bed -->
                                     <td class="px-3 py-3">
-                                        <p v-if="p.nama_bed" class="text-xs font-semibold" style="color:#00A884">🏥 {{ p.nama_bed }}</p>
-                                        <p v-else class="text-xs" style="color:var(--text-muted)">{{ p.kebutuhan_bed ?? '—' }}</p>
+                                        <p v-if="p.nama_bed" class="text-xs font-semibold" style="color:#00A884">ðŸ¥ {{ p.nama_bed }}</p>
+                                        <p v-else class="text-xs" style="color:var(--text-muted)">{{ p.kebutuhan_bed ?? 'â€”' }}</p>
                                     </td>
                                     <!-- Status -->
                                     <td class="px-3 py-3">
@@ -440,3 +464,4 @@ const av = (i) => avatarPalette[i % avatarPalette.length];
         </div>
     </AppLayout>
 </template>
+

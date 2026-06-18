@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { router, useForm } from '@inertiajs/vue3'
 import AppLayout   from '@/Layouts/AppLayout.vue'
 import Icd10Search from '@/Components/Icd10Search.vue'
@@ -101,7 +101,8 @@ const pasienPerRuang = computed(() => {
 // ── Modal / Form SPRI ────────────────────────────────────────────────────────
 const modal = ref({ open: false, type: '' })
 const openModal = (type) => {
-    if (type === 'spri') resetSpri()
+    // Tidak panggil resetSpri() di sini — pilihPasien sudah handle reset + prefill sendiri
+    if (type === 'spri' && !skipLookupWatch.value) resetSpri()
     modal.value = { open: true, type }
 }
 const closeModal = () => { modal.value.open = false; setTimeout(() => { modal.value = { open: false, type: '' } }, 200) }
@@ -126,9 +127,12 @@ watch(() => fmSpri.No_MR, (val) => {
     if (val && val.trim().length >= 3) doLookup(val.trim())
     else { lookupResult.value = null; lookupError.value = ''; kunjungans.value = []; diagnosisExisting.value = '' }
 })
-const doLookup = async (noMr) => {
+const doLookup = async (noMr, preserveFields = false) => {
     lookupResult.value = null; lookupError.value = ''; kunjungans.value = []
-    fmSpri.No_Reg = ''; fmSpri.Dokter = ''; fmSpri.asal_ruang = ''; diagnosisExisting.value = ''
+    // Hanya reset field jika tidak preserve (mode manual input)
+    if (!preserveFields) {
+        fmSpri.No_Reg = ''; fmSpri.Dokter = ''; fmSpri.asal_ruang = ''; diagnosisExisting.value = ''
+    }
     lookupLoading.value = true
     try {
         const r = await fetch(route('icu.menu_petugas.lookup') + '?No_MR=' + encodeURIComponent(noMr),
@@ -137,11 +141,12 @@ const doLookup = async (noMr) => {
         lookupResult.value = d
         if (d.found) {
             kunjungans.value = d.kunjungans ?? []
-            if (kunjungans.value.length === 1) {
+            if (kunjungans.value.length === 1 && !preserveFields) {
                 const k = kunjungans.value[0]
                 fmSpri.No_Reg = k.No_Reg; fmSpri.Dokter = k.Dokter; fmSpri.asal_ruang = k.asal_ruang; diagnosisExisting.value = k.Diagnosis
             }
-            if (d.prefill) {
+            // Jika preserveFields, cukup update lookupResult.nama_pasien saja
+            if (!preserveFields && d.prefill) {
                 if (!fmSpri.IndikasiRI) fmSpri.IndikasiRI = d.prefill.IndikasiRI ?? ''
                 if (!fmSpri.asal_ruang) fmSpri.asal_ruang = d.prefill.asal_ruang ?? ''
                 if (!fmSpri.Dokter)     fmSpri.Dokter     = d.prefill.Dokter ?? ''
@@ -155,30 +160,62 @@ const onKunjunganChange = (nr) => {
     if (k) { fmSpri.Dokter = k.Dokter; fmSpri.asal_ruang = k.asal_ruang; diagnosisExisting.value = k.Diagnosis }
 }
 const pilihPasien = (p) => {
-    resetSpri()
-    // Set flag agar watch tidak trigger doLookup (data sudah ada dari SSO)
+    // Set skip SEBELUM reset, karena resetSpri akan set ulang ke false
     skipLookupWatch.value = true
+    resetSpri()
+    // Set ulang setelah reset karena resetSpri paksa jadi false
+    skipLookupWatch.value = true
+
     fmSpri.No_MR      = p.No_MR
     fmSpri.No_Reg     = p.No_Reg ?? ''
     fmSpri.asal_ruang = p.Nama_RuangM ?? ''
     fmSpri.Dokter     = p.Dokter ?? ''
+
     lookupResult.value = {
         found:         true,
         No_MR:         p.No_MR,
         nama_pasien:   p.Nama_Pasien,
         jenis_kelamin: p.jenis_kelamin ?? '',
     }
-    diagnosisExisting.value = ''
+
     if (p.No_Reg) {
         kunjungans.value = [{ No_Reg: p.No_Reg, Dokter: p.Dokter ?? '', asal_ruang: p.Nama_RuangM ?? '', Diagnosis: '' }]
-    } else {
-        // No_Reg belum ada → lookup untuk ambil kunjungans, tapi jangan reset field yang sudah terisi
-        skipLookupWatch.value = false
-        doLookup(p.No_MR)
     }
-    // Delay kecil agar Vue selesai set No_MR sebelum watch jalan lagi
-    setTimeout(() => { skipLookupWatch.value = false }, 100)
+
     openModal('spri')
+
+    // Setelah modal terbuka, ambil diagnosis dari RM via lookup (tanpa reset field yang sudah terisi)
+    nextTick(() => {
+        skipLookupWatch.value = false
+        // Lookup hanya untuk ambil diagnosisExisting dari rekam medis
+        doLookupDiagnosis(p.No_MR, p.No_Reg)
+    })
+}
+
+// Lookup khusus untuk ambil diagnosis dari RM — tidak reset field form yang sudah terisi
+const doLookupDiagnosis = async (noMr, noReg) => {
+    try {
+        const r = await fetch(route('icu.menu_petugas.lookup') + '?No_MR=' + encodeURIComponent(noMr),
+            { headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
+        const d = await r.json()
+        if (d.found) {
+            // Update lookupResult dengan data lengkap dari server
+            lookupResult.value = { ...lookupResult.value, ...d, found: true }
+            const kunjungans_baru = d.kunjungans ?? []
+            // Cari kunjungan yang cocok dengan No_Reg yang sudah dipilih
+            const kunjungan = noReg
+                ? kunjungans_baru.find(k => k.No_Reg === noReg)
+                : kunjungans_baru[0]
+            if (kunjungan) {
+                diagnosisExisting.value = kunjungan.Diagnosis ?? ''
+                // Update dokter/ruang jika belum terisi
+                if (!fmSpri.Dokter && kunjungan.Dokter)         fmSpri.Dokter     = kunjungan.Dokter
+                if (!fmSpri.asal_ruang && kunjungan.asal_ruang) fmSpri.asal_ruang = kunjungan.asal_ruang
+            }
+            // Update kunjungans untuk select jika ada banyak kunjungan
+            if (kunjungans_baru.length > 1) kunjungans.value = kunjungans_baru
+        }
+    } catch { /* diagnosis tidak wajib, abaikan error */ }
 }
 const submitSpri = () => fmSpri.post(route('icu.menu_petugas.spri.store'), { onSuccess: closeModal })
 const canSubmit  = computed(() =>
@@ -375,7 +412,7 @@ const canSubmit  = computed(() =>
 <!-- end daftar pasien SSO -->
 
 <!-- ═══ FILTER BAR ════════════════════════════════════════════════════════════ -->
-<div class="rounded-2xl p-5 sm:p-6 space-y-4" v-if="!isSSO && (canBuatSpriInternal || isAdmin)"
+<div class="rounded-2xl p-5 sm:p-6 space-y-4"
     style="background:var(--bg-surface); border:1px solid var(--border-default); box-shadow:var(--shadow-card)">
     <p class="text-sm font-bold" style="color:var(--text-primary)">Riwayat SPRI Saya</p>
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">

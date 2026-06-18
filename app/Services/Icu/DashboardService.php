@@ -6,12 +6,17 @@ use App\Models\IcuBookingExternal;
 use App\Models\IcuSpriInternal;
 use App\Models\MRuangMaster;
 use App\Models\RegistrasiPasien;
+use App\Models\User;
+use Illuminate\Support\Facades\DB;
 
 class DashboardService
 {
-    public function getDashboardData(): array
+    public function getDashboardData(?User $user = null): array
     {
-        // ── Info bed (read-only dari StatusKamar / M_RUANG_MASTER) ────────
+        $role           = $user?->role ?? 'guest';
+        $isPetugasRuang = $role === 'petugas_ruang';
+
+        // ── Info bed (semua role lihat bed) ───────────────────────────────
         $bedData    = MRuangMaster::bedIcuDenganStatus();
         $semuaKamar = $bedData->map(fn($row) => [
             'Kode_Ruang' => $row->Kode_RuangM,
@@ -22,37 +27,49 @@ class DashboardService
             'No_MR'      => $row->No_MR ?? null,
         ])->values();
 
-        // ── Stats jalur baru ───────────────────────────────────────────────
-        $statsExternal = [
-            'pending'       => IcuBookingExternal::where('status', 'pending_icu')->count(),
-            'bed_confirmed' => IcuBookingExternal::where('status', 'bed_confirmed')->count(),
-            'terverifikasi' => IcuBookingExternal::where('status', 'admisi_verified')->count(),
-        ];
+        // ── Stats & list aktif berdasarkan role ────────────────────────────
+        if ($isPetugasRuang && $user) {
+            $actorNames = $this->resolveActorNames($user);
+            $col        = $this->nameUserColumn();
 
-        $statsInternal = [
-            'pending_admisi' => IcuSpriInternal::where('status', 'pending_admisi')->count(),
-            'pending_icu'    => IcuSpriInternal::where('status', 'pending_icu')->count(),
-            'bed_verified'   => IcuSpriInternal::where('status', 'bed_verified')->count(),
-        ];
+            // Petugas ruang: hanya SPRI milik sendiri, tidak ada booking external
+            $statsExternal = ['pending' => 0, 'bed_confirmed' => 0, 'terverifikasi' => 0];
+            $statsInternal = [
+                'pending_admisi' => IcuSpriInternal::whereIn($col, $actorNames)->where('status', 'pending_admisi')->count(),
+                'pending_icu'    => IcuSpriInternal::whereIn($col, $actorNames)->where('status', 'pending_icu')->count(),
+                'bed_verified'   => IcuSpriInternal::whereIn($col, $actorNames)->where('status', 'bed_verified')->count(),
+            ];
 
-        // ── List aktif — semua pasien yang sedang dalam proses ─────────────
-        // Booking External: pending_icu, bed_confirmed, admisi_verified
-        $extList = IcuBookingExternal::whereIn('status', ['pending_icu', 'bed_confirmed', 'admisi_verified'])
-            ->latest()
-            ->get();
+            $extList = collect();
+            $intList = IcuSpriInternal::whereIn($col, $actorNames)
+                ->whereIn('status', ['pending_admisi', 'pending_icu', 'bed_verified'])
+                ->latest()->get();
+        } else {
+            // Admin, admisi, ICU → lihat semua
+            $statsExternal = [
+                'pending'       => IcuBookingExternal::where('status', 'pending_icu')->count(),
+                'bed_confirmed' => IcuBookingExternal::where('status', 'bed_confirmed')->count(),
+                'terverifikasi' => IcuBookingExternal::where('status', 'admisi_verified')->count(),
+            ];
+            $statsInternal = [
+                'pending_admisi' => IcuSpriInternal::where('status', 'pending_admisi')->count(),
+                'pending_icu'    => IcuSpriInternal::where('status', 'pending_icu')->count(),
+                'bed_verified'   => IcuSpriInternal::where('status', 'bed_verified')->count(),
+            ];
 
-        // SPRI Internal: pending_admisi, pending_icu, bed_verified
-        $intList = IcuSpriInternal::whereIn('status', ['pending_admisi', 'pending_icu', 'bed_verified'])
-            ->latest()
-            ->get();
+            $extList = IcuBookingExternal::whereIn('status', ['pending_icu', 'bed_confirmed', 'admisi_verified'])
+                ->latest()->get();
+            $intList = IcuSpriInternal::whereIn('status', ['pending_admisi', 'pending_icu', 'bed_verified'])
+                ->latest()->get();
+        }
 
-        // Lookup nama pasien internal dari registrasi_pasien
-        $noMRs = $intList->pluck('No_MR')->filter()->unique()->values();
+        // ── Lookup nama pasien internal ────────────────────────────────────
+        $noMRs     = $intList->pluck('No_MR')->filter()->unique()->values();
         $pasienMap = RegistrasiPasien::whereIn('No_MR', $noMRs)
             ->get(['No_MR', 'Nama_Pasien', 'jenis_kelamin'])
             ->keyBy('No_MR');
 
-        // Format external
+        // ── Format external ────────────────────────────────────────────────
         $listExt = $extList->map(fn($b) => [
             'id'             => 'ext_' . $b->id,
             'jalur'          => 'external',
@@ -68,10 +85,9 @@ class DashboardService
             'created_at_raw' => $b->created_at?->format('Y-m-d'),
         ]);
 
-        // Format internal
+        // ── Format internal ────────────────────────────────────────────────
         $listInt = $intList->map(function ($s) use ($pasienMap) {
-            $pasien = $pasienMap[$s->No_MR] ?? null;
-            // Remap status pending_icu internal agar tidak crash statusBadge di vue
+            $pasien    = $pasienMap[$s->No_MR] ?? null;
             $statusKey = $s->status === 'pending_icu' ? 'pending_icu_int' : $s->status;
             return [
                 'id'             => 'int_' . $s->id,
@@ -88,15 +104,35 @@ class DashboardService
             ];
         });
 
-        $listAktif = $listExt->merge($listInt)
-            ->sortByDesc('created_at_raw')
-            ->values();
+        $listAktif = $listExt->merge($listInt)->sortByDesc('created_at_raw')->values();
 
         return [
             'semuaKamar'    => $semuaKamar,
             'statsExternal' => $statsExternal,
             'statsInternal' => $statsInternal,
             'listAktif'     => $listAktif,
+            'userRole'      => $role,
         ];
+    }
+
+    private function resolveActorNames(User $user): array
+    {
+        $names = [$user->name];
+        if ($user->keycloak_username) $names[] = $user->keycloak_username;
+        if ($user->username && $user->username !== $user->name) $names[] = $user->username;
+        return array_unique(array_filter($names));
+    }
+
+    private function nameUserColumn(): string
+    {
+        static $col = null;
+        if ($col !== null) return $col;
+        try {
+            $cols = DB::connection('mysql')->getSchemaBuilder()->getColumnListing('icu_spri_internal');
+            $col  = in_array('NamaUser', $cols) ? 'NamaUser' : 'NameUser';
+        } catch (\Exception) {
+            $col = 'NameUser';
+        }
+        return $col;
     }
 }
