@@ -96,14 +96,6 @@ class MenuPetugasController extends Controller
         ]);
     }
 
-    /**
-     * Ambil daftar pasien aktif:
-     * - Login SSO (Keycloak) → SQL Server
-     *   • Petugas Bangsal (ward_ids): filter Kode_Bangsal dari ward_ids, Status_Pulang = Belum
-     *   • Petugas IGD (ward_ids berisi kode IGD, atau ditandai dari unit_kerja):
-     *     filter Kode_Masuk = '1' (IGD), Status_Pulang = Belum, ambil pasien aktif IGD
-     * - Login lokal (MySQL) → registrasi_pasien untuk dev/testing
-     */
     private function getPasienAktif(string $cari): array
     {
         $user = auth()->user();
@@ -116,11 +108,6 @@ class MenuPetugasController extends Controller
         return $this->getPasienAktifLokal($cari);
     }
 
-    /**
-     * Deteksi apakah user adalah petugas IGD.
-     * IGD ditandai jika ward_ids-nya mengandung kode yang mengandung 'IGD' / 'UGD',
-     * atau unit_kerja user mengandung kata IGD/UGD/Emergency.
-     */
     private function isIgdUser(): bool
     {
         $user = auth()->user();
