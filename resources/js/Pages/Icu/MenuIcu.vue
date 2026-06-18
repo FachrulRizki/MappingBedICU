@@ -56,6 +56,7 @@ const SRC = {
 };
 const gIcon  = (g) => g==='L'?'♂':g==='P'?'♀':'·';
 const gColor = (g) => g==='L'?'#3498DB':g==='P'?'#8E44AD':'var(--text-secondary)';
+const jaminanLabel = (k) => k ?? '—';
 
 // ── Aksi yang tersedia per item ────────────────────────────
 const actionsOf = (item) => {
@@ -272,6 +273,7 @@ const jenisOptions = [
               <th class="py-3.5 px-5 text-left font-semibold text-xs uppercase tracking-wider" style="color:var(--table-th-color)">Jenis</th>
               <th class="py-3.5 px-5 text-left font-semibold text-xs uppercase tracking-wider" style="color:var(--table-th-color)">Diagnosa</th>
               <th class="py-3.5 px-5 text-left font-semibold text-xs uppercase tracking-wider" style="color:var(--table-th-color)">Asal</th>
+              <th class="py-3.5 px-5 text-left font-semibold text-xs uppercase tracking-wider" style="color:var(--table-th-color)">Jaminan</th>
               <th class="py-3.5 px-5 text-left font-semibold text-xs uppercase tracking-wider" style="color:var(--table-th-color)">Bed</th>
               <th class="py-3.5 px-5 text-left font-semibold text-xs uppercase tracking-wider cursor-pointer select-none" style="color:var(--table-th-color)" @click="toggleSort('status')">
                 <span class="flex items-center gap-1.5">Status <span class="opacity-60">{{ sortIcon('status') }}</span></span>
@@ -318,6 +320,11 @@ const jenisOptions = [
               </td>
               <td class="px-5 py-4" style="max-width:110px">
                 <p class="truncate text-sm" style="color:var(--text-secondary)">{{ item.asal_rujukan ?? '—' }}</p>
+              </td>
+              <td class="px-5 py-4">
+                <span v-if="item.jaminan" class="text-xs font-semibold px-2.5 py-1 rounded-lg"
+                  style="background:#EAF4FB; color:#3498DB">{{ jaminanLabel(item.jaminan) }}</span>
+                <span v-else class="text-xs" style="color:var(--text-muted)">—</span>
               </td>
               <td class="px-5 py-4">
                 <span v-if="item.nama_bed" class="inline-flex items-center gap-1.5 text-sm font-semibold" style="color:#00A884">
@@ -389,6 +396,10 @@ const jenisOptions = [
               <p class="font-semibold truncate" style="color:var(--text-secondary)">{{ item.diagnosa ?? '—' }}</p>
             </div>
             <div class="min-w-0">
+              <p class="mb-0.5" style="color:var(--text-muted)">Jaminan</p>
+              <p class="font-semibold truncate" style="color:var(--text-secondary)">{{ jaminanLabel(item.jaminan) }}</p>
+            </div>
+            <div class="min-w-0 col-span-2">
               <p class="mb-0.5" style="color:var(--text-muted)">Bed</p>
               <p class="font-semibold truncate flex items-center gap-1" :style="item.nama_bed ? 'color:#00A884' : 'color:var(--text-secondary)'">
                 <svg v-if="item.nama_bed" class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -500,6 +511,12 @@ const jenisOptions = [
                 <div class="space-y-0.5">
                   <p class="text-xs font-medium" style="color:var(--text-muted)">Asal Rujukan</p>
                   <p class="text-sm font-bold" style="color:var(--text-primary)">{{ modal.item.asal_rujukan ?? '—' }}</p>
+                </div>
+                <div class="space-y-0.5">
+                  <p class="text-xs font-medium" style="color:var(--text-muted)">Jaminan</p>
+                  <span v-if="modal.item.jaminan" class="inline-block text-xs font-semibold px-2.5 py-1 rounded-lg"
+                    style="background:#EAF4FB; color:#3498DB">{{ jaminanLabel(modal.item.jaminan) }}</span>
+                  <p v-else class="text-sm font-bold" style="color:var(--text-primary)">—</p>
                 </div>
                 <div class="space-y-0.5">
                   <p class="text-xs font-medium" style="color:var(--text-muted)">Alokasi Bed</p>

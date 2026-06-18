@@ -307,44 +307,66 @@ class MenuPetugasController extends Controller
                         ->table('PENDAFTARAN as p')
                         ->leftJoin('M_RUANG_MASTER as rm', 'p.Kode_Ruang', '=', 'rm.Kode_RuangM')
                         ->leftJoin('DOKTER as d', 'p.Kode_Dokter', '=', 'd.Kode_Dokter')
+                        ->leftJoin('M_CARABAYAR as cb', 'p.Kode_Bayar', '=', 'cb.Kode_Bayar')
                         ->leftJoin(DB::raw('(SELECT No_Reg, MAX(Diagnosis) as Diagnosis FROM ASESMEN_SURAT_PERMINTAAN_RI GROUP BY No_Reg) as asmt'), 'p.No_Reg', '=', 'asmt.No_Reg')
                         ->where('p.No_MR', $noMr)->orderByDesc('p.Tanggal')
-                        ->select(['p.No_Reg','p.Kode_Masuk','p.Kode_Ruang','p.PermintaanDPJP','p.Kode_Dokter',
-                                  DB::raw("ISNULL(rm.Nama_RuangM, p.Kode_Ruang) as nama_asal_ruang"),
-                                  DB::raw("ISNULL(d.Nama_Dokter, p.PermintaanDPJP) as nama_dokter"),
-                                  'asmt.Diagnosis'])->get();
+                        ->select([
+                            'p.No_Reg', 'p.Kode_Masuk', 'p.Kode_Ruang', 'p.PermintaanDPJP', 'p.Kode_Dokter',
+                            'p.Kode_Bayar',
+                            DB::raw("ISNULL(rm.Nama_RuangM, p.Kode_Ruang) as nama_asal_ruang"),
+                            DB::raw("ISNULL(d.Nama_Dokter, p.PermintaanDPJP) as nama_dokter"),
+                            DB::raw("ISNULL(cb.Ket_Bayar, p.Kode_Bayar) as ket_bayar"),
+                            'asmt.Diagnosis',
+                        ])->get();
                 } catch (\Exception $e) {
-                    Log::warning('[lookupPasien] Dokter join failed: ' . $e->getMessage());
+                    Log::warning('[lookupPasien] Full join failed, fallback: ' . $e->getMessage());
+                    // Fallback tanpa DOKTER, M_CARABAYAR, dan ASESMEN
                     $rows = DB::connection('sqlsrv_rsus')
                         ->table('PENDAFTARAN as p')
                         ->leftJoin('M_RUANG_MASTER as rm', 'p.Kode_Ruang', '=', 'rm.Kode_RuangM')
+                        ->leftJoin('M_CARABAYAR as cb', 'p.Kode_Bayar', '=', 'cb.Kode_Bayar')
                         ->where('p.No_MR', $noMr)->orderByDesc('p.Tanggal')
-                        ->select(['p.No_Reg','p.Kode_Masuk','p.Kode_Ruang','p.PermintaanDPJP','p.Kode_Dokter',
-                                  DB::raw("ISNULL(rm.Nama_RuangM, p.Kode_Ruang) as nama_asal_ruang"),
-                                  'p.PermintaanDPJP as nama_dokter', DB::raw("NULL as Diagnosis")])->get();
+                        ->select([
+                            'p.No_Reg', 'p.Kode_Masuk', 'p.Kode_Ruang', 'p.PermintaanDPJP', 'p.Kode_Dokter',
+                            'p.Kode_Bayar',
+                            DB::raw("ISNULL(rm.Nama_RuangM, p.Kode_Ruang) as nama_asal_ruang"),
+                            'p.PermintaanDPJP as nama_dokter',
+                            DB::raw("ISNULL(cb.Ket_Bayar, p.Kode_Bayar) as ket_bayar"),
+                            DB::raw("NULL as Diagnosis"),
+                        ])->get();
                 }
                 $kunjungans = $rows->map(fn ($r) => [
                     'No_Reg'      => $r->No_Reg,
-                    'Dokter'      => trim($r->nama_dokter    ?? $r->PermintaanDPJP ?? ''),
+                    'Dokter'      => $this->formatNamaDokter(trim($r->nama_dokter ?? $r->PermintaanDPJP ?? '')),
                     'Kode_Dokter' => trim($r->Kode_Dokter   ?? ''),
                     'asal_ruang'  => trim($r->nama_asal_ruang ?? $r->Kode_Ruang ?? ''),
                     'Diagnosis'   => trim($r->Diagnosis      ?? ''),
+                    'Kode_Bayar'  => trim($r->Kode_Bayar    ?? ''),
+                    'jaminan'     => $this->formatNamaDokter(trim($r->ket_bayar ?? $r->Kode_Bayar ?? '')),
                 ]);
             } else {
                 $rows = DB::connection('mysql')->table('pendaftaran as p')
                     ->leftJoin('m_ruang_master as rm', 'p.Kode_Asal', '=', 'rm.Kode_RuangM')
                     ->where('p.No_MR', $noMr)->orderByDesc('p.created_at')
-                    ->select(['p.No_Reg','p.Kode_Masuk','p.Kode_Asal',
-                              DB::raw("COALESCE(p.PermintaanDPJP,'') as Dokter"),
-                              DB::raw("COALESCE(p.Kode_Dokter,'') as Kode_Dokter"),
-                              DB::raw("COALESCE(rm.Nama_RuangM, p.Kode_Asal,'') as nama_asal_ruang"),
-                              DB::raw("NULL as Diagnosis")])->get();
+                    ->select([
+                        'p.No_Reg','p.Kode_Masuk','p.Kode_Asal',
+                        DB::raw("COALESCE(p.PermintaanDPJP,'') as Dokter"),
+                        DB::raw("COALESCE(p.Kode_Dokter,'') as Kode_Dokter"),
+                        DB::raw("COALESCE(rm.Nama_RuangM, p.Kode_Asal,'') as nama_asal_ruang"),
+                        DB::raw("NULL as Diagnosis"),
+                        DB::raw("'' as Kode_Bayar"),
+                        DB::raw("'' as Kode_Rekanan"),
+                        DB::raw("'' as jaminan"),
+                    ])->get();
                 $kunjungans = $rows->map(fn ($r) => [
                     'No_Reg'      => $r->No_Reg,
                     'Dokter'      => $r->Dokter ?? '',
                     'Kode_Dokter' => $r->Kode_Dokter ?? '',
                     'asal_ruang'  => $r->nama_asal_ruang ?? '',
                     'Diagnosis'   => '',
+                    'Kode_Bayar'  => '',
+                    'Kode_Rekanan'=> '',
+                    'jaminan'     => '',
                 ]);
             }
         } catch (\Exception $e) {
@@ -352,6 +374,8 @@ class MenuPetugasController extends Controller
         }
 
         $prefill = IcuSpriInternal::where('No_MR', $noMr)->latest()->first(['Diagnosis','IndikasiRI','asal_ruang','Dokter']);
+
+        Log::info('[lookupPasien] No_MR=' . $noMr . ' kunjungans=' . $kunjungans->count() . ' sample=' . json_encode($kunjungans->first()));
 
         return response()->json([
             'found'       => true,

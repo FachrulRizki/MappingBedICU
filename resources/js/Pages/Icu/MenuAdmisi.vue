@@ -58,7 +58,12 @@ const SRC = {
     external: { bg: 'rgba(52,152,219,.12)', color: '#3498DB' },
     internal: { bg: 'rgba(90,107,124,.12)', color: '#5A6B7C' },
 };
-const jaminanLabel = (k) => props.caraBayar.find(c => c.kode === k)?.nama ?? k ?? '-';
+const jaminanLabel = (k) => {
+    if (!k) return '—';
+    // Cek apakah k adalah kode yang ada di caraBayar
+    const found = props.caraBayar.find(c => c.kode === k);
+    return found ? found.nama : k; // jika tidak ketemu (sudah berupa nama), tampilkan langsung
+};
 const gIcon  = (g) => g === 'L' ? '♂' : g === 'P' ? '♀' : '·';
 const gColor = (g) => g === 'L' ? '#3498DB' : g === 'P' ? '#8E44AD' : 'var(--text-secondary)';
 
@@ -554,6 +559,12 @@ const jenisOptions = [
                                 <p class="text-xs font-medium" style="color:var(--text-muted)">Diagnosa / Indikasi</p>
                                 <p class="text-sm font-bold" style="color:var(--text-primary)">{{ modal.item.diagnosa ?? '—' }}</p>
                             </div>
+
+                            <div class="space-y-0.5">
+                                <p class="text-xs font-medium" style="color:var(--text-muted)">Indikasi Rawat ICU</p>
+                                <p class="text-sm font-bold" style="color:var(--text-primary)">{{ modal.item.IndikasiRI ?? '—' }}</p>
+                            </div>
+
                             <div class="space-y-0.5">
                                 <p class="text-xs font-medium" style="color:var(--text-muted)">DPJP</p>
                                 <p class="text-sm font-bold" style="color:var(--text-primary)">{{ modal.item.Dokter ?? '—' }}</p>

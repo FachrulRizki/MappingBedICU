@@ -90,7 +90,7 @@ class AntrianService
     private function queryInternal(string $fStatus, string $fNama, string $fTgl): Collection
     {
         $q = IcuSpriInternal::query(); 
-        
+
         if ($fStatus) {
             $q->where('status', $fStatus);
         }
@@ -112,8 +112,43 @@ class AntrianService
             $q->whereDate('created_at', $fTgl);
         }
 
-        return $q->latest()->get()->map(function ($s) {
-            return $this->fmtInt($s);
+        $results = $q->latest()->get();
+
+        // Batch lookup jaminan dari PENDAFTARAN
+        $noRegs = $results->pluck('No_Reg')->filter()->unique()->values()->toArray();
+        $jaminanMap = [];
+        if (!empty($noRegs)) {
+            try {
+                $isRsus = \App\Models\RegistrasiPasien::rsusAvailable();
+                $conn    = $isRsus ? 'sqlsrv_rsus' : 'mysql';
+                $cbTable = $isRsus ? 'M_CARABAYAR' : 'm_carabayar';
+                $pTable  = $isRsus ? 'PENDAFTARAN'  : 'pendaftaran';
+                $ketCol  = 'Ket_Bayar';
+
+                $rows = \Illuminate\Support\Facades\DB::connection($conn)
+                    ->table("{$pTable} as p")
+                    ->leftJoin("{$cbTable} as cb", 'p.Kode_Bayar', '=', 'cb.Kode_Bayar')
+                    ->whereIn('p.No_Reg', $noRegs)
+                    ->select([
+                        'p.No_Reg',
+                        \Illuminate\Support\Facades\DB::raw(
+                            $isRsus
+                                ? "ISNULL(cb.{$ketCol}, p.Kode_Bayar) as ket_bayar"
+                                : "COALESCE(cb.{$ketCol}, p.Kode_Bayar) as ket_bayar"
+                        ),
+                    ])
+                    ->get();
+
+                foreach ($rows as $row) {
+                    $jaminanMap[$row->No_Reg] = $row->ket_bayar ?? '';
+                }
+            } catch (\Exception $e) {
+                // jaminan tidak wajib, abaikan error koneksi
+            }
+        }
+
+        return $results->map(function ($s) use ($jaminanMap) {
+            return $this->fmtInt($s, $jaminanMap[$s->No_Reg] ?? null);
         });
     }
 
@@ -167,7 +202,7 @@ class AntrianService
         ];
     }
 
-    public function fmtInt(IcuSpriInternal $s): array
+    public function fmtInt(IcuSpriInternal $s, ?string $jaminan = null): array
     {
         return [
             'id'             => $s->id,
@@ -187,7 +222,7 @@ class AntrianService
             'spesialis'      => $s->spesialis,
             'kebutuhan_bed'  => $s->kebutuhan_bed,
             'nama_bed'       => $s->nama_bed,
-            'jaminan'        => null,
+            'jaminan'        => $jaminan,
             'catatan_admisi' => $s->catatan_admisi,
             'keterangan'     => $s->Keterangan,
             'status'         => $s->status,
