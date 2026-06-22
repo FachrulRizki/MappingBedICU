@@ -11,7 +11,7 @@ const cfg = {
     success: { icon: 'M5 13l4 4L19 7',  color: '#27AE60', bg: '#EBF9F1', border: 'rgba(39,174,96,0.2)',  btn: '#27AE60' },
     error:   { icon: 'M6 18L18 6M6 6l12 12', color: '#E74C3C', bg: '#FDEDEC', border: 'rgba(231,76,60,0.2)',  btn: '#E74C3C' },
     warning: { icon: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z', color:'#E67E22', bg:'#FDF3E9', border:'rgba(230,126,34,0.2)', btn:'#E67E22' },
-    info:    { icon: 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z', color:'#3498DB', bg:'#EAF4FB', border:'rgba(52,152,219,0.2)', btn:'#3498DB' },
+    info:    { icon: 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z', color:'#00A884', bg:'#D1FAF0', border:'rgba(0,168,132,0.2)', btn:'#00A884' },
 };
 </script>
 

@@ -88,23 +88,23 @@ class MenuAdmisiController extends Controller
             'catatan_admisi' => 'nullable|string|max:500',
         ]);
 
-        $spri = IcuSpriInternal::findOrFail($id);
+        $bu = IcuSpriInternal::findOrFail($id);
 
-        if ($spri->status !== 'pending_admisi') {
-            return back()->with('error', 'SPRI sudah tidak berstatus Menunggu Admisi.');
+        if ($bu->status !== 'pending_admisi') {
+            return back()->with('error', 'BU sudah tidak berstatus Menunggu Admisi.');
         }
 
-        $spri->update([
+        $bu->update([
             'status'         => 'pending_icu',
             'catatan_admisi' => $v['catatan_admisi'] ?? null,
             'approved_by'    => $this->actor(),
         ]);
 
-        return back()->with('success', "SPRI {$spri->pasien?->Nama_Pasien} disetujui dan diteruskan ke ICU.");
+        return back()->with('success', "BU {$bu->pasien?->Nama_Pasien} disetujui dan diteruskan ke ICU.");
     }
 
     // -------------------------------------------------------------------------
-    // ACTION — SPRI Internal: tolak oleh Admisi (any -> ditolak)
+    // ACTION — BU Internal: tolak oleh Admisi (any -> ditolak)
     // -------------------------------------------------------------------------
 
     public function tolakInt(Request $request, int $id): RedirectResponse
@@ -113,15 +113,15 @@ class MenuAdmisiController extends Controller
             'alasan_tolak' => 'required|string|max:255',
         ]);
 
-        $spri = IcuSpriInternal::findOrFail($id);
+        $bu = IcuSpriInternal::findOrFail($id);
 
-        $spri->update([
+        $bu->update([
             'status'       => 'ditolak',
             'alasan_tolak' => $v['alasan_tolak'],
             'approved_by'  => $this->actor(),
         ]);
 
-        return back()->with('success', "SPRI {$spri->pasien?->Nama_Pasien} ditolak oleh Admisi.");
+        return back()->with('success', "BU {$bu->pasien?->Nama_Pasien} ditolak oleh Admisi.");
     }
 
     // -------------------------------------------------------------------------

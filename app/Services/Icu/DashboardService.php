@@ -11,10 +11,15 @@ use Illuminate\Support\Facades\DB;
 
 class DashboardService
 {
-    public function getDashboardData(?User $user = null): array
+    public function getDashboardData(?User $user = null, array $filters = []): array
     {
         $role           = $user?->role ?? 'guest';
         $isPetugasRuang = $role === 'petugas_ruang';
+
+        // Filter tanggal — default: hari ini
+        $tglDari    = $filters['tgl_dari']   ?? now()->format('Y-m-d');
+        $tglSampai  = $filters['tgl_sampai'] ?? now()->format('Y-m-d');
+        $search     = trim($filters['search'] ?? '');
 
         // ── Info bed (semua role lihat bed) ───────────────────────────────
         $bedData    = MRuangMaster::bedIcuDenganStatus();
@@ -43,6 +48,8 @@ class DashboardService
             $extList = collect();
             $intList = IcuSpriInternal::whereIn($col, $actorNames)
                 ->whereIn('status', ['pending_admisi', 'pending_icu', 'bed_verified'])
+                ->whereBetween('created_at', [$tglDari . ' 00:00:00', $tglSampai . ' 23:59:59'])
+                ->when($search, fn($q) => $q->where('No_MR', 'like', "%{$search}%"))
                 ->latest()->get();
         } else {
             // Admin, admisi, ICU → lihat semua
@@ -58,8 +65,15 @@ class DashboardService
             ];
 
             $extList = IcuBookingExternal::whereIn('status', ['pending_icu', 'bed_confirmed', 'admisi_verified'])
+                ->whereBetween('created_at', [$tglDari . ' 00:00:00', $tglSampai . ' 23:59:59'])
+                ->when($search, fn($q) => $q->where(fn($qq) =>
+                    $qq->where('nama_pasien', 'like', "%{$search}%")
+                       ->orWhere('No_MR', 'like', "%{$search}%")
+                ))
                 ->latest()->get();
             $intList = IcuSpriInternal::whereIn('status', ['pending_admisi', 'pending_icu', 'bed_verified'])
+                ->whereBetween('created_at', [$tglDari . ' 00:00:00', $tglSampai . ' 23:59:59'])
+                ->when($search, fn($q) => $q->where('No_MR', 'like', "%{$search}%"))
                 ->latest()->get();
         }
 
@@ -80,13 +94,16 @@ class DashboardService
             'diagnosa'       => $b->diagnosa,
             'kebutuhan_bed'  => $b->kebutuhan_bed,
             'nama_bed'       => $b->nama_bed,
+            'asal_ruang'     => $b->asal_rujukan,
+            'Dokter'         => null,
+            'nama_karu'      => null,
             'status'         => $b->status,
             'created_at'     => $b->created_at?->format('d/m/Y H:i'),
             'created_at_raw' => $b->created_at?->format('Y-m-d'),
         ]);
 
-        // ── Format internal ────────────────────────────────────────────────
-        $listInt = $intList->map(function ($s) use ($pasienMap) {
+        // ── Lookup nama dokter & asal ruang internal dari pasien map ───────
+        $intList = $intList->map(function ($s) use ($pasienMap) {
             $pasien    = $pasienMap[$s->No_MR] ?? null;
             $statusKey = $s->status === 'pending_icu' ? 'pending_icu_int' : $s->status;
             return [
@@ -96,15 +113,19 @@ class DashboardService
                 'jenis_kelamin'  => $pasien?->jenis_kelamin,
                 'No_MR'          => $s->No_MR,
                 'Diagnosis'      => $s->Diagnosis,
+                'diagnosa'       => $s->Diagnosis,
                 'kebutuhan_bed'  => $s->kebutuhan_bed,
                 'nama_bed'       => $s->nama_bed,
+                'asal_ruang'     => $s->asal_ruang,
+                'Dokter'         => $s->Dokter,
+                'nama_karu'      => null,
                 'status'         => $statusKey,
                 'created_at'     => $s->created_at?->format('d/m/Y H:i'),
                 'created_at_raw' => $s->created_at?->format('Y-m-d'),
             ];
         });
 
-        $listAktif = $listExt->merge($listInt)->sortByDesc('created_at_raw')->values();
+        $listAktif = $listExt->merge($intList)->sortByDesc('created_at_raw')->values();
 
         return [
             'semuaKamar'    => $semuaKamar,
@@ -112,6 +133,11 @@ class DashboardService
             'statsInternal' => $statsInternal,
             'listAktif'     => $listAktif,
             'userRole'      => $role,
+            'filters'       => [
+                'tgl_dari'   => $tglDari,
+                'tgl_sampai' => $tglSampai,
+                'search'     => $search,
+            ],
         ];
     }
 

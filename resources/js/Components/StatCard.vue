@@ -14,11 +14,11 @@ const palette = {
     teal:    { bg: 'rgba(0,207,163,0.10)', icon: '#00CFA3', accent: '#00CFA3',  tint: 'rgba(0,207,163,0.06)'  },
     coral:   { bg: 'rgba(231,76,60,0.10)', icon: '#E74C3C', accent: '#E74C3C',  tint: 'rgba(231,76,60,0.06)'  },
     amber:   { bg: 'rgba(230,126,34,0.10)',icon: '#E67E22', accent: '#E67E22',  tint: 'rgba(230,126,34,0.06)' },
-    blue:    { bg: 'rgba(52,152,219,0.10)',icon: '#3498DB', accent: '#3498DB',  tint: 'rgba(52,152,219,0.06)' },
+    blue:    { bg: 'rgba(52,152,219,0.10)',icon: '#00A884', accent: '#00A884',  tint: 'rgba(0,168,132,0.06)' },
     purple:  { bg: 'rgba(142,68,173,0.10)',icon: '#8E44AD', accent: '#8E44AD',  tint: 'rgba(142,68,173,0.06)' },
     gray:    { bg: 'rgba(90,107,124,0.10)',icon: '#5A6B7C', accent: '#5A6B7C',  tint: 'rgba(90,107,124,0.06)' },
     // legacy aliases
-    sky:     { bg: 'rgba(52,152,219,0.10)',icon: '#3498DB', accent: '#3498DB',  tint: 'rgba(52,152,219,0.06)' },
+    sky:     { bg: 'rgba(52,152,219,0.10)',icon: '#00A884', accent: '#00A884',  tint: 'rgba(0,168,132,0.06)' },
     mint:    { bg: 'rgba(0,168,132,0.10)', icon: '#00A884', accent: '#00A884',  tint: 'rgba(0,168,132,0.06)'  },
 };
 

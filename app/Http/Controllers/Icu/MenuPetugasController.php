@@ -57,7 +57,10 @@ class MenuPetugasController extends Controller
     public function index(Request $request): Response
     {
         $fNama    = trim($request->query('nama', ''));
+        $today    = now()->format('Y-m-d');
         $fTgl     = $request->query('tgl', '');
+        $fTglDari = $request->query('tgl_dari', $fTgl ?: $today);
+        $fTglAkh  = $request->query('tgl_sampai', $fTgl ?: $today);
         $fStatus  = $request->query('status', '');
         // Kolom yang bisa di-sort langsung di DB
         $dbSortAllowed = ['created_at', 'status'];
@@ -70,7 +73,8 @@ class MenuPetugasController extends Controller
             $ids = RegistrasiPasien::where('Nama_Pasien', 'like', "%{$fNama}%")->pluck('No_MR')->toArray();
             $q->where(fn ($qq) => $qq->whereIn('No_MR', $ids)->orWhere('No_MR', 'like', "%{$fNama}%"));
         }
-        if ($fTgl) $q->whereDate('created_at', $fTgl);
+        // Filter tanggal: selalu pakai range (default today-today)
+        $q->whereBetween('created_at', [$fTglDari . ' 00:00:00', $fTglAkh . ' 23:59:59']);
         // Hanya sort di DB jika kolom ada di tabel; nama_pasien di-sort di collection
         if (in_array($sortBy, $dbSortAllowed)) {
             $q->orderBy($sortBy, $sortDir);
@@ -92,11 +96,10 @@ class MenuPetugasController extends Controller
         // Summary dihitung dari SEMUA data user (tanpa filter status), agar card summary selalu akurat
         $allData = IcuSpriInternal::query()->whereIn($this->nameUserColumn(), $this->actorNames())->get();
         $summary = [
-            'total'          => $allData->count(),
-            'pending_admisi' => $allData->filter(fn ($i) => $i->status === 'pending_admisi')->count(),
-            'pending_icu'    => $allData->filter(fn ($i) => $i->status === 'pending_icu')->count(),
-            'bed_verified'   => $allData->filter(fn ($i) => $i->status === 'bed_verified')->count(),
-            'ditolak'        => $allData->filter(fn ($i) => $i->status === 'ditolak')->count(),
+            'total'        => $allData->count(),
+            'pending_icu'  => $allData->filter(fn ($i) => $i->status === 'pending_icu')->count(),
+            'bed_verified' => $allData->filter(fn ($i) => $i->status === 'bed_verified')->count(),
+            'ditolak'      => $allData->filter(fn ($i) => $i->status === 'ditolak')->count(),
         ];
 
         Log::info('[DEBUG] actorNames: ' . json_encode($this->actorNames()));
@@ -111,7 +114,7 @@ class MenuPetugasController extends Controller
         return Inertia::render('Icu/MenuPetugas', [
             'spriList'     => $spriList,
             'summary'      => $summary,
-            'filters'      => compact('fNama', 'fTgl', 'fStatus', 'sortBy', 'sortDir'),
+            'filters'      => compact('fNama', 'fTgl', 'fTglDari', 'fTglAkh', 'fStatus', 'sortBy', 'sortDir'),
             'pasienAktif'  => $this->getPasienAktif(''),
             'wardIds'      => $this->userWardIds(),
             'authProvider' => auth()->user()?->auth_provider ?? 'local',
@@ -399,21 +402,21 @@ class MenuPetugasController extends Controller
             'Keterangan' => 'nullable|string|max:500',
         ]);
 
-        $user = auth()->user();
-        $spri = IcuSpriInternal::create([
+        // Alur ranap/IGD (internal) langsung ke ICU — tidak perlu konfirmasi Admisi
+        $bu = IcuSpriInternal::create([
             ...$validated,
             $this->nameUserColumn() => $this->actor(),
-            'status'   => 'pending_admisi',
+            'status'   => 'pending_icu',
         ]);
 
-        $nama = $spri->No_MR;
+        $nama = $bu->No_MR;
         // Coba ambil nama pasien untuk flash message yang informatif
         try {
-            $pasien = RegistrasiPasien::where('No_MR', $spri->No_MR)->first();
-            if ($pasien) $nama = $pasien->Nama_Pasien . ' (' . $spri->No_MR . ')';
+            $pasien = RegistrasiPasien::where('No_MR', $bu->No_MR)->first();
+            if ($pasien) $nama = $pasien->Nama_Pasien . ' (' . $bu->No_MR . ')';
         } catch (\Exception) {}
 
-        return back()->with('success', "SPRI untuk {$nama} berhasil dikirim ke Admisi.");
+        return back()->with('success', "BU (Booking ICU) untuk {$nama} berhasil dikirim ke ICU.");
     }
 
     private function format(IcuSpriInternal $s, $pasienMap = null): array

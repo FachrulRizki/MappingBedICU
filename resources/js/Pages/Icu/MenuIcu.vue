@@ -23,39 +23,59 @@ const fStatus = ref(props.filters.filterStatus ?? '');
 const fJenis  = ref(props.filters.filterJenis  ?? '');
 const fNama   = ref(props.filters.filterNama   ?? '');
 const fTgl    = ref(props.filters.filterTgl    ?? '');
+
+// Helper tanggal lokal
+const localDate = (offsetDays = 0) => {
+    const d = new Date(); d.setDate(d.getDate() + offsetDays);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+};
+
+const fTglDari = ref(props.filters.filterTglDari || localDate(0));
+const fTglAkh  = ref(props.filters.filterTglAkh  || localDate(0));
 const sortBy  = ref(props.filters.sortBy       ?? 'created_at');
 const sortDir = ref(props.filters.sortDir      ?? 'asc');
 
 let st = null;
 const applyFilters = () => router.get(route('icu.menu_icu'), {
     status: fStatus.value, jenis: fJenis.value,
-    nama: fNama.value, tgl: fTgl.value,
+    nama: fNama.value,
+    tgl_dari: fTglDari.value, tgl_sampai: fTglAkh.value,
     sort: sortBy.value, dir: sortDir.value,
-}, { preserveState: true, replace: true });
+}, { preserveState: true, replace: true, preserveScroll: true });
 const onNamaInput = () => { clearTimeout(st); st = setTimeout(applyFilters, 400); };
 const toggleSort  = (col) => {
     sortDir.value = sortBy.value === col ? (sortDir.value==='asc'?'desc':'asc') : 'asc';
     sortBy.value = col; applyFilters();
 };
-const resetFilter = () => { fStatus.value=''; fJenis.value=''; fNama.value=''; fTgl.value=''; applyFilters(); };
+const resetFilter = () => {
+    fStatus.value=''; fJenis.value=''; fNama.value=''; fTgl.value='';
+    fTglDari.value=localDate(0); fTglAkh.value=localDate(0);
+    applyFilters();
+};
 const sortIcon = (col) => sortBy.value!==col?'↕':sortDir.value==='asc'?'↑':'↓';
+
+// Date preset helpers
+const today     = localDate(0);
+const yesterday = localDate(-1);
+const week7     = localDate(-6);
+const setPreset = (dari, sampai) => { fTglDari.value=dari; fTglAkh.value=sampai; applyFilters(); };
 
 // ── Styles ─────────────────────────────────────────────────
 const SS = {
     pending_icu:     { bg:'#FDF3E9', color:'#E67E22', dot:'#E67E22' },
     pending_admisi:  { bg:'rgba(245,166,35,.15)', color:'#E67E22', dot:'#E67E22' },
-    bed_confirmed:   { bg:'#EAF4FB', color:'#3498DB', dot:'#3498DB' },
+    bed_confirmed:   { bg:'#D1FAF0', color:'#00A884', dot:'#00A884' },
     bed_verified:    { bg:'#EBF9F1', color:'#27AE60', dot:'#27AE60' },
     admisi_verified: { bg:'#EBF9F1', color:'#27AE60', dot:'#27AE60' },
     ditolak:         { bg:'#FDEDEC', color:'#E74C3C', dot:'#E74C3C' },
 };
 const ss = (s) => SS[s] ?? { bg:'var(--bg-input)', color:'var(--text-secondary)', dot:'#888' };
 const SRC = {
-    external: { bg:'rgba(52,152,219,.12)', color:'#3498DB' },
+    external: { bg:'rgba(0,168,132,.12)', color:'#00A884' },
     internal: { bg:'rgba(90,107,124,.12)', color:'#5A6B7C' },
 };
 const gIcon  = (g) => g==='L'?'♂':g==='P'?'♀':'·';
-const gColor = (g) => g==='L'?'#3498DB':g==='P'?'#8E44AD':'var(--text-secondary)';
+const gColor = (g) => g==='L'?'#00A884':g==='P'?'#8E44AD':'var(--text-secondary)';
 const jaminanLabel = (k) => k ?? '—';
 
 // ── Aksi yang tersedia per item ────────────────────────────
@@ -74,7 +94,7 @@ const actionsOf = (item) => {
 const CARDS = computed(() => [
     { key:'',           label:'Total',        val: props.summary.total         ?? 0, color:'#5A6B7C' },
     { key:'pending_icu',label:'Menunggu ICU', val: props.antrian.filter(a=>a.status==='pending_icu').length, color:'#E67E22' },
-    { key:'bed_confirmed',label:'Dikonfirmasi',val: props.summary.bed_confirmed ?? 0, color:'#3498DB' },
+    { key:'bed_confirmed',label:'Dikonfirmasi',val: props.summary.bed_confirmed ?? 0, color:'#00A884' },
     { key:'bed_verified,admisi_verified',label:'Terverifikasi',val: props.summary.verified ?? 0, color:'#00A884' },
     { key:'ditolak',    label:'Ditolak',      val: props.summary.ditolak       ?? 0, color:'#E74C3C' },
 ]);
@@ -176,9 +196,9 @@ const jenisOptions = [
     <div class="flex items-center gap-3 flex-wrap">
       <span class="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium"
         style="background:rgba(52,152,219,.1); border:1px solid rgba(52,152,219,.2)">
-        <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background:#3498DB"></span>
+        <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background:#00A884"></span>
         <span style="color:var(--text-secondary)">Booking Eksternal</span>
-        <strong class="font-bold" style="color:#3498DB">{{ summary.by_sumber?.external ?? 0 }}</strong>
+        <strong class="font-bold" style="color:#00A884">{{ summary.by_sumber?.external ?? 0 }}</strong>
       </span>
       <span class="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium"
         style="background:rgba(90,107,124,.1); border:1px solid rgba(90,107,124,.2)">
@@ -214,29 +234,44 @@ const jenisOptions = [
             style="padding:10px 14px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary); font-size:13px"/>
         </div>
         <div class="space-y-1.5">
-          <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Tanggal</label>
-          <input v-model="fTgl" @change="applyFilters" type="date"
+          <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Tgl Mulai</label>
+          <input v-model="fTglDari" @change="applyFilters" type="date"
             class="w-full rounded-xl outline-none transition-all"
             style="padding:10px 14px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary); font-size:13px"/>
         </div>
       </div>
-      <div class="flex items-center gap-2.5 flex-wrap">
+      <!-- Row 2: tgl akhir + presets + sort -->
+      <div class="flex flex-wrap items-center gap-3">
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-semibold" style="color:var(--text-muted)">s/d</span>
+          <input v-model="fTglAkh" @change="applyFilters" type="date" :min="fTglDari"
+            class="rounded-xl outline-none transition-all"
+            style="padding:8px 12px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary); font-size:12px; width:150px"/>
+        </div>
+        <!-- Preset buttons -->
+        <div class="flex gap-1 p-1 rounded-xl" style="background:var(--bg-input)">
+          <button v-for="p in [{l:'Hari ini',d:today,s:today},{l:'Kemarin',d:yesterday,s:yesterday},{l:'7 Hari',d:week7,s:today}]" :key="p.l"
+            @click="setPreset(p.d,p.s)"
+            class="px-3 py-1 rounded-lg text-xs font-semibold transition-all"
+            :style="fTglDari===p.d&&fTglAkh===p.s ? 'background:#fff;color:#00A884;box-shadow:0 1px 4px rgba(0,0,0,0.08)' : 'color:var(--text-muted)'">
+            {{ p.l }}
+          </button>
+        </div>
+        <!-- Sort -->
         <span class="text-xs font-semibold" style="color:var(--text-muted)">Urutkan:</span>
         <button v-for="col in [{key:'created_at',label:'Waktu'},{key:'nama_pasien',label:'Nama'},{key:'status',label:'Status'}]"
           :key="col.key" @click="toggleSort(col.key)"
-          class="text-xs font-semibold px-3.5 py-2 rounded-xl transition-all duration-150 hover:-translate-y-px"
-          :style="sortBy===col.key
-            ? 'background:rgba(0,168,132,.15); color:#00A884; border:1.5px solid rgba(0,168,132,.35)'
-            : 'background:var(--bg-input); color:var(--text-secondary); border:1.5px solid var(--border-default)'">
+          class="text-xs font-semibold px-3 py-1.5 rounded-xl transition-all"
+          :style="sortBy===col.key ? 'background:rgba(0,168,132,.15);color:#00A884;border:1.5px solid rgba(0,168,132,.35)' : 'background:var(--bg-input);color:var(--text-secondary);border:1.5px solid var(--border-default)'">
           {{ col.label }} {{ sortIcon(col.key) }}
         </button>
-        <button v-if="fStatus||fJenis||fNama||fTgl" @click="resetFilter"
-          class="ml-auto text-xs font-semibold px-3.5 py-2 rounded-xl transition-all duration-150 hover:-translate-y-px flex items-center gap-1.5"
+        <button v-if="fStatus||fJenis||fNama||fTgl||fTglDari||fTglAkh" @click="resetFilter"
+          class="ml-auto text-xs font-semibold px-3 py-1.5 rounded-xl flex items-center gap-1.5"
           style="background:rgba(231,76,60,.1); color:#E74C3C; border:1.5px solid rgba(231,76,60,.25)">
-          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
           </svg>
-          Reset Filter
+          Reset
         </button>
       </div>
     </div>
@@ -272,7 +307,7 @@ const jenisOptions = [
               </th>
               <th class="py-3.5 px-5 text-left font-semibold text-xs uppercase tracking-wider" style="color:var(--table-th-color)">Jenis</th>
               <th class="py-3.5 px-5 text-left font-semibold text-xs uppercase tracking-wider" style="color:var(--table-th-color)">Diagnosa</th>
-              <th class="py-3.5 px-5 text-left font-semibold text-xs uppercase tracking-wider" style="color:var(--table-th-color)">Asal</th>
+              <th class="py-3.5 px-5 text-left font-semibold text-xs uppercase tracking-wider" style="color:var(--table-th-color)">Asal / DPJP</th>
               <th class="py-3.5 px-5 text-left font-semibold text-xs uppercase tracking-wider" style="color:var(--table-th-color)">Jaminan</th>
               <th class="py-3.5 px-5 text-left font-semibold text-xs uppercase tracking-wider" style="color:var(--table-th-color)">Bed</th>
               <th class="py-3.5 px-5 text-left font-semibold text-xs uppercase tracking-wider cursor-pointer select-none" style="color:var(--table-th-color)" @click="toggleSort('status')">
@@ -319,11 +354,12 @@ const jenisOptions = [
                 <p v-if="item.kebutuhan_bed" class="text-xs mt-0.5 font-medium" style="color:#00A884">{{ item.kebutuhan_bed }}</p>
               </td>
               <td class="px-5 py-4" style="max-width:110px">
-                <p class="truncate text-sm" style="color:var(--text-secondary)">{{ item.asal_rujukan ?? '—' }}</p>
+                <p class="truncate text-sm font-medium" style="color:var(--text-secondary)">{{ item.asal_ruang ?? item.asal_rujukan ?? '—' }}</p>
+                <p v-if="item.Dokter" class="truncate text-xs mt-0.5" style="color:var(--text-muted)">{{ item.Dokter }}</p>
               </td>
               <td class="px-5 py-4">
                 <span v-if="item.jaminan" class="text-xs font-semibold px-2.5 py-1 rounded-lg"
-                  style="background:#EAF4FB; color:#3498DB">{{ jaminanLabel(item.jaminan) }}</span>
+                  style="background:#D1FAF0; color:#00A884">{{ jaminanLabel(item.jaminan) }}</span>
                 <span v-else class="text-xs" style="color:var(--text-muted)">—</span>
               </td>
               <td class="px-5 py-4">
@@ -515,7 +551,7 @@ const jenisOptions = [
                 <div class="space-y-0.5">
                   <p class="text-xs font-medium" style="color:var(--text-muted)">Jaminan</p>
                   <span v-if="modal.item.jaminan" class="inline-block text-xs font-semibold px-2.5 py-1 rounded-lg"
-                    style="background:#EAF4FB; color:#3498DB">{{ jaminanLabel(modal.item.jaminan) }}</span>
+                    style="background:#D1FAF0; color:#00A884">{{ jaminanLabel(modal.item.jaminan) }}</span>
                   <p v-else class="text-sm font-bold" style="color:var(--text-primary)">—</p>
                 </div>
                 <div class="space-y-0.5">

@@ -50,15 +50,15 @@ const doPulang = (p) => {
 
 // ── Gender theme ───────────────────────────────────────────
 const gCardBorder = (g) => g === 'L' ? 'rgba(52,152,219,0.45)'  : g === 'P' ? 'rgba(142,68,173,0.45)'  : 'var(--border-default)';
-const gStripe     = (g) => g === 'L' ? '#3498DB'                : g === 'P' ? '#8E44AD'                : '#00A884';
-const gBadgeBg    = (g) => g === 'L' ? 'rgba(52,152,219,0.15)'  : g === 'P' ? 'rgba(142,68,173,0.15)'  : 'rgba(0,168,132,0.12)';
-const gBadgeColor = (g) => g === 'L' ? '#3498DB'                : g === 'P' ? '#8E44AD'                : '#00A884';
+const gStripe     = (g) => g === 'L' ? '#00A884'                : g === 'P' ? '#8E44AD'                : '#00A884';
+const gBadgeBg    = (g) => g === 'L' ? 'rgba(0,168,132,0.15)'  : g === 'P' ? 'rgba(142,68,173,0.15)'  : 'rgba(0,168,132,0.12)';
+const gBadgeColor = (g) => g === 'L' ? '#00A884'                : g === 'P' ? '#8E44AD'                : '#00A884';
 const gLabel      = (g) => g === 'L' ? '♂ Pria' : g === 'P' ? '♀ Wanita' : '— ?';
 
 // ── Sumber badge ───────────────────────────────────────────
 const sumberBadge = (sumber) => ({
     lama:     { label: 'IGD',      bg: 'rgba(230,126,34,0.15)',  color: '#E67E22' },
-    external: { label: 'External', bg: 'rgba(52,152,219,0.15)',  color: '#3498DB' },
+    external: { label: 'External', bg: 'rgba(0,168,132,0.15)',  color: '#00A884' },
     internal: { label: 'Internal', bg: 'rgba(0,168,132,0.15)',  color: '#00A884' },
 }[sumber] ?? { label: sumber, bg: 'var(--bg-input)', color: 'var(--text-secondary)' });
 
@@ -84,7 +84,7 @@ const countByGender = computed(() => ({
                 </div>
                 <div class="flex items-center gap-2 flex-wrap">
                     <span class="text-xs font-semibold px-2.5 py-1 rounded-full"
-                        style="background:rgba(52,152,219,0.15); color:#3498DB; border:1px solid rgba(52,152,219,0.3)">
+                        style="background:rgba(0,168,132,0.15); color:#00A884; border:1px solid rgba(0,168,132,0.3)">
                         ♂ {{ countByGender.L }} Pria
                     </span>
                     <span class="text-xs font-semibold px-2.5 py-1 rounded-full"

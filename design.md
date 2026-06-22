@@ -1,128 +1,236 @@
-# Dokumen Spesifikasi Desain UI/UX: ICU Monitor v2.0
+# MediCore AI ERP — Doctor Dashboard Design Documentation
 
-**Versi Desain:** 3.1
-**Fokus:** UI/UX Medis, Modern, Interaktif, Alur Kerja (Workflow) Optimal.
-**Konsep Utama:** *Soft Modernism*, *Glassmorphism Minimalis*, Elevasi Data Terstruktur, *Whitespace* Strategis.
-
----
-
-## 1. Filosofi Desain
-
-Aplikasi medis menuntut kejelasan tinggi, namun tidak harus mengorbankan estetika. ICU Monitor v2.0 dirancang untuk mengurangi kelelahan mata (*eye strain*) pengguna yang bekerja berjam-jam, dengan membedakan informasi kritis melalui hierarki visual, warna, dan animasi yang halus.
-
-*   **Soft Modernism:** Meninggalkan desain *flat* kaku beralih ke elemen berdimensi dengan bayangan halus (*soft shadows*) dan sudut membulat (*rounded corners*).
-*   **Glassmorphism:** Penggunaan efek kaca buram (*blur/backdrop-filter*) pada elemen *overlay* (seperti Topbar, Sidebar, Modal) untuk memberikan kesan kedalaman layar.
-*   **Micro-interactions:** Umpan balik seketika saat elemen di-*hover* atau diklik (misal: baris tabel sedikit terangkat) agar aplikasi terasa "hidup" dan responsif.
+## 1. Overview
+Dashboard utama untuk modul **Doctor Dashboard** dari aplikasi **MediCore AI ERP**, sebuah sistem manajemen rumah sakit. Halaman ini menampilkan ringkasan aktivitas harian dokter, jadwal pasien, peringatan klinis berbasis AI, dan akses cepat ke modul-modul lain.
 
 ---
 
-## 2. Palet Warna & Tema
+## 2. Layout Structure
 
-Sistem mendukung Tema Terang (Bright/Light Mode) dan Tema Gelap (Dark Mode) yang dapat diubah *real-time* dengan transisi *fading*.
+### 2.1 Grid Utama
+- **Sidebar kiri** (fixed, ~210px): navigasi utama.
+- **Header atas** (full width, sticky): search bar, ikon notifikasi, profil dokter.
+- **Konten utama** (area scrollable): disusun dalam grid 3 kolom utama (kiri-tengah lebih lebar, kanan lebih sempit sebagai panel sekunder).
 
-### A. Tema Terang (Light Mode)
-| Komponen UI | Warna (HEX) | Deskripsi |
-| :--- | :--- | :--- |
-| **Main Background** | `#F0F4F8` | Abu-abu sangat muda kebiruan (mengurangi mata lelah). |
-| **Card / Surface** | `#FFFFFF` | Putih bersih pekat, dengan elevasi shadow halus (Opacity 90%). |
-| **Topbar / Sidebar**| `#FFFFFF` | Latar belakang transparan dengan efek Blur 15px (Alpha 70%). |
-| **Primary Text** | `#1A2B3C` | Biru tua arang untuk kontras baca maksimal. |
-| **Secondary Text** | `#5A6B7C` | Abu-abu tua kebiruan untuk teks pendukung. |
-| **Primary Accent** | `#00A884` | Hijau Emerald Medis (*Vibrant*). |
-| **Accent Hover** | `#008C6E` | Hijau Emerald lebih gelap. |
-
-### B. Tema Gelap (Dark Mode)
-| Komponen UI | Warna (HEX) | Deskripsi |
-| :--- | :--- | :--- |
-| **Main Background** | `#0A121A` | Biru hitam sangat tua. |
-| **Card / Surface** | `#141E2A` | Biru tua arang, dengan elevasi shadow halus (Opacity 90%). |
-| **Topbar / Sidebar**| `#141E2A` | Latar belakang transparan dengan efek Blur 15px (Alpha 70%). |
-| **Primary Text** | `#E0E6ED` | Putih tulang (mencegah silau di ruang gelap). |
-| **Secondary Text** | `#90A0B0` | Abu-abu muda kebiruan. |
-| **Primary Accent** | `#00CFA3` | Hijau Emerald Medis (*Luminous*). |
-
-### C. Sistem Warna Status (Pill Badges)
-Warna cerah dengan latar belakang yang sangat pudar (*soft-tint*) untuk visibilitas tanpa terlalu mencolok.
-
-| Status / Kategori | Warna Teks / Dot | Latar Belakang (Soft Tint) |
-| :--- | :--- | :--- |
-| **Menunggu / Pending**| `#E67E22` (Orange) | `#FDF3E9` |
-| **Selesai / Terverifikasi**| `#27AE60` (Hijau) | `#EBF9F1` |
-| **Internal / Antrian** | `#3498DB` (Biru) | `#EAF4FB` |
-| **Eksternal** | `#8E44AD` (Ungu) | `#F4ECF7` |
-| **Ditolak / Alert** | `#E74C3C` (Merah) | `#FDEDEC` |
+### 2.2 Komposisi Halaman (top → bottom)
+1. Header global (search, quick actions, notifikasi, profil)
+2. Banner sambutan ("Good morning, Dr. Mehta!") + AI Clinical Assistant card + kalender mini
+3. Baris kartu statistik (5 metric cards)
+4. Baris tengah: Today's Appointments | Quick Links | Patient Queue Status (donut chart) | Today's Schedule | Notifications
+5. Baris bawah: Mobile App promo | Upcoming Consultations | Recent Patient Notes | AI Patient Risk Alerts | Smart Reminders | AI Assistant chat widget
 
 ---
 
-## 3. Tipografi
-
-Sangat disarankan menggunakan *font* geometris sans-serif yang bersih.
-*   **Primary Font:** `Inter` atau `Plus Jakarta Sans`
-*   **Monospace Font:** `DM Mono` atau `Fira Code` (untuk Jam, NIK, MR, dan Data Numerik Klinis).
-
-| Penggunaan | Ukuran Dasar | Weight | Line Height | Contoh Penggunaan |
-| :--- | :--- | :--- | :--- | :--- |
-| **Hero Title** | 36px | Bold (700) | 1.1 | Ruang ICU & HCU |
-| **Main Title** | 22px | Bold (700) | 1.2 | Dashboard ICU (Topbar) |
-| **KPI Number** | 48px | ExtraBold (800) | 1.0 | 12 (Angka Total) |
-| **Table Header** | 12px | SemiBold (600) | 1.5 | DIAGNOSA (Uppercase) |
-| **Body Text** | 14px | Regular (400) | 1.5 | Nama Pasien |
-| **Data Vital (Mono)** | 11px/12px | Medium (500) | 1.4 | HR: 88 bpm |
-
----
-
-## 4. Komponen Antarmuka Global
-
-1.  **Sidebar (Navigasi):**
-    *   Lebar tetap (misal: 240px). Menggunakan efek *Glassmorphism* (transparan dengan latar blur).
-    *   Icon menu menggunakan gaya *outline*. Menu aktif berubah menjadi *solid* dengan pendaran (*glow*) warna Emerald dan tulisan sedikit ditebalkan.
-2.  **Topbar (Header Sticky):**
-    *   Melayang di atas konten (*sticky*) dengan efek kaca buram.
-    *   Berisi Judul Halaman, Jam Digital (Monospace, Real-time), Theme Toggle (ikon Matahari/Bulan dalam satu *pill* dinamis), dan Avatar User.
-3.  **Kartu Statistik (KPI Cards):**
-    *   Menggunakan *soft shadow*. Pada *hover*, kartu terangkat naik (`translate-y: -4px`) dan bayangan membesar.
-    *   Dilengkapi *Micro-sparkline* (grafik mini) di bawah angka jika mewakili data yang memiliki tren.
-4.  **Tombol (Buttons):**
-    *   Tombol aksi utama (Primer) menggunakan warna solid aksen dengan efek klik *bounce/scale* mengecil ke dalam (`scale: 0.96`).
-    *   Tombol sekunder/batal menggunakan desain *outline* atau *ghost button*.
+## 3. Sidebar Navigation
+- Logo brand "MediCore AI" + subtitle "MediCore AI ERP" di bagian atas.
+- Menu list vertikal dengan ikon + label:
+  - Dashboard (active/highlighted, background biru muda)
+  - Patients
+  - Appointments
+  - Prescriptions
+  - Lab Reports
+  - Treatment Plans
+  - Billing & Invoices
+  - Medical Records
+  - AI Diagnosis Support
+  - Messages (dengan badge notifikasi angka "8")
+  - Tasks
+  - Analytics
+  - Inventory
+  - Settings
+- Item aktif ditandai dengan background pill berwarna biru muda dan teks biru tua/bold.
 
 ---
 
-## 5. Spesifikasi Tata Letak Halaman (Layout & Workspace)
-
-Setiap menu memiliki alur kerja (*workflow*) yang dibedakan tata letaknya sesuai fungsi departemen.
-
-### A. Dashboard Utama (Overview)
-*   **Hero Section:** Banner lebar (*full-width*) melengkung dengan gradasi Emerald Teal. Berisi logo RS, Unit Kerja, dan teks "LIVE" berkedip dengan *ticker* informasi pasien berjalan.
-*   **Tabel Elevated:** Tabel pasien bukan grid kaku, melainkan *list* di mana setiap baris (`<tr>`) adalah entitas kartu tersendiri.
-*   **Interaksi Hover Baris:** Saat disorot, baris terangkat (Lift-up), *background* berubah cerah, dan memunculkan tombol aksi mini (opsional).
-*   **Animasi Tampil:** Data di-load menggunakan *Staggered Fade Slide Up* (muncul satu persatu dari bawah ke atas).
-
-### B. Menu Admisi (Penerimaan & Booking)
-*   **Layout:** *Split-screen* (Membagi layar menjadi 2 kolom utama).
-    *   **Kolom Kiri (40%):** Daftar antrian rujukan pasien masuk (*Vertical Card List*).
-    *   **Kolom Kanan (60%):** Denah Bed interaktif (*Mini Map*).
-*   **Interaksi Utama (Drag & Drop):** Petugas dapat menyeret (*drag*) nama pasien dari antrian kiri, lalu menjatuhkannya (*drop*) ke kotak Bed hijau (kosong) di peta kanan untuk mengalokasikan kamar secara langsung.
-
-### C. Menu ICU (Clinical Monitoring Center)
-*   **Layout:** *Grid View* secara default (Kartu Kotak 4x3 atau disesuaikan dengan jumlah Bed).
-*   **Bed Card UI:**
-    *   Tiap kartu mewakili 1 Bed (misal: ICU-01). Menampilkan Nama Pasien, No MR.
-    *   Menampilkan data vital (HR, BP, SpO2) dengan **grafik denyut (sparkline) neon** yang berjalan *real-time*.
-*   **Sistem Peringatan (Alerts):** Jika parameter pasien melewati batas kritis, pinggiran kartu (*border*) akan **berdenyut merah (*pulsating glow*)**.
-*   **Toggle:** Terdapat tombol kecil di kanan atas untuk beralih dari tampilan *Grid* (Peta Bed) ke tampilan *Table/List* klasik.
-
-### D. Menu Petugas Ruang (Manajemen Bangsal & SPRI)
-*   **Fokus:** Menampilkan daftar pasien bangsal yang sedang dirawat petugas terkait dan alur pembuatan SPRI (Surat Permintaan Rawat ICU).
-*   **Layout Panel (3 Bagian):**
-    1.  **Panel Pencarian/Daftar Pasien:** Tampilan baris *elevated*. Petugas mencari pasien yang kondisinya memburuk, lalu klik "Pilih".
-    2.  **Panel Pembuatan SPRI (Modal Kanan/Overlay):** Formulir *Glassmorphism* minimalis. Data medis pasien otomatis terisi (*auto-fill*). Petugas hanya memilih Indikasi ICU (Dropdown) dan Tingkat Kegawatan.
-    3.  **Riwayat SPRI:** Tampilan kartu ringkas (mirip resi) di bagian bawah yang menunjukkan status SPRI yang pernah dibuat (Menunggu, Disetujui, Ditolak).
+## 4. Header (Top Bar)
+- Search input full-width dengan placeholder "Search patients, appointments, reports..." dan tombol close (x).
+- Ikon aksi cepat: tombol "+" (add baru), ikon kalender, ikon bell (notifikasi dengan badge merah angka).
+- Profil dokter di kanan: foto avatar bulat, nama "Dr. Rohan Mehta", subtitle "Cardiologist", dengan chevron dropdown.
 
 ---
 
-## 6. Feedback & Interaksi Tambahan
+## 5. Hero / Welcome Section
+**Card besar berwarna gradasi biru muda — lebar ±60% dari konten:**
+- Headline: "Good morning, Dr. Mehta!"
+- Subteks: "Here's what's happening in your practice today. Stay aware, stay ahead."
+- Info baris: ikon jam + "09:30 AM, May 20, 2026, Tuesday" dan ikon lokasi + "Cardiology Department, CityCare Multi-Speciality Hospital"
+- Ilustrasi dokter (karakter AI/avatar) di sisi kanan card.
 
-*   **Skeleton Loading:** Ganti *spinner* berputar konvensional dengan *Skeleton Screens* (bentuk blok abu-abu yang berkedip napas/pulsing) saat memuat data pasien/grafik untuk persepsi memuat data yang lebih cepat.
-*   **Auto-Refresh Indicator:** Titik hijau berdenyut (*pinging dot*) di pojok bawah tabel dengan teks *countdown* mundur (misal: "Auto-refresh: 15s").
-*   **Toasts/Notifikasi:** Pemberitahuan sukses/gagal muncul melayang (*floating*) di pojok kanan atas dengan animasi masuk dan keluar (slide).
+**Card "AI Clinical Assistant" (kanan atas, lebih kecil):**
+- Badge "BETA"
+- Judul: "AI Clinical Assistant"
+- Deskripsi: "Your AI assistant for smarter clinical decisions and summaries."
+- Sub-card di dalamnya: "AI Patient Summary Generator" dengan deskripsi singkat dan tombol CTA biru "Generate Summary".
+
+**Mini Calendar (kanan, paling atas):**
+- Header bulan: "May 2026" dengan navigasi prev/next.
+- Grid hari (Sun–Sat) dan tanggal 28–31, dengan tanggal aktif (21) ditandai lingkaran biru solid.
+
+---
+
+## 6. Statistic Cards (5 kartu sejajar)
+Setiap kartu memiliki: ikon berwarna dalam kotak rounded, label kecil, angka besar (bold), dan indikator perubahan (naik/turun % dibanding hari sebelumnya).
+
+| Kartu | Ikon | Nilai | Perubahan |
+|---|---|---|---|
+| Total Patients Today | orang (biru) | 42 | +5% from yesterday |
+| Pending Prescriptions | dokumen (oranye) | 18 | -8% from yesterday |
+| Lab Reports to Review | tabung lab (ungu) | 26 | +12% from yesterday |
+| Follow-up Patients | kalender (hijau) | 31 | +7% from yesterday |
+| Emergency Alerts | segitiga peringatan (merah) | 3 | View all alerts → |
+
+Kartu emergency alert menggunakan warna aksen merah untuk menonjolkan urgensi.
+
+---
+
+## 7. Today's Appointments (panel kiri-tengah)
+- Header: "Today's Appointments" + link "View all".
+- List item per pasien terdiri dari:
+  - Avatar foto bulat
+  - Nama pasien (bold)
+  - Jenis kunjungan (mis. "Consultation", "ECG Review", "Follow-up")
+  - Waktu (format jam)
+  - Status badge berwarna: **Confirmed** (hijau), **Pending** (kuning/oranye)
+- Footer: tombol/link "View Full Schedule".
+
+Contoh data: Arjun Sharma (09:30, Confirmed), Neha Kapoor (10:15, Consultation), Vikram Singh (11:00, ECG Review, Pending), Pooja Verma (12:00, Confirmed), Rakesh Patel (02:00, Pending).
+
+---
+
+## 8. Quick Links
+- Grid 2 kolom x 3 baris berisi shortcut icon + label ke modul lain:
+  - Patient Records, Appointments, Prescriptions, Lab Reports, Treatment Plans, Medical History
+- Tombol khusus "AI Diagnosis Support" dengan ikon dan chevron, ditampilkan menonjol (full width, di bagian bawah grid).
+
+---
+
+## 9. Patient Queue Status
+- Donut chart di tengah dengan label total di pusat ("Total 42").
+- Breakdown status dengan warna berbeda dan persentase:
+  - Waiting (14%)
+  - In Consultation (16%)
+  - Completed (10%)
+  - No Show (2%)
+- Statistik tambahan di bawah chart: "Average Wait Time: 18 mins" dan "Longest Wait Time: 45 mins".
+
+---
+
+## 10. Today's Schedule (panel kanan atas)
+- Header + link "View all"
+- List linimasa jadwal dengan waktu, nama pasien, jenis kunjungan, dan status badge (Confirmed/Pending), mirip struktur Today's Appointments tapi format ringkas vertikal.
+- Footer: link "View Full Calendar".
+
+---
+
+## 11. Notifications
+- Header + link "View all"
+- List notifikasi dengan ikon kategori (lab, appointment, prescription) dan teks singkat + timestamp relatif ("5 mins ago", "20 mins ago", "1 hour ago").
+- Contoh: "Lab report for Arjun Sharma is ready", "New appointment request from Priya Nair", "Prescription alert: 18 pending prescriptions".
+
+---
+
+## 12. Mobile App Promo Card (kiri bawah)
+- Background biru gelap kontras (dark navy).
+- Judul: "MediCore AI Mobile"
+- Deskripsi: "Access patient data, appointments and more on the go."
+- Dua badge tombol: App Store dan Google Play.
+- Elemen ilustrasi mockup ponsel di sisi kanan card.
+
+---
+
+## 13. Upcoming Consultations
+- Header + link "View all"
+- List pasien dengan avatar, nama, jenis konsultasi, dan waktu (mis. "01:00 PM").
+- Contoh: Ananya Joshi, Mohit Bansal, Vikram Singh.
+
+---
+
+## 14. Recent Patient Notes
+- Header + link "View all Notes"
+- List nama pasien dengan icon dokumen/catatan kecil, tanpa detail tambahan yang ditampilkan secara eksplisit pada level ringkasan.
+
+---
+
+## 15. AI Patient Risk Alerts
+- Header + link "View all"
+- List kartu alert dengan severity badge berwarna:
+  - **High Risk** (merah) — Rakesh Patel, Age 68 - Diabetic
+  - **Medium Risk** (kuning/oranye) — Savitri Devi, Age 64 - Cardiac
+  - **Medium Risk** (kuning/oranye) — Mohit Bansal
+- Tombol aksi kecil (eye icon "review/view") di tiap baris.
+
+---
+
+## 16. Smart Reminders
+- List reminder dengan ikon kategori dan teks ringkas + jumlah:
+  - "5 follow-ups due today"
+  - "12 Lab reports pending review"
+  - "18 Prescriptions pending"
+  - "3 Insurance approvals pending"
+  - "4 Appointments need confirmation"
+- Tiap baris memiliki tombol aksi kecil di kanan (mis. ikon centang/checklist).
+
+---
+
+## 17. AI Assistant Chat Widget (floating, kanan bawah)
+- Card kecil dengan status "Online" (indikator hijau).
+- Avatar AI assistant.
+- Bubble chat contoh: "Hello Dr. Mehta! How can I assist you today?"
+- Quick reply chips: "Summarize Patient", "Suggest Diagnosis", "Check Drug Interaction".
+- Input field "Ask me anything..." dengan tombol kirim (paper plane icon).
+
+---
+
+## 18. Visual Design System
+
+### 18.1 Warna
+- **Primary Blue**: digunakan untuk aksen utama, tombol CTA, item navigasi aktif, ikon utama, dan elemen highlight (mis. tanggal aktif di kalender).
+- **Background**: putih/abu sangat terang (#F7F9FC-ish) untuk kanvas utama, putih murni untuk card.
+- **Dark Navy**: digunakan pada card promo mobile app sebagai warna kontras gelap.
+- **Status Colors**:
+  - Hijau → Confirmed / Completed / positif
+  - Kuning/Oranye → Pending / Medium Risk
+  - Merah → Emergency / High Risk / alert kritis
+  - Ungu → kategori lab/khusus (lab reports icon)
+
+### 18.2 Tipografi
+- Heading besar (welcome banner): bold, ukuran besar (~24-28px).
+- Section titles: semi-bold, ~16-18px.
+- Body text & list items: regular, ~13-14px.
+- Angka statistik (metric cards): bold, ukuran besar (~28-32px) sebagai focal point.
+
+### 18.3 Komponen Reusable
+- **Card**: rounded corners (~12-16px radius), shadow halus, padding konsisten.
+- **Badge/Status Pill**: rounded-full, padding horizontal kecil, warna background pastel sesuai status, teks warna solid senada.
+- **Avatar**: foto bulat (circle), ukuran konsisten ~32-40px untuk list, lebih besar (~48px) untuk header profil.
+- **Icon Container**: kotak rounded dengan background pastel sesuai kategori warna, ikon solid di tengah.
+- **List Item**: avatar/icon + 2 baris teks (judul + subjudul) + elemen kanan (waktu/badge/aksi).
+- **Section Header**: judul + link "View all" rata kanan.
+- **Donut/Pie Chart**: dengan label total di tengah dan legend warna di bawah/samping.
+
+### 18.4 Spacing & Grid
+- Gutter antar card konsisten (~16-20px).
+- Card statistik disusun dalam grid 5 kolom sejajar dengan tinggi sama.
+- Panel konten utama menggunakan grid 3-4 kolom responsif untuk baris tengah dan bawah.
+
+---
+
+## 19. Komponen yang Disarankan untuk Dikembangkan (Dev Notes)
+- `SidebarNav` — list menu dengan state active/inactive
+- `TopHeaderBar` — search + notification + profile dropdown
+- `WelcomeBanner` — hero card dengan ilustrasi & info waktu/lokasi
+- `AIAssistantCard` — card promo AI dengan CTA
+- `MiniCalendar` — komponen kalender ringkas
+- `StatCard` — kartu metrik dengan ikon, angka, dan delta indicator
+- `AppointmentListItem` / `ScheduleListItem` — item list dengan avatar, status badge
+- `QuickLinksGrid` — grid shortcut menu
+- `DonutChartCard` — chart status pasien dengan legend
+- `NotificationListItem`
+- `RiskAlertCard` — dengan severity badge (High/Medium/Low)
+- `SmartReminderItem`
+- `ChatWidget` — floating AI assistant chat box
+- `MobileAppPromoCard`
+
+---
+
+*Dokumen ini dihasilkan dari analisis visual screenshot UI "MediCore AI ERP — Doctor Dashboard" dan dimaksudkan sebagai referensi desain/spec untuk tim development atau desain lanjutan.*

@@ -245,7 +245,7 @@ const getInitial   = (name) => name?.charAt(0)?.toUpperCase() ?? '?';
                                             <!-- Reset Password -->
                                             <button @click="openReset(u.id)" title="Reset Password"
                                                 class="p-1.5 rounded-lg transition-all"
-                                                style="background:rgba(52,152,219,0.1); color:#3498DB; border:1px solid rgba(52,152,219,0.2)">
+                                                style="background:rgba(52,152,219,0.1); color:#00A884; border:1px solid rgba(0,168,132,0.2)">
                                                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                                     <path stroke-linecap="round" stroke-linejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
                                                 </svg>
@@ -317,13 +317,13 @@ const getInitial   = (name) => name?.charAt(0)?.toUpperCase() ?? '?';
                                 <tr v-if="resetId === u.id" style="background:rgba(52,152,219,0.04)">
                                     <td colspan="7" class="px-5 py-3">
                                         <div class="flex items-center gap-3 flex-wrap">
-                                            <span class="text-xs font-semibold" style="color:#3498DB">Reset Password — {{ u.name }}</span>
+                                            <span class="text-xs font-semibold" style="color:#00A884">Reset Password — {{ u.name }}</span>
                                             <input v-model="resetForm.password" type="password" placeholder="Password baru (min 6 karakter)"
                                                 class="text-sm px-3 py-2 rounded-xl outline-none flex-1"
-                                                style="border:1px solid rgba(52,152,219,0.3); background:var(--bg-surface); color:var(--text-primary); min-width:200px"/>
+                                                style="border:1px solid rgba(0,168,132,0.3); background:var(--bg-surface); color:var(--text-primary); min-width:200px"/>
                                             <button @click="submitReset(u.id)" :disabled="resetForm.processing || !resetForm.password"
                                                 class="text-xs font-bold px-4 py-2 rounded-xl disabled:opacity-50"
-                                                style="background:#3498DB; color:#fff">Reset</button>
+                                                style="background:#00A884; color:#fff">Reset</button>
                                             <button @click="resetId = null"
                                                 class="text-xs px-3 py-2 rounded-xl"
                                                 style="background:var(--bg-main); color:var(--text-secondary); border:1px solid var(--border-default)">Batal</button>

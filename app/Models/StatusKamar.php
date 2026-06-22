@@ -45,13 +45,13 @@ class StatusKamar extends Model
 
     public function isKosong(): bool
     {
-        return strtoupper($this->Status) === 'KOSONG';
+        return strtoupper($this->Status) === 'TERSEDIA';
     }
 
     public function statusLabel(): string
     {
         return match (strtoupper($this->Status)) {
-            'KOSONG'  => 'Kosong',
+            'KOSONG'  => 'Tersedia',
             'BOOKING' => 'Booking',
             'ISI'     => 'Terisi',
             default   => $this->Status,

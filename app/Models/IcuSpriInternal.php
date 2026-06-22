@@ -5,9 +5,10 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * SPRI jalur INTERNAL.
+ * BU (Booking ICU) jalur INTERNAL.
  *
- * Alur: pending_admisi → pending_icu → bed_verified | ditolak
+ * Alur: pending_icu → bed_verified | ditolak
+ * (bypass admisi — langsung ke ICU untuk konfirmasi bed)
  */
 class IcuSpriInternal extends Model
 {
@@ -37,7 +38,7 @@ class IcuSpriInternal extends Model
     public function statusLabel(): string
     {
         return match ($this->status) {
-            'pending_admisi' => 'Menunggu Admisi',
+            'pending_admisi' => 'Menunggu Admisi',  // legacy
             'pending_icu'    => 'Menunggu ICU',
             'bed_verified'   => 'Bed Terverifikasi',
             'ditolak'        => 'Ditolak',

@@ -102,7 +102,7 @@ class MenuIcuController extends Controller
     }
 
     // -------------------------------------------------------------------------
-    // ACTION — SPRI Internal: pending_icu -> bed_verified
+    // ACTION — BU Internal: pending_icu -> bed_verified
     // -------------------------------------------------------------------------
 
     public function verifikasiInt(Request $request, int $id): RedirectResponse
@@ -112,16 +112,16 @@ class MenuIcuController extends Controller
             'kebutuhan_bed' => 'required|string|max:100',
         ]);
 
-        $spri = IcuSpriInternal::findOrFail($id);
+        $bu = IcuSpriInternal::findOrFail($id);
 
-        if ($spri->status !== 'pending_icu') {
-            return back()->with('error', 'SPRI sudah tidak berstatus Menunggu ICU.');
+        if ($bu->status !== 'pending_icu') {
+            return back()->with('error', 'BU sudah tidak berstatus Menunggu ICU.');
         }
 
         $bed     = StatusKamar::with('ruang')->where('Kode_Ruang', $v['Kode_Ruang'])->first();
         $namaBed = $bed?->ruang?->Nama_RuangM ?? $v['Kode_Ruang'];
 
-        $spri->update([
+        $bu->update([
             'status'           => 'bed_verified',
             'kebutuhan_bed'    => $v['kebutuhan_bed'],
             'allocated_bed_id' => $v['Kode_Ruang'],
@@ -129,11 +129,11 @@ class MenuIcuController extends Controller
             'verified_by'      => $this->actor(),
         ]);
 
-        return back()->with('success', "Bed {$namaBed} terverifikasi untuk {$spri->pasien?->Nama_Pasien}.");
+        return back()->with('success', "Bed {$namaBed} terverifikasi untuk {$bu->pasien?->Nama_Pasien}.");
     }
 
     // -------------------------------------------------------------------------
-    // ACTION — SPRI Internal: tolak (pending_icu -> ditolak)
+    // ACTION — BU Internal: tolak (pending_icu -> ditolak)
     // -------------------------------------------------------------------------
 
     public function tolakInt(Request $request, int $id): RedirectResponse
@@ -142,18 +142,18 @@ class MenuIcuController extends Controller
             'alasan_tolak' => 'required|string|max:255',
         ]);
 
-        $spri = IcuSpriInternal::findOrFail($id);
+        $bu = IcuSpriInternal::findOrFail($id);
 
-        if ($spri->status !== 'pending_icu') {
-            return back()->with('error', 'SPRI sudah tidak berstatus Menunggu ICU.');
+        if ($bu->status !== 'pending_icu') {
+            return back()->with('error', 'BU sudah tidak berstatus Menunggu ICU.');
         }
 
-        $spri->update([
+        $bu->update([
             'status'       => 'ditolak',
             'alasan_tolak' => $v['alasan_tolak'],
             'verified_by'  => $this->actor(),
         ]);
 
-        return back()->with('success', "SPRI {$spri->pasien?->Nama_Pasien} ditolak oleh ICU.");
+        return back()->with('success', "BU {$bu->pasien?->Nama_Pasien} ditolak oleh ICU.");
     }
 }

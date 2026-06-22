@@ -20,23 +20,25 @@ class AntrianService
                    ? $request->query('sort') : 'created_at';
         $sortDir = $request->query('dir', 'asc') === 'desc' ? 'desc' : 'asc';
 
-        $fStatus = $request->query('status', '');
-        $fJenis  = $request->query('jenis', '');
-        $fNama   = trim($request->query('nama', ''));
-        $fTgl    = $request->query('tgl', '');
+        $fStatus  = $request->query('status', '');
+        $fJenis   = $request->query('jenis', '');
+        $fNama    = trim($request->query('nama', ''));
+        // Default: hari ini. Jika user kirim range, pakai range tersebut.
+        $today    = now()->format('Y-m-d');
+        $fTgl     = $request->query('tgl', '');
+        $fTglDari = $request->query('tgl_dari', $fTgl ?: $today);
+        $fTglAkh  = $request->query('tgl_sampai', $fTgl ?: $today);
 
         $externals = $fJenis !== 'internal'
-            ? $this->queryExternal($fStatus, $fNama, $fTgl)
+            ? $this->queryExternal($fStatus, $fNama, $fTglDari, $fTglAkh)
             : collect();
 
         $internals = $fJenis !== 'external'
-            ? $this->queryInternal($fStatus, $fNama, $fTgl)
+            ? $this->queryInternal($fStatus, $fNama, $fTglDari, $fTglAkh)
             : collect();
 
-        // $merged = $externals->merge($internals);
         $merged = collect($externals)->concat($internals)->values();
 
-        // sortBy dengan callback agar aman untuk collection of arrays
         $merged = $merged->sortBy(
             fn ($item) => strtolower((string) ($item[$sortBy] ?? '')),
             SORT_REGULAR,
@@ -51,13 +53,15 @@ class AntrianService
                 'filterJenis'  => $fJenis,
                 'filterNama'   => $fNama,
                 'filterTgl'    => $fTgl,
+                'filterTglDari'=> $fTglDari,
+                'filterTglAkh' => $fTglAkh,
                 'sortBy'       => $sortBy,
                 'sortDir'      => $sortDir,
             ],
         ];
     }
 
-    private function queryExternal(string $fStatus, string $fNama, string $fTgl): Collection
+    private function queryExternal(string $fStatus, string $fNama, string $fTglDari, string $fTglAkh): Collection
     {
         $q = IcuBookingExternal::with('pasien');
         if ($fStatus) $q->where('status', $fStatus);
@@ -67,10 +71,13 @@ class AntrianService
                    ->orWhere('No_MR', 'like', "%{$fNama}%");
             });
         }
-        if ($fTgl) $q->whereDate('created_at', $fTgl);
+        if ($fTglDari && $fTglAkh) {
+            $q->whereBetween('created_at', [$fTglDari . ' 00:00:00', $fTglAkh . ' 23:59:59']);
+        }
 
         return $q->latest()->get()->map(fn ($b) => $this->fmtExt($b));
     }
+    
 
     // private function queryInternal(string $fStatus, string $fNama, string $fTgl): Collection
     // {
@@ -87,34 +94,30 @@ class AntrianService
     //     return $q->latest()->get()->map(fn ($s) => $this->fmtInt($s));
     // }
 
-    private function queryInternal(string $fStatus, string $fNama, string $fTgl): Collection
+    private function queryInternal(string $fStatus, string $fNama, string $fTglDari, string $fTglAkh): Collection
     {
-        $q = IcuSpriInternal::query(); 
+        $q = IcuSpriInternal::query();
 
         if ($fStatus) {
             $q->where('status', $fStatus);
         }
 
         if ($fNama) {
-            // ambil No_MR dari SQL Server
             $pasienIds = \App\Models\RegistrasiPasien::query()
                 ->where('Nama_Pasien', 'like', "%{$fNama}%")
                 ->pluck('No_MR')
                 ->toArray();
-
             $q->where(function ($qq) use ($fNama, $pasienIds) {
                 $qq->whereIn('No_MR', $pasienIds)
-                ->orWhere('No_MR', 'like', "%{$fNama}%");
+                   ->orWhere('No_MR', 'like', "%{$fNama}%");
             });
         }
 
-        if ($fTgl) {
-            $q->whereDate('created_at', $fTgl);
+        if ($fTglDari && $fTglAkh) {
+            $q->whereBetween('created_at', [$fTglDari . ' 00:00:00', $fTglAkh . ' 23:59:59']);
         }
 
         $results = $q->latest()->get();
-
-        // Batch lookup jaminan dari PENDAFTARAN
         $noRegs = $results->pluck('No_Reg')->filter()->unique()->values()->toArray();
         $jaminanMap = [];
         if (!empty($noRegs)) {
@@ -183,6 +186,8 @@ class AntrianService
             'No_Reg'           => $b->No_Reg,
             'jenis_kelamin'    => $b->jenis_kelamin,
             'asal_rujukan'     => $b->asal_rujukan,
+            'asal_ruang'       => $b->asal_rujukan,
+            'Dokter'           => null,
             'diagnosa'         => $b->diagnosa,
             'rencana_tindakan' => $b->rencana_tindakan,
             'kebutuhan_bed'    => $b->kebutuhan_bed,
@@ -207,18 +212,18 @@ class AntrianService
         return [
             'id'             => $s->id,
             'sumber'         => 'internal',
-            'sumber_label'   => 'SPRI Internal',
+            'sumber_label'   => 'BU Internal',
             'nama_pasien'    => $s->pasien?->Nama_Pasien ?? $s->No_MR,
             'No_MR'          => $s->No_MR,
             'No_Reg'         => $s->No_Reg,
-            // RegistrasiPasien: lokal pakai 'jenis_kelamin', RSUS pakai 'Jenis_Kelamin'
             'jenis_kelamin'  => $s->pasien
                 ? strtoupper($s->pasien->Jenis_Kelamin ?? $s->pasien->jenis_kelamin ?? '')
                 : null,
             'asal_rujukan'   => $s->asal_ruang,
+            'asal_ruang'     => $s->asal_ruang,
+            'Dokter'         => $s->Dokter,
             'diagnosa'       => $s->Diagnosis,
             'IndikasiRI'     => $s->IndikasiRI,
-            'Dokter'         => $s->Dokter,
             'spesialis'      => $s->spesialis,
             'kebutuhan_bed'  => $s->kebutuhan_bed,
             'nama_bed'       => $s->nama_bed,
@@ -235,4 +240,5 @@ class AntrianService
             'verified_by'    => $s->verified_by,
         ];
     }
+
 }
