@@ -7,21 +7,26 @@ use App\Models\IcuBookingExternal;
 use App\Models\IcuSpriInternal;
 use App\Models\MRuangMaster;
 use App\Models\StatusKamar;
+use App\Services\ActivityLogService;
 use App\Services\Icu\AntrianService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class MenuIcuController extends Controller
 {
     public function __construct(
-        private readonly AntrianService $service
+        private readonly AntrianService     $service,
+        private readonly ActivityLogService $activityLog,
     ) {}
 
     private function actor(): string
     {
-        return auth()->user()?->name ?? 'petugas_icu';
+        /** @var \App\Models\User|null $user */
+        $user = Auth::user();
+        return $user?->name ?? 'petugas_icu';
     }
 
     // -------------------------------------------------------------------------
@@ -73,6 +78,8 @@ class MenuIcuController extends Controller
             'confirmed_by'     => $this->actor(),
         ]);
 
+        $this->activityLog->konfirmasibed($booking->id, $booking->nama_pasien, $namaBed);
+
         return back()->with('success', "Bed {$namaBed} ({$v['kebutuhan_bed']}) dikonfirmasi untuk {$booking->nama_pasien}.");
     }
 
@@ -97,6 +104,8 @@ class MenuIcuController extends Controller
             'alasan_tolak' => $v['alasan_tolak'],
             'confirmed_by' => $this->actor(),
         ]);
+
+        $this->activityLog->tolakBookingIcu($booking->id, $booking->nama_pasien, $v['alasan_tolak']);
 
         return back()->with('success', "Booking {$booking->nama_pasien} ditolak.");
     }
@@ -129,6 +138,8 @@ class MenuIcuController extends Controller
             'verified_by'      => $this->actor(),
         ]);
 
+        $this->activityLog->verifikasibed($bu->id, (string) ($bu->pasien?->Nama_Pasien ?? $bu->No_MR), $namaBed);
+
         return back()->with('success', "Bed {$namaBed} terverifikasi untuk {$bu->pasien?->Nama_Pasien}.");
     }
 
@@ -153,6 +164,8 @@ class MenuIcuController extends Controller
             'alasan_tolak' => $v['alasan_tolak'],
             'verified_by'  => $this->actor(),
         ]);
+
+        $this->activityLog->tolakSpriIcu($bu->id, (string) ($bu->pasien?->Nama_Pasien ?? $bu->No_MR), $v['alasan_tolak']);
 
         return back()->with('success', "BU {$bu->pasien?->Nama_Pasien} ditolak oleh ICU.");
     }

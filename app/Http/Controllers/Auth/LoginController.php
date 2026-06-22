@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\ActivityLogService;
 use App\Services\KeycloakService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,7 +23,8 @@ use Inertia\Response;
 class LoginController extends Controller
 {
     public function __construct(
-        private readonly KeycloakService $keycloak
+        private readonly KeycloakService     $keycloak,
+        private readonly ActivityLogService  $activityLog,
     ) {}
 
     public function showLogin(): Response|RedirectResponse
@@ -67,6 +69,7 @@ class LoginController extends Controller
         )) {
             $request->session()->regenerate();
             $request->session()->put('auth_via', 'local');
+            $this->activityLog->loginLog();
             return redirect()->intended(route('icu.dashboard'));
         }
 

@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\Icu\ActivityLogController;
 use App\Http\Controllers\Icu\DashboardController;
 use App\Http\Controllers\Icu\DenahBedController;
 use App\Http\Controllers\Icu\Icd10Controller;
@@ -75,5 +76,8 @@ Route::middleware('auth')->group(function () {
         Route::delete('/settings/users/{id}',              [UserController::class,          'destroy'])->name('settings.users.destroy');
         Route::get('/settings/roles',                      [RolePermissionController::class,'index'])->name('settings.roles');
         Route::post('/settings/roles/user/{id}',           [RolePermissionController::class,'updateUserRole'])->name('settings.roles.update_user');
+
+        // ── LOG AKTIVITAS (admin only) ────────────────────────────────────
+        Route::get('/settings/activity-logs', [ActivityLogController::class, 'index'])->name('settings.activity_logs');
     });
 });

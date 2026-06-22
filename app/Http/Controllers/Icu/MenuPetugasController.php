@@ -6,9 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\IcuSpriInternal;
 use App\Models\MRuangMaster;
 use App\Models\RegistrasiPasien;
+use App\Services\ActivityLogService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
@@ -16,14 +18,21 @@ use Inertia\Response;
 
 class MenuPetugasController extends Controller
 {
+    public function __construct(
+        private readonly ActivityLogService $activityLog,
+    ) {}
+
     private function actor(): string
     {
-        return auth()->user()?->name ?? 'petugas_ruang';
+        /** @var \App\Models\User|null $user */
+        $user = Auth::user();
+        return $user?->name ?? 'petugas_ruang';
     }
 
     private function actorNames(): array
     {
-        $user = auth()->user();
+        /** @var \App\Models\User|null $user */
+        $user = Auth::user();
         if (! $user) return ['petugas_ruang'];
         $names = [$user->name];
         if ($user->keycloak_username) $names[] = $user->keycloak_username;
@@ -51,7 +60,9 @@ class MenuPetugasController extends Controller
 
     private function userWardIds(): array
     {
-        return auth()->user()?->getWardIdsArray() ?? [];
+        /** @var \App\Models\User|null $u */
+        $u = Auth::user();
+        return $u?->getWardIdsArray() ?? [];
     }
 
     public function index(Request $request): Response
@@ -139,12 +150,12 @@ class MenuPetugasController extends Controller
         ];
 
         Log::info('[DEBUG] actorNames: ' . json_encode($this->actorNames()));
-        Log::info('[DEBUG] ward_ids: ' . json_encode(auth()->user()?->ward_ids));
+        /** @var \App\Models\User|null $authUser */
+        $authUser = Auth::user();
+        Log::info('[DEBUG] ward_ids: ' . json_encode($authUser?->ward_ids));
 
         $data = $q->get();
         Log::info('[DEBUG] total rows: ' . $data->count());
-
-        // Cek langsung di DB nama kolom yang dipakai
         Log::info('[DEBUG] nameUserColumn: ' . $this->nameUserColumn());
 
         return Inertia::render('Icu/MenuPetugas', [
@@ -153,9 +164,9 @@ class MenuPetugasController extends Controller
             'filters'         => compact('fNama', 'fTgl', 'fTglDari', 'fTglAkh', 'fStatus', 'fJaminan', 'sortBy', 'sortDir'),
             'pasienAktif'     => $this->getPasienAktif(''),
             'wardIds'         => $this->userWardIds(),
-            'authProvider'    => auth()->user()?->auth_provider ?? 'local',
+            'authProvider'    => $authUser?->auth_provider ?? 'local',
             'isIgdUser'       => $this->isIgdUser(),
-            'unitKerja'       => auth()->user()?->unit_kerja ?? '',
+            'unitKerja'       => $authUser?->unit_kerja ?? '',
             'kamarKosong'     => MRuangMaster::bedKosong(),
             'masterKelas'     => MRuangMaster::jenisIcuTersedia(),
             'masterCaraBayar' => \App\Models\MCaraBayar::orderBy('Ket_Bayar')
@@ -168,7 +179,8 @@ class MenuPetugasController extends Controller
 
     private function getPasienAktif(string $cari): array
     {
-        $user = auth()->user();
+        /** @var \App\Models\User|null $user */
+        $user = Auth::user();
         if (! $user) return [];
 
         if ($user->auth_provider === 'keycloak') {
@@ -180,7 +192,8 @@ class MenuPetugasController extends Controller
 
     private function isIgdUser(): bool
     {
-        $user = auth()->user();
+        /** @var \App\Models\User|null $user */
+        $user = Auth::user();
         if (! $user) return false;
 
         // Cek dari unit_kerja field
@@ -453,6 +466,8 @@ class MenuPetugasController extends Controller
             $pasien = RegistrasiPasien::where('No_MR', $bu->No_MR)->first();
             if ($pasien) $nama = $pasien->Nama_Pasien . ' (' . $bu->No_MR . ')';
         } catch (\Exception) {}
+
+        $this->activityLog->buatSpri($bu->id, $nama);
 
         return back()->with('success', "BU (Booking ICU) untuk {$nama} berhasil dikirim ke ICU.");
     }

@@ -8,10 +8,12 @@ use App\Models\IcuSpriInternal;
 use App\Models\MCaraBayar;
 use App\Models\MRuangMaster;
 use App\Models\RegistrasiPasien;
+use App\Services\ActivityLogService;
 use App\Services\Icu\AntrianService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -19,12 +21,15 @@ use Inertia\Response;
 class MenuAdmisiController extends Controller
 {
     public function __construct(
-        private readonly AntrianService $service
+        private readonly AntrianService     $service,
+        private readonly ActivityLogService $activityLog,
     ) {}
 
     private function actor(): string
     {
-        return auth()->user()?->name ?? 'admisi';
+        /** @var \App\Models\User|null $user */
+        $user = Auth::user();
+        return $user?->name ?? 'admisi';
     }
 
     // -------------------------------------------------------------------------
@@ -75,6 +80,8 @@ class MenuAdmisiController extends Controller
             'created_by'    => $this->actor(),
         ]);
 
+        $this->activityLog->bookingBaru($booking->id, $booking->nama_pasien);
+
         return back()->with('success', "Booking untuk {$booking->nama_pasien} berhasil dikirim ke ICU.");
     }
 
@@ -100,6 +107,8 @@ class MenuAdmisiController extends Controller
             'approved_by'    => $this->actor(),
         ]);
 
+        $this->activityLog->approveSpri($bu->id, (string) ($bu->pasien?->Nama_Pasien ?? $bu->No_MR));
+
         return back()->with('success', "BU {$bu->pasien?->Nama_Pasien} disetujui dan diteruskan ke ICU.");
     }
 
@@ -120,6 +129,8 @@ class MenuAdmisiController extends Controller
             'alasan_tolak' => $v['alasan_tolak'],
             'approved_by'  => $this->actor(),
         ]);
+
+        $this->activityLog->tolakSpriAdmisi($bu->id, (string) ($bu->pasien?->Nama_Pasien ?? $bu->No_MR), $v['alasan_tolak']);
 
         return back()->with('success', "BU {$bu->pasien?->Nama_Pasien} ditolak oleh Admisi.");
     }
@@ -147,6 +158,8 @@ class MenuAdmisiController extends Controller
             'No_Reg'      => $v['No_Reg'] ?? null,
             'verified_by' => $this->actor(),
         ]);
+
+        $this->activityLog->verifikasiPasien($booking->id, $booking->nama_pasien, $v['No_MR']);
 
         return back()->with('success', "Pasien No. MR {$v['No_MR']} terverifikasi. Bed {$booking->nama_bed} aktif.");
     }

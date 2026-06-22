@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\ActivityLogService;
 use App\Services\KeycloakService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,7 +15,8 @@ use Laravel\Socialite\Facades\Socialite;
 class AuthController extends Controller
 {
     public function __construct(
-        private readonly KeycloakService $keycloak
+        private readonly KeycloakService    $keycloak,
+        private readonly ActivityLogService $activityLog,
     ) {}
 
     /**
@@ -99,6 +101,8 @@ class AuthController extends Controller
 
         Log::info("[Keycloak] Login: {$user->name} role:{$localRole} id_token:" . ($idToken ? 'ada' : 'KOSONG'));
 
+        $this->activityLog->loginLog();
+
         return redirect()->intended(route('icu.dashboard'));
     }
 
@@ -107,6 +111,9 @@ class AuthController extends Controller
         $authVia = $request->session()->get('auth_via', 'local');
         $idToken = $request->session()->get('keycloak_id_token');
         $userId  = Auth::id();
+
+        // Catat logout sebelum session di-invalidate
+        $this->activityLog->logoutLog();
 
         // 1. Logout dari Laravel session
         Auth::guard('web')->logout();
