@@ -7,17 +7,18 @@ import { useAuth } from '@/composables/useAuth.js'
 
 const { canBuatSpriInternal, isAdmin } = useAuth()
 const props = defineProps({
-    spriList:     { type: Array,   default: () => [] },
-    summary:      { type: Object,  default: () => ({}) },
-    filters:      { type: Object,  default: () => ({}) },
-    pasienAktif:  { type: Array,   default: () => [] },
-    wardIds:      { type: Array,   default: () => [] },
-    authProvider: { type: String,  default: 'local' },
-    isIgdUser:    { type: Boolean, default: false },
-    unitKerja:    { type: String,  default: '' },
-    kamarKosong:  { type: Array,   default: () => [] },
-    masterKelas:  { type: Array,   default: () => [] },
-    flash:        { type: Object,  default: () => ({}) },
+    spriList:        { type: Array,   default: () => [] },
+    summary:         { type: Object,  default: () => ({}) },
+    filters:         { type: Object,  default: () => ({}) },
+    pasienAktif:     { type: Array,   default: () => [] },
+    wardIds:         { type: Array,   default: () => [] },
+    authProvider:    { type: String,  default: 'local' },
+    isIgdUser:       { type: Boolean, default: false },
+    unitKerja:       { type: String,  default: '' },
+    kamarKosong:     { type: Array,   default: () => [] },
+    masterKelas:     { type: Array,   default: () => [] },
+    masterCaraBayar: { type: Array,   default: () => [] },
+    flash:           { type: Object,  default: () => ({}) },
 })
 
 // ── Filters ──────────────────────────────────────────────────────────────────
@@ -30,6 +31,7 @@ const _today    = localDate(0)
 const fStatus  = ref(props.filters.status    ?? '')
 const fNama    = ref(props.filters.nama      ?? '')
 const fTgl     = ref(props.filters.tgl       ?? '')
+const fJaminan = ref(props.filters.jaminan   ?? '')
 const fTglDari = ref(props.filters.fTglDari  || _today)
 const fTglAkh  = ref(props.filters.fTglAkh   || _today)
 const sortBy   = ref(props.filters.sortBy    ?? 'created_at')
@@ -43,13 +45,13 @@ const setPreset = (dari, sampai) => { fTglDari.value=dari; fTglAkh.value=sampai;
 
 let ft = null
 const applyFilters = () => router.get(route('icu.menu_petugas'),
-    { status: fStatus.value, nama: fNama.value,
+    { status: fStatus.value, nama: fNama.value, jaminan: fJaminan.value,
       tgl_dari: fTglDari.value, tgl_sampai: fTglAkh.value,
       sort: sortBy.value, dir: sortDir.value },
     { preserveState: true, replace: true, preserveScroll: true })
 const onNamaInput = () => { clearTimeout(ft); ft = setTimeout(applyFilters, 400) }
 const resetFilter = () => {
-    fStatus.value = ''; fNama.value = ''; fTgl.value = ''
+    fStatus.value = ''; fNama.value = ''; fTgl.value = ''; fJaminan.value = ''
     fTglDari.value = localDate(0); fTglAkh.value = localDate(0)
     applyFilters()
 }
@@ -422,6 +424,13 @@ const canSubmit  = computed(() =>
             <label class="mp-label">Cari Nama / No. MR</label>
             <input v-model="fNama" @input="onNamaInput" placeholder="Nama / No. MR..." class="mp-input"/>
           </div>
+          <!-- <div>
+            <label class="mp-label">Jaminan</label>
+            <select v-model="fJaminan" @change="applyFilters" class="mp-select">
+              <option value="">Semua Jaminan</option>
+              <option v-for="cb in masterCaraBayar" :key="cb.kode" :value="cb.kode">{{ cb.nama }}</option>
+            </select>
+          </div> -->
           <div>
             <label class="mp-label">Tgl Mulai</label>
             <input v-model="fTglDari" @change="applyFilters" type="date" class="mp-input"/>
@@ -446,7 +455,7 @@ const canSubmit  = computed(() =>
               @click="toggleSort(col.key)" class="mp-sort-btn" :class="sortBy===col.key?'active':''">
               {{ col.label }} {{ sortIcon(col.key) }}
             </button>
-            <button v-if="fStatus||fNama||fTgl||fTglDari||fTglAkh" @click="resetFilter" class="mp-reset-btn">✕</button>
+            <button v-if="fStatus||fNama||fTgl||fTglDari||fTglAkh||fJaminan" @click="resetFilter" class="mp-reset-btn">✕</button>
           </div>
         </div>
       </div>

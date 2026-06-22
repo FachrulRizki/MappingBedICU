@@ -1,14 +1,13 @@
 ﻿<script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
-import { Doughnut } from 'vue-chartjs';
-import { Chart as ChartJS, ArcElement, Tooltip } from 'chart.js';
-ChartJS.register(ArcElement, Tooltip);
+import { Doughnut, Bar } from 'vue-chartjs';
+import { Chart as ChartJS, ArcElement, Tooltip, CategoryScale, LinearScale, BarElement } from 'chart.js';
+ChartJS.register(ArcElement, Tooltip, CategoryScale, LinearScale, BarElement);
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { useTheme } from '@/composables/useTheme.js';
 
 const { theme } = useTheme();
-const isDark   = computed(() => theme.value === 'dark');
 const page     = usePage();
 const authUser = computed(() => page.props.auth?.user ?? null);
 const logoUrl  = `${import.meta.env.BASE_URL}images/logo-urip.png`;
@@ -23,6 +22,7 @@ const props = defineProps({
     filters:       { type: Object, default: () => ({}) },
 });
 
+// ── Bed stats ─────────────────────────────────────────────────────────────────
 const bedKosong  = computed(() => props.semuaKamar.filter(k => k.Status === 'KOSONG').length);
 const bedBooking = computed(() => props.semuaKamar.filter(k => k.Status === 'BOOKING').length);
 const bedTerisi  = computed(() => props.semuaKamar.filter(k => k.Status === 'ISI').length);
@@ -42,567 +42,451 @@ const bedPerKelas = computed(() => {
     return Object.values(map);
 });
 
+// ── Donut chart ───────────────────────────────────────────────────────────────
 const donutData = computed(() => ({
     datasets: [{
         data: [bedTerisi.value || 0, bedBooking.value || 0, bedKosong.value || 1],
         backgroundColor: ['#00A884', '#F59E0B', '#10B981'],
-        borderWidth: 4,
-        borderColor: 'transparent',
-        hoverOffset: 6,
+        borderWidth: 3, borderColor: 'transparent', hoverOffset: 6,
     }],
 }));
 const donutOptions = {
-    cutout: '72%',
-    responsive: true,
-    maintainAspectRatio: false,
+    cutout: '74%', responsive: true, maintainAspectRatio: false,
     plugins: { legend: { display: false }, tooltip: { enabled: false } },
 };
 
-const now = ref(new Date());
-let clockTimer = null;
-const countdown = ref(30);
-let refreshTimer = null;
-const manualRefresh = () => {
-    router.reload({ only: ['semuaKamar','statsExternal','statsInternal','listAktif','userRole'] });
-    countdown.value = 30;
+// ── Bar chart helpers ─────────────────────────────────────────────────────────
+const topN = (arr, key, n = 8) => {
+    const map = {};
+    arr.forEach(p => {
+        const v = (p[key] ?? '').trim();
+        if (v && v !== '-' && v !== '—') map[v] = (map[v] ?? 0) + 1;
+    });
+    return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, n);
+};
+const makeBarData = (entries, color) => ({
+    labels: entries.map(([k]) => k.length > 24 ? k.slice(0, 24) + '…' : k),
+    datasets: [{ data: entries.map(([, v]) => v), backgroundColor: color, borderRadius: 6, barThickness: 20 }],
+});
+const barOpt = {
+    indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${c.raw} kasus` } } },
+    scales: {
+        x: { grid: { color: 'rgba(0,0,0,.04)' }, ticks: { font: { size: 11 }, color: '#64748B' } },
+        y: { grid: { display: false }, ticks: { font: { size: 11 }, color: '#374151' } },
+    },
 };
 
-const tickerIdx   = ref(0);
-const tickerPause = ref(false);
-let tickerTimer   = null;
-const tickerItem  = computed(() =>
-    props.listAktif.length > 0 ? props.listAktif[tickerIdx.value % props.listAktif.length] : null
-);
-
-// Helper: tanggal lokal (timezone browser, bukan UTC)
-const localDate = (offsetDays = 0) => {
-    const d = new Date();
-    d.setDate(d.getDate() + offsetDays);
-    const y  = d.getFullYear();
-    const m  = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${dd}`;
+// ── Date helpers ──────────────────────────────────────────────────────────────
+const ld = (n = 0) => {
+    const d = new Date(); d.setDate(d.getDate() + n);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 };
+const today = ld(0), yesterday = ld(-1), week7 = ld(-6), month30 = ld(-29);
 
+// ── Filters ───────────────────────────────────────────────────────────────────
 const filterJenis  = ref('semua');
-const filterTglMul = ref(props.filters?.tgl_dari   ?? localDate(0));
-const filterTglAkh = ref(props.filters?.tgl_sampai ?? localDate(0));
-const searchQuery  = ref(props.filters?.search ?? '');
+const filterTglMul = ref(props.filters?.tgl_dari   ?? today);
+const filterTglAkh = ref(props.filters?.tgl_sampai ?? today);
+const searchQuery  = ref('');
 
-// Terapkan filter ke server (Inertia reload)
-const applyDateFilter = () => {
-    router.get(route('dashboard'), {
-        tgl_dari:   filterTglMul.value,
-        tgl_sampai: filterTglAkh.value,
-        search:     searchQuery.value,
-    }, { preserveState: true, replace: true, preserveScroll: true });
-};
-
-// Date presets (lokal)
-const today     = localDate(0);
-const yesterday = localDate(-1);
-const week7     = localDate(-6);
-const month30   = localDate(-29);
-
-const setPreset = (dari, sampai) => {
-    filterTglMul.value = dari;
-    filterTglAkh.value = sampai;
-    applyDateFilter();
-};
+const applyDate = () => router.get(window.location.pathname,
+    { tgl_dari: filterTglMul.value, tgl_sampai: filterTglAkh.value },
+    { preserveState: true, replace: true, preserveScroll: true });
+const setPreset = (a, b) => { filterTglMul.value = a; filterTglAkh.value = b; applyDate(); };
 
 const listFiltered = computed(() => props.listAktif.filter(p => {
     if (filterJenis.value !== 'semua' && p.jalur !== filterJenis.value) return false;
-    if (searchQuery.value.trim()) {
-        const q = searchQuery.value.trim().toLowerCase();
-        return (p.nama_pasien ?? '').toLowerCase().includes(q)
-            || (p.No_MR ?? '').toLowerCase().includes(q)
-            || (p.diagnosa ?? p.Diagnosis ?? '').toLowerCase().includes(q)
-            || (p.nama_bed ?? '').toLowerCase().includes(q)
-            || (p.asal_ruang ?? '').toLowerCase().includes(q)
-            || (p.Dokter ?? '').toLowerCase().includes(q);
-    }
-    return true;
+    const q = searchQuery.value.trim().toLowerCase();
+    if (!q) return true;
+    return ['nama_pasien','No_MR','diagnosa','Diagnosis','nama_bed','asal_ruang','Dokter']
+        .some(k => (p[k] ?? '').toLowerCase().includes(q));
 }));
 
+const diagData     = computed(() => makeBarData(topN(listFiltered.value, 'diagnosa'), '#00A884'));
+const ruangData    = computed(() => makeBarData(topN(listFiltered.value, 'asal_ruang'), '#7C3AED'));
+const bedData      = computed(() => makeBarData(topN(listFiltered.value, 'nama_bed'), '#0EA5E9'));
+const statusDist   = computed(() => [
+    { key:'pending_admisi',  label:'Tunggu Admisi', color:'#D97706' },
+    { key:'pending_icu',     label:'Menunggu ICU',  color:'#3B82F6' },
+    { key:'pending_icu_int', label:'Antrian ICU',   color:'#6366F1' },
+    { key:'bed_confirmed',   label:'Bed Confirmed', color:'#00A884' },
+    { key:'bed_verified',    label:'Bed Verified',  color:'#059669' },
+    { key:'admisi_verified', label:'Terverifikasi', color:'#10B981' },
+    { key:'ditolak',         label:'Ditolak',       color:'#DC2626' },
+].map(d => ({ ...d, count: listFiltered.value.filter(p => p.status === d.key).length }))
+ .filter(d => d.count > 0));
+
+// ── Ticker & refresh ──────────────────────────────────────────────────────────
+const countdown   = ref(30);
+const tickerIdx   = ref(0);
+const tickerPause = ref(false);
+const tickerItem  = computed(() =>
+    listFiltered.value.length > 0 ? listFiltered.value[tickerIdx.value % listFiltered.value.length] : null);
+let tickerTimer = null, refreshTimer = null;
+const manualRefresh = () => { router.reload({ only: ['semuaKamar','statsExternal','statsInternal','listAktif','userRole'] }); countdown.value = 30; };
+
 onMounted(() => {
-    clockTimer   = setInterval(() => { now.value = new Date(); }, 1000);
     tickerTimer  = setInterval(() => {
-        if (!tickerPause.value && props.listAktif.length > 1)
-            tickerIdx.value = (tickerIdx.value + 1) % props.listAktif.length;
+        if (!tickerPause.value && listFiltered.value.length > 1)
+            tickerIdx.value = (tickerIdx.value + 1) % listFiltered.value.length;
     }, 3500);
-    refreshTimer = setInterval(() => {
-        countdown.value--;
-        if (countdown.value <= 0) {
-            router.reload({ only: ['semuaKamar','statsExternal','statsInternal','listAktif','userRole'] });
-            countdown.value = 30;
-        }
-    }, 1000);
+    refreshTimer = setInterval(() => { if (--countdown.value <= 0) { manualRefresh(); countdown.value = 30; } }, 1000);
 });
-onUnmounted(() => { clearInterval(clockTimer); clearInterval(tickerTimer); clearInterval(refreshTimer); });
+onUnmounted(() => { clearInterval(tickerTimer); clearInterval(refreshTimer); });
 
-const gIcon = (g) => g === 'L' ? '♂' : g === 'P' ? '♀' : '·';
-const gTxt  = (g) => g === 'L' ? '#00A884' : g === 'P' ? '#8B5CF6' : '#6B7280';
-
-const statusInfo = (status) => ({
-    pending_icu:     { color: '#D97706', label: 'Menunggu ICU',     bg: '#FEF3C7' },
-    bed_confirmed:   { color: '#00A884', label: 'Perlu Verifikasi', bg: '#ECFDF5' },
-    admisi_verified: { color: '#059669', label: 'Terverifikasi',    bg: '#ECFDF5' },
-    pending_admisi:  { color: '#D97706', label: 'Tunggu Admisi',    bg: '#FEF3C7' },
-    bed_verified:    { color: '#059669', label: 'Bed Terverif',     bg: '#ECFDF5' },
-    ditolak:         { color: '#DC2626', label: 'Ditolak',          bg: '#FEF2F2' },
-}[status] ?? { color: '#6B7280', label: status, bg: '#F9FAFB' });
-
-const jalurInfo = (jalur) => jalur === 'external'
-    ? { color: '#7C3AED', label: 'External', bg: '#F5F3FF' }
-    : { color: '#00A884', label: 'Internal', bg: '#ECFDF5' };
-
-const getInitials = (name) => {
-    if (!name || name === '-') return '?';
-    const p = name.trim().split(' ');
-    return p.length >= 2 ? (p[0][0] + p[1][0]).toUpperCase() : name.slice(0, 2).toUpperCase();
-};
-
-const avColors = [
-    ['#ECFDF5','#00A884'], ['#F0FDF4','#059669'], ['#FDF4FF','#9333EA'],
-    ['#FFF7ED','#EA580C'], ['#F0FDFA','#0D9488'],
-];
-const av = (i) => avColors[i % avColors.length];
+// ── Style helpers ─────────────────────────────────────────────────────────────
+const sI = s => ({ pending_icu:{color:'#D97706',label:'Menunggu ICU',bg:'#FEF3C7'}, bed_confirmed:{color:'#00A884',label:'Perlu Verif',bg:'#ECFDF5'}, admisi_verified:{color:'#059669',label:'Terverifikasi',bg:'#ECFDF5'}, pending_admisi:{color:'#D97706',label:'Tunggu Admisi',bg:'#FEF3C7'}, pending_icu_int:{color:'#3B82F6',label:'Antrian ICU',bg:'#EFF6FF'}, bed_verified:{color:'#059669',label:'Bed Terverif',bg:'#ECFDF5'}, ditolak:{color:'#DC2626',label:'Ditolak',bg:'#FEF2F2'} }[s] ?? {color:'#6B7280',label:s,bg:'#F9FAFB'});
+const jI = j => j === 'external' ? {color:'#7C3AED',label:'External',bg:'#F5F3FF'} : {color:'#00A884',label:'Internal',bg:'#ECFDF5'};
+const ini = n => { if (!n || n==='-') return '?'; const p=n.trim().split(' '); return p.length>=2?(p[0][0]+p[1][0]).toUpperCase():n.slice(0,2).toUpperCase(); };
+const avC = [['#ECFDF5','#00A884'],['#EFF6FF','#3B82F6'],['#F5F3FF','#7C3AED'],['#FFF7ED','#EA580C'],['#F0FDFA','#0D9488']];
+const av  = i => avC[i % avC.length];
 
 const kpiCards = computed(() => [
-    { label:'Total Bed',    val: totalBed.value,   icon:'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5',          iconBg:'#ECFDF5', iconColor:'#00A884' },
-    { label:'Tersedia',     val: bedKosong.value,  icon:'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',                                 iconBg:'#ECFDF5', iconColor:'#059669' },
-    { label:'Terisi',       val: bedTerisi.value,  icon:'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z', iconBg:'#ECFDF5', iconColor:'#00A884' },
-    { label:'Booking',      val: bedBooking.value, icon:'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', iconBg:'#FFF7ED', iconColor:'#EA580C' },
-    { label:'Hunian',       val: occupancy.value + '%', icon:'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z', iconBg:'#FDF4FF', iconColor:'#9333EA' },
+    { label:'Total Bed', val:totalBed.value,   sub:'Seluruh ICU/HCU', pct:100, bg:'rgba(0,168,132,.12)', color:'#00A884', icon:'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5' },
+    { label:'Tersedia',  val:bedKosong.value,  sub:`${totalBed.value>0?Math.round(bedKosong.value/totalBed.value*100):0}%`, pct:totalBed.value>0?Math.round(bedKosong.value/totalBed.value*100):0, bg:'rgba(16,185,129,.12)', color:'#059669', icon:'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
+    { label:'Terisi',    val:bedTerisi.value,  sub:'Sedang digunakan', pct:totalBed.value>0?Math.round(bedTerisi.value/totalBed.value*100):0, bg:'rgba(13,148,136,.12)', color:'#0D9488', icon:'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z' },
+    { label:'Booking',   val:bedBooking.value, sub:'Menunggu proses',  pct:totalBed.value>0?Math.round(bedBooking.value/totalBed.value*100):0, bg:'rgba(245,158,11,.14)', color:'#D97706', icon:'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
+    { label:'Hunian',    val:occupancy.value+'%', sub:occupancy.value>=85?'Padat':occupancy.value>=55?'Stabil':'Aman', pct:occupancy.value, bg:'rgba(124,58,237,.12)', color:'#7C3AED', icon:'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
 ]);
 </script>
 
 <template>
 <AppLayout :flash="flash" page-title="Dashboard ICU">
-<div class="dash-wrap">
+<div class="db-wrap">
 
-  <!-- ══ HERO BANNER ══════════════════════════════ -->
-  <div class="dash-section">
-    <div class="dash-hero">
-      <div class="dash-hero-bg-circle dash-hero-circle-1"></div>
-      <div class="dash-hero-bg-circle dash-hero-circle-2"></div>
-
-      <!-- Hero top row -->
-      <div class="dash-hero-top">
-        <div class="dash-hero-brand">
-          <div class="dash-hero-logo">
-            <img :src="logoUrl" alt="Logo" class="w-9 h-9 object-contain" @error="$event.target.style.display='none'"/>
-          </div>
-          <div>
-            <p class="dash-hero-subtitle">Monitoring Real-time</p>
-            <h1 class="dash-hero-title">Ruang ICU &amp; HCU</h1>
-            <p class="dash-hero-unit">{{ authUser?.unit_kerja ?? 'Intensive Care Unit' }}</p>
-          </div>
-        </div>
-        <!-- Quick stat pills -->
-        <div class="dash-hero-stats">
-          <div v-for="s in [{l:'Total',v:totalBed,c:'rgba(255,255,255,0.95)'},{l:'Tersedia',v:bedKosong,c:'#86EFAC'},{l:'Terisi',v:bedTerisi,c:'#FCA5A5'},{l:'Booking',v:bedBooking,c:'#FDE68A'}]"
-            :key="s.l" class="dash-hero-stat-pill">
-            <p class="dash-hero-stat-num" :style="`color:${s.c}`">{{ s.v }}</p>
-            <p class="dash-hero-stat-label">{{ s.l }}</p>
-          </div>
+<!-- HERO -->
+<div class="db-sec">
+  <div class="db-hero">
+    <div class="db-hero-copy">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
+        <div class="db-hero-logo"><img :src="logoUrl" alt="Logo" style="width:36px;height:36px;object-fit:contain" @error="$event.target.style.display='none'"/></div>
+        <div style="min-width:0">
+          <p style="color:rgba(255,255,255,.6);font-size:11px;font-weight:500">ICU Command Center</p>
+          <h1 style="color:#fff;font-size:clamp(18px,4vw,30px);font-weight:900;letter-spacing:-.02em;line-height:1.1">Monitoring Bed ICU</h1>
+          <p style="color:rgba(255,255,255,.45);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:280px">{{ authUser?.unit_kerja ?? 'Intensive Care Unit' }}</p>
         </div>
       </div>
+      <div v-if="tickerItem" class="db-ticker" @mouseenter="tickerPause=true" @mouseleave="tickerPause=false">
+        <span class="db-ticker-live">● LIVE</span>
+        <span class="db-ticker-name">{{ tickerItem.nama_pasien }}</span>
+        <span class="db-tbadge" :style="`background:${jI(tickerItem.jalur).bg};color:${jI(tickerItem.jalur).color}`">{{ jI(tickerItem.jalur).label }}</span>
+        <span class="db-tbadge" :style="`background:${sI(tickerItem.status).bg};color:${sI(tickerItem.status).color}`">{{ sI(tickerItem.status).label }}</span>
+        <span v-if="tickerItem.nama_bed" style="color:rgba(255,255,255,.7);font-size:11px;flex-shrink:0">🏥 {{ tickerItem.nama_bed }}</span>
+      </div>
+    </div>
 
-      <!-- Ticker bar -->
-      <div v-if="tickerItem" @mouseenter="tickerPause=true" @mouseleave="tickerPause=false" class="dash-ticker">
-        <span class="dash-ticker-live">
-          <span class="ping-dot" style="width:6px;height:6px;border-radius:50%;background:#00A884;display:inline-block"></span>
-          LIVE
+    <!-- Animated doctor character -->
+    <div class="db-hero-vis" aria-hidden="true">
+      <div class="db-ocard db-oa"><span>Monitoring</span><strong>Realtime</strong></div>
+      <div class="db-ocard db-ob"><span>Verifikasi</span><strong>Aktif</strong></div>
+      <div class="db-char">
+        <svg viewBox="0 0 260 260" style="width:100%;height:100%;filter:drop-shadow(0 16px 20px rgba(0,45,34,.18))">
+          <defs>
+            <linearGradient id="cG" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#fff"/><stop offset="100%" stop-color="#dff7f1"/></linearGradient>
+            <linearGradient id="sG" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d7fff5"/><stop offset="100%" stop-color="#8ee8d1"/></linearGradient>
+          </defs>
+          <circle cx="132" cy="132" r="108" fill="rgba(255,255,255,.34)"/>
+          <path d="M62 190c22-34 119-38 144-1 9 13-2 32-20 32H83c-21 0-31-16-21-31Z" fill="url(#cG)"/>
+          <path d="M108 141c-15 8-25 30-30 77h33l13-65-16-12Z" fill="#fff"/>
+          <path d="M158 141c16 8 26 30 31 77h-35l-12-65 16-12Z" fill="#fff"/>
+          <path d="M112 151l20 22 22-22-8 67h-30l-4-67Z" fill="#0f766e"/>
+          <path d="M116 153l16 16 16-16" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M91 97c-2-32 17-55 43-55 29 0 48 23 45 56-2 29-19 52-43 52-25 0-43-23-45-53Z" fill="#F2B18C"/>
+          <path d="M86 92c10-30 24-48 52-50 24-2 43 16 45 44-13-6-27-16-34-30-8 19-37 25-63 36Z" fill="#102A43"/>
+          <circle cx="117" cy="111" r="4" fill="#102A43"/><circle cx="154" cy="111" r="4" fill="#102A43"/>
+          <path d="M127 126c7 5 15 5 22 0" fill="none" stroke="#8A4B38" stroke-width="4" stroke-linecap="round"/>
+          <rect x="29" y="117" width="62" height="44" rx="12" fill="url(#sG)" opacity=".92"/>
+          <path d="M43 141h12l6-13 8 23 6-10h11" fill="none" stroke="#007A61" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+          <rect x="174" y="83" width="56" height="38" rx="12" fill="#fff" opacity=".9"/>
+          <path d="M188 101h29M188 110h19" stroke="#00A884" stroke-width="5" stroke-linecap="round"/>
+          <circle cx="203" cy="178" r="22" fill="#fff" opacity=".9"/>
+          <path d="M203 164v28M189 178h28" stroke="#00A884" stroke-width="7" stroke-linecap="round"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- KPI -->
+<div class="db-sec">
+  <div class="db-kgrid">
+    <div v-for="c in kpiCards" :key="c.label" class="db-kcard">
+      <div class="db-kicon" :style="`background:${c.bg}`">
+        <svg style="width:18px;height:18px" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" :style="`color:${c.color};width:18px;height:18px`">
+          <path stroke-linecap="round" stroke-linejoin="round" :d="c.icon"/>
+        </svg>
+      </div>
+      <p class="db-kval" :style="`color:${c.color}`">{{ c.val }}</p>
+      <p class="db-klabel">{{ c.label }}</p>
+      <p class="db-ksub">{{ c.sub }}</p>
+      <div class="db-kbar" :style="`background:${c.bg}`"><div :style="`width:${Math.min(100,Math.max(0,c.pct))}%;background:${c.color}`"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Filter bar -->
+<div class="db-sec">
+  <div class="db-fbar">
+    <div class="db-presets">
+      <button @click="setPreset(today,today)"       class="db-pbtn" :class="{active:filterTglMul===today&&filterTglAkh===today}">Hari ini</button>
+      <button @click="setPreset(yesterday,yesterday)" class="db-pbtn" :class="{active:filterTglMul===yesterday&&filterTglAkh===yesterday}">Kemarin</button>
+      <button @click="setPreset(week7,today)"       class="db-pbtn" :class="{active:filterTglMul===week7&&filterTglAkh===today}">7 Hari</button>
+      <button @click="setPreset(month30,today)"     class="db-pbtn" :class="{active:filterTglMul===month30&&filterTglAkh===today}">30 Hari</button>
+    </div>
+    <div class="db-drange">
+      <input type="date" v-model="filterTglMul" @change="applyDate" class="db-dinput"/>
+      <span style="color:var(--text-muted);font-size:11px">s/d</span>
+      <input type="date" v-model="filterTglAkh" :min="filterTglMul" @change="applyDate" class="db-dinput"/>
+      <button @click="applyDate" class="db-abtn">Terapkan</button>
+    </div>
+    <div class="db-swrap">
+      <svg style="position:absolute;left:9px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:#9CA3AF" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+      <input v-model="searchQuery" placeholder="Cari nama, MR, diagnosa, ruang..." class="db-sinput"/>
+    </div>
+    <div class="db-jtabs">
+      <button v-for="o in [{v:'semua',l:'Semua'},{v:'external',l:'Ext'},{v:'internal',l:'Int'}]" :key="o.v"
+        @click="filterJenis=o.v" class="db-jtab" :class="{active:filterJenis===o.v}">{{ o.l }}</button>
+    </div>
+  </div>
+</div>
+
+<!-- Charts row -->
+<div class="db-sec db-charts" style="padding-bottom:28px">
+
+  <!-- Top Diagnosa -->
+  <div class="db-card" style="padding:18px">
+    <p class="db-card-t" style="margin-bottom:14px">
+      <span style="display:inline-flex;align-items:center;gap:6px">
+        <span style="width:10px;height:10px;border-radius:3px;background:#00A884;display:inline-block"></span>
+        Top Diagnosa
+      </span>
+    </p>
+    <div v-if="diagData.labels.length" :style="`height:${Math.max(150, diagData.labels.length*34+20)}px`">
+      <Bar :data="diagData" :options="barOpt"/>
+    </div>
+    <div v-else class="db-cempty"><svg style="width:32px;height:32px;opacity:.25" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10"/></svg><p>Belum ada data</p></div>
+  </div>
+
+  <!-- Top Asal Ruang -->
+    <div class="db-card" style="padding:18px">
+        <p class="db-card-t" style="margin-bottom:14px">
+        <span style="display:inline-flex;align-items:center;gap:6px">
+            <span style="width:10px;height:10px;border-radius:3px;background:#7C3AED;display:inline-block"></span>
+            Top Asal Ruang
         </span>
-        <span class="dash-ticker-name">{{ tickerItem.nama_pasien }}</span>
-        <span class="dash-ticker-badge" :style="`background:${jalurInfo(tickerItem.jalur).bg};color:${jalurInfo(tickerItem.jalur).color}`">{{ jalurInfo(tickerItem.jalur).label }}</span>
-        <span class="dash-ticker-badge" :style="`background:${statusInfo(tickerItem.status).bg};color:${statusInfo(tickerItem.status).color}`">{{ statusInfo(tickerItem.status).label }}</span>
-        <span v-if="tickerItem.nama_bed" class="dash-ticker-bed">🏥 {{ tickerItem.nama_bed }}</span>
-        <div class="dash-ticker-dots ml-auto">
-          <span v-for="(_,i) in Array(Math.min(5,props.listAktif.length))" :key="i"
-            :style="i===(tickerIdx%Math.min(5,props.listAktif.length))?'width:12px;height:4px;background:#fff;border-radius:4px':'width:4px;height:4px;background:rgba(255,255,255,0.3);border-radius:50%'"
-            style="display:inline-block;transition:all .3s"></span>
+        </p>
+        <div v-if="ruangData.labels.length" :style="`height:${Math.max(150, ruangData.labels.length*34+20)}px`">
+        <Bar :data="ruangData" :options="barOpt"/>
         </div>
-      </div>
+        <div v-else class="db-cempty"><svg style="width:32px;height:32px;opacity:.25" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857"/></svg><p>Belum ada data</p></div>
     </div>
-  </div>
 
-  <!-- ══ KPI CARDS ═══════════════ -->
-  <div class="dash-section">
-    <div class="dash-kpi-grid">
-      <div v-for="(c,i) in kpiCards" :key="c.label" class="dash-kpi-card kpi-card"
-        @mouseenter="$event.currentTarget.style.transform='translateY(-4px)';$event.currentTarget.style.boxShadow='0 10px 28px rgba(0,0,0,0.1)'"
-        @mouseleave="$event.currentTarget.style.transform='';$event.currentTarget.style.boxShadow=''">
-        <div class="dash-kpi-icon" :style="`background:${c.iconBg}`">
-          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" :style="`color:${c.iconColor}`">
-            <path stroke-linecap="round" stroke-linejoin="round" :d="c.icon"/>
-          </svg>
+     <!-- Top Bed -->
+    <div class="db-card" style="padding:18px">
+        <p class="db-card-t" style="margin-bottom:14px">
+        <span style="display:inline-flex;align-items:center;gap:6px">
+            <span style="width:10px;height:10px;border-radius:3px;background:#0EA5E9;display:inline-block"></span>
+            Top Bed
+        </span>
+        </p>
+        <div v-if="bedData.labels.length" :style="`height:${Math.max(150, bedData.labels.length*34+20)}px`">
+        <Bar :data="bedData" :options="barOpt"/>
         </div>
-        <p class="dash-kpi-val" :style="`color:${c.iconColor}`">{{ c.val }}</p>
-        <p class="dash-kpi-label">{{ c.label }}</p>
-        <div class="dash-kpi-bar" :style="`background:${c.iconBg}`">
-          <div :style="`width:${i===4?occupancy+'%':totalBed>0?(c.val/totalBed*100).toFixed(0)+'%':'30%'};background:${c.iconColor}`"></div>
-        </div>
-      </div>
+        <div v-else class="db-cempty"><svg style="width:32px;height:32px;opacity:.25" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg><p>Belum ada data</p></div>
     </div>
-  </div>
+</div>
 
-  <!-- Petugas Ruang mini stats -->
-  <div v-if="userRole === 'petugas_ruang'" class="dash-section dash-petugas-stats">
-    <div v-for="c in [{label:'Total BU Saya',val:statsInternal.pending_icu+statsInternal.bed_verified,color:'#00A884',bg:'#ECFDF5'},{label:'Menunggu ICU',val:statsInternal.pending_icu,color:'#D97706',bg:'#FEF3C7'},{label:'Bed Verified',val:statsInternal.bed_verified,color:'#059669',bg:'#ECFDF5'}]" :key="c.label"
-      class="dash-petugas-card">
-      <div class="dash-petugas-icon" :style="`background:${c.bg};color:${c.color}`">{{ c.val }}</div>
-      <p class="text-xs font-semibold" style="color:var(--text-secondary)">{{ c.label }}</p>
+<!-- Main: table + donut side -->
+<div class="db-sec db-main">
+  <!-- Tabel -->
+  <div class="db-card">
+    <div class="db-card-hdr">
+      <p class="db-card-t">Daftar Pasien Aktif</p>
+      <span class="db-cpill">{{ listFiltered.length }}</span>
     </div>
-  </div>
-
-  <!-- ══ MAIN 2-COL ═══════════════════════════════════════════ -->
-  <div class="dash-main-grid">
-
-    <!-- LEFT: Pasien table -->
-    <div class="dash-table-card">
-      <!-- Table header -->
-      <div class="dash-table-header">
-        <div class="dash-table-title-row">
-          <div class="flex items-center gap-2">
-            <p class="dash-table-title">Daftar Pasien Aktif</p>
-            <span class="dash-count-badge">{{ listFiltered.length }}</span>
-          </div>
-          <div class="dash-search-wrap">
-            <svg class="dash-search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-            </svg>
-            <input v-model="searchQuery" placeholder="Cari nama, MR, ruang, DPJP..." class="dash-search-input"
-              @keyup.enter="applyDateFilter"
-              @focus="$event.target.style.borderColor='#00A884'" @blur="$event.target.style.borderColor='#E2E8F0'"/>
-          </div>
-        </div>
-
-        <!-- Date range filter -->
-        <div class="dash-date-filter-row">
-          <!-- Preset buttons -->
-          <div class="dash-preset-group">
-            <button @click="setPreset(today, today)" class="dash-preset-btn" :class="filterTglMul===today&&filterTglAkh===today?'active':''">Hari ini</button>
-            <button @click="setPreset(yesterday, yesterday)" class="dash-preset-btn" :class="filterTglMul===yesterday&&filterTglAkh===yesterday?'active':''">Kemarin</button>
-            <button @click="setPreset(week7, today)" class="dash-preset-btn" :class="filterTglMul===week7&&filterTglAkh===today?'active':''">7 Hari</button>
-            <button @click="setPreset(month30, today)" class="dash-preset-btn" :class="filterTglMul===month30&&filterTglAkh===today?'active':''">30 Hari</button>
-          </div>
-          <!-- Custom range -->
-          <div class="dash-date-range">
-            <svg class="w-3.5 h-3.5 flex-shrink-0" style="color:var(--text-muted)" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-            </svg>
-            <input type="date" v-model="filterTglMul" @change="applyDateFilter" class="dash-date-input"/>
-            <span style="color:var(--text-muted);font-size:11px">s/d</span>
-            <input type="date" v-model="filterTglAkh" :min="filterTglMul" @change="applyDateFilter" class="dash-date-input"/>
-            <button @click="applyDateFilter" class="dash-apply-btn">Terapkan</button>
-          </div>
-          <!-- Jalur filter -->
-          <div class="dash-filter-tabs">
-            <button v-for="opt in [{v:'semua',l:'Semua'},{v:'external',l:'External'},{v:'internal',l:'Internal'}]" :key="opt.v"
-              @click="filterJenis=opt.v" class="dash-filter-tab" :class="filterJenis===opt.v?'active':''">
-              {{ opt.l }}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Table -->
-      <div class="overflow-x-auto">
-        <table class="dash-table">
-          <thead>
-            <tr>
-              <th>Pasien</th>
-              <th>Jalur</th>
-              <th class="hidden sm:table-cell">Diagnosa</th>
-              <th class="hidden lg:table-cell">Asal Ruang</th>
-              <th class="hidden lg:table-cell">DPJP</th>
-              <th>Bed / ICU</th>
-              <th>Status</th>
-              <th class="hidden lg:table-cell">Tgl</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="listFiltered.length===0">
-              <td colspan="6">
-                <div class="dash-empty">
-                  <div class="dash-empty-icon">
-                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                    </svg>
-                  </div>
-                  <p class="font-semibold text-sm" style="color:var(--text-secondary)">
-                    {{ userRole==='petugas_ruang' ? 'Belum ada BU yang Anda buat' : 'Tidak ada pasien aktif' }}
-                  </p>
-                  <p v-if="userRole==='petugas_ruang'" class="text-xs mt-1" style="color:var(--text-muted)">Buka Menu Rawat Inap untuk membuat BU</p>
+    <div style="overflow-x:auto">
+      <table class="db-tbl">
+        <thead><tr>
+          <th>Pasien</th><th>Jalur</th>
+          <th class="hidden md:table-cell">Diagnosa</th>
+          <th class="hidden lg:table-cell">Asal Ruang</th>
+          <th class="hidden lg:table-cell">DPJP</th>
+          <th>Bed</th><th>Status</th>
+          <th class="hidden xl:table-cell">Tanggal</th>
+        </tr></thead>
+        <tbody>
+          <tr v-if="!listFiltered.length"><td colspan="8">
+            <div class="db-empty">
+              <svg style="width:40px;height:40px;opacity:.25" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+              <p style="font-size:13px;font-weight:600;color:var(--text-secondary)">{{ userRole==='petugas_ruang'?'Belum ada BU':'Tidak ada pasien aktif' }}</p>
+            </div>
+          </td></tr>
+          <tr v-for="(p,i) in listFiltered" :key="p.id">
+            <td>
+              <div style="display:flex;align-items:center;gap:10px">
+                <div class="db-av" :style="`background:${av(i)[0]};color:${av(i)[1]}`">{{ ini(p.nama_pasien) }}</div>
+                <div style="min-width:0">
+                  <p style="font-size:13px;font-weight:600;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px">{{ p.nama_pasien }}</p>
+                  <p style="font-size:10px;font-family:'DM Mono',monospace;color:var(--text-muted)">{{ p.No_MR ?? '—' }}</p>
                 </div>
-              </td>
-            </tr>
-            <tr v-for="(p,i) in listFiltered" :key="p.id"
-              @mouseenter="$event.currentTarget.style.background='#F8FAFC'"
-              @mouseleave="$event.currentTarget.style.background='transparent'">
-              <td>
-                <div class="flex items-center gap-3">
-                  <div class="dash-patient-av" :style="`background:${av(i)[0]};color:${av(i)[1]}`">{{ getInitials(p.nama_pasien) }}</div>
-                  <div>
-                    <p class="font-semibold text-sm" style="color:#0F172A;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ p.nama_pasien }}</p>
-                    <p style="font-size:10px;color:#94A3B8;font-family:'DM Mono',monospace;margin-top:1px">{{ p.No_MR ? 'MR: '+p.No_MR : 'NIK: '+(p.no_identitas??'-') }}</p>
-                  </div>
-                </div>
-              </td>
-              <td><span class="dash-badge" :style="`background:${jalurInfo(p.jalur).bg};color:${jalurInfo(p.jalur).color}`">{{ jalurInfo(p.jalur).label }}</span></td>
-              <td class="hidden sm:table-cell" style="max-width:150px">
-                <p style="font-size:12px;color:#334155;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ p.diagnosa ?? p.Diagnosis ?? '—' }}</p>
-              </td>
-              <td class="hidden lg:table-cell" style="max-width:120px">
-                <p style="font-size:11px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ p.asal_ruang ?? '—' }}</p>
-              </td>
-              <td class="hidden lg:table-cell" style="max-width:120px">
-                <p style="font-size:11px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ p.Dokter ?? '—' }}</p>
-              </td>
-              <td>
-                <p v-if="p.nama_bed" style="font-size:12px;font-weight:600;color:#059669">🏥 {{ p.nama_bed }}</p>
-                <p v-else style="font-size:11px;color:#94A3B8">{{ p.kebutuhan_bed ?? '—' }}</p>
-              </td>
-              <td>
-                <span class="dash-status-badge" :style="`background:${statusInfo(p.status).bg};color:${statusInfo(p.status).color}`">
-                  <span style="width:5px;height:5px;border-radius:50%;flex-shrink:0" :style="`background:${statusInfo(p.status).color}`"></span>
-                  {{ statusInfo(p.status).label }}
-                </span>
-              </td>
-              <td class="hidden lg:table-cell" style="font-size:11px;color:#94A3B8;font-family:'DM Mono',monospace">{{ p.created_at }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Footer -->
-      <div class="dash-table-footer">
-        <p style="font-size:12px;color:#64748B">Menampilkan <strong style="color:#0F172A">{{ listFiltered.length }}</strong> dari <strong style="color:#0F172A">{{ listAktif.length }}</strong> pasien</p>
-        <button @click="manualRefresh" class="dash-refresh-btn">
-          <span class="ping-dot" style="width:7px;height:7px;border-radius:50%;background:#10B981;display:inline-block"></span>
-          Auto-refresh {{ countdown }}s
-        </button>
-      </div>
+              </div>
+            </td>
+            <td><span class="db-badge" :style="`background:${jI(p.jalur).bg};color:${jI(p.jalur).color}`">{{ jI(p.jalur).label }}</span></td>
+            <td class="hidden md:table-cell"><p class="db-trunc">{{ p.diagnosa ?? p.Diagnosis ?? '—' }}</p></td>
+            <td class="hidden lg:table-cell"><p class="db-trunc sm">{{ p.asal_ruang ?? '—' }}</p></td>
+            <td class="hidden lg:table-cell"><p class="db-trunc sm">{{ p.Dokter ?? '—' }}</p></td>
+            <td>
+              <p v-if="p.nama_bed" class="db-bed">{{ p.nama_bed }}</p>
+              <p v-else class="db-bed-e">{{ p.kebutuhan_bed ?? '—' }}</p>
+            </td>
+            <td>
+              <span class="db-sbadge" :style="`background:${sI(p.status).bg};color:${sI(p.status).color}`">
+                <span style="width:5px;height:5px;border-radius:50%;flex-shrink:0" :style="`background:${sI(p.status).color}`"></span>
+                {{ sI(p.status).label }}
+              </span>
+            </td>
+            <td class="hidden xl:table-cell" style="font-size:11px;font-family:'DM Mono',monospace;color:var(--text-muted)">{{ p.created_at }}</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
-
-    <!-- RIGHT: Donut + Per kelas -->
-    <div class="dash-right-col">
-
-      <!-- Donut card -->
-      <div class="dash-side-card">
-        <div class="flex items-center justify-between mb-4">
-          <p style="font-size:14px;font-weight:700;color:var(--text-primary)">Status Bed ICU</p>
-          <a href="/icu/denah-bed" style="font-size:12px;font-weight:600;color:#00A884;text-decoration:none">Lihat semua →</a>
-        </div>
-        <div style="position:relative;height:160px;display:flex;align-items:center;justify-content:center">
-          <Doughnut :data="donutData" :options="donutOptions" style="position:relative;z-index:1"/>
-          <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none">
-            <p style="font-size:28px;font-weight:800;color:var(--text-primary);font-family:'DM Mono',monospace;line-height:1">{{ totalBed }}</p>
-            <p style="font-size:10px;color:#94A3B8;font-weight:600;margin-top:2px">Total Bed</p>
-          </div>
-        </div>
-        <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px">
-          <div v-for="item in [{label:'Terisi',val:bedTerisi,color:'#00A884',bg:'#ECFDF5'},{label:'Booking',val:bedBooking,color:'#F59E0B',bg:'#FEF3C7'},{label:'Tersedia',val:bedKosong,color:'#10B981',bg:'#ECFDF5'}]" :key="item.label"
-            style="display:flex;align-items:center;justify-content:space-between">
-            <div style="display:flex;align-items:center;gap:8px">
-              <span style="width:10px;height:10px;border-radius:50%;flex-shrink:0" :style="`background:${item.color}`"></span>
-              <span style="font-size:12px;color:var(--text-secondary);font-weight:500">{{ item.label }}</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:8px">
-              <div style="width:70px;height:5px;border-radius:99px;background:#F1F5F9;overflow:hidden">
-                <div style="height:100%;border-radius:99px;transition:width .5s" :style="`width:${totalBed>0?(item.val/totalBed*100).toFixed(0)+'%':'0%'};background:${item.color}`"></div>
-              </div>
-              <span style="font-size:12px;font-weight:700;color:var(--text-primary);font-family:'DM Mono',monospace;min-width:20px;text-align:right">{{ item.val }}</span>
-            </div>
-          </div>
-        </div>
-        <!-- Occupancy bar -->
-        <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border-default)">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-            <span style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em">Tingkat Hunian</span>
-            <span style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace" :style="`color:${occupancy>80?'#DC2626':occupancy>50?'#D97706':'#059669'}`">{{ occupancy }}%</span>
-          </div>
-          <div style="height:8px;border-radius:99px;background:#F1F5F9;overflow:hidden">
-            <div style="height:100%;border-radius:99px;transition:width .5s" :style="`width:${occupancy}%;background:${occupancy>80?'#DC2626':occupancy>50?'#F59E0B':'#10B981'}`"></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Per kelas card -->
-      <div class="dash-side-card">
-        <p style="font-size:14px;font-weight:700;color:var(--text-primary);margin-bottom:14px">Per Jenis ICU</p>
-        <div style="display:flex;flex-direction:column;gap:12px">
-          <div v-if="bedPerKelas.length===0" style="text-align:center;padding:20px 0;color:#94A3B8;font-size:12px">Tidak ada data</div>
-          <div v-for="k in bedPerKelas" :key="k.nama">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
-              <span style="font-size:12px;font-weight:600;color:var(--text-primary)">{{ k.nama }}</span>
-              <div style="display:flex;gap:6px;align-items:center">
-                <span style="font-size:10px;font-weight:600;padding:2px 6px;border-radius:6px;background:#ECFDF5;color:#059669">{{ k.kosong }} kosong</span>
-                <span style="font-size:11px;font-weight:700;color:var(--text-primary);font-family:'DM Mono',monospace">{{ k.total }}</span>
-              </div>
-            </div>
-            <div style="height:6px;border-radius:99px;background:#F1F5F9;overflow:hidden;display:flex;gap:1px">
-              <div style="border-radius:99px;background:#10B981;transition:width .5s" :style="`width:${k.total>0?(k.kosong/k.total*100).toFixed(0)+'%':'0%'}`"></div>
-              <div style="background:#F59E0B;transition:width .5s" :style="`width:${k.total>0?(k.booking/k.total*100).toFixed(0)+'%':'0%'}`"></div>
-              <div style="border-radius:99px;background:#00A884;transition:width .5s" :style="`width:${k.total>0?(k.terisi/k.total*100).toFixed(0)+'%':'0%'}`"></div>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div class="db-tfooter">
+      <p style="font-size:12px;color:var(--text-secondary)">Tampil <strong style="color:var(--text-primary)">{{ listFiltered.length }}</strong> / <strong style="color:var(--text-primary)">{{ listAktif.length }}</strong></p>
+      <button @click="manualRefresh" class="db-rbtn">
+        <span style="width:6px;height:6px;border-radius:50%;background:#10B981;flex-shrink:0;display:inline-block"></span>
+        Refresh {{ countdown }}s
+      </button>
     </div>
   </div>
+</div>
+
 </div>
 </AppLayout>
 </template>
 
 <style scoped>
-.dash-wrap { min-height: 100%; background: var(--bg-main); font-family:'Inter','Plus Jakarta Sans',sans-serif; }
-.dash-section { padding: 16px 20px 0; }
-@media (min-width: 640px) { .dash-section { padding: 20px 24px 0; } }
+.db-wrap { min-height:100%; font-family:'Inter','Plus Jakarta Sans',sans-serif; background:var(--bg-main); padding-bottom:4px; }
+.db-sec  { padding:16px 20px 0; }
+@media(min-width:640px){ .db-sec { padding:20px 24px 0; } }
 
-/* Hero */
-.dash-hero {
-    background: linear-gradient(135deg, #00A884 0%, #007a61 50%, #005a48 100%);
-    border-radius: 16px; overflow: hidden; position: relative; min-height: 130px;
+/* ── Hero ────────────────────────────────────────────────────────────────── */
+.db-hero {
+  background:linear-gradient(135deg,#00A884 0%,#007a61 55%,#005a48 100%);
+  border-radius:16px; padding:22px 28px 18px; position:relative; overflow:hidden;
+  border:1px solid rgba(255,255,255,.1); box-shadow:0 12px 32px rgba(0,90,68,.25);
+  display:grid; grid-template-columns:1fr; gap:18px; align-items:center;
 }
-.dash-hero-bg-circle {
-    position: absolute; border-radius: 50%; pointer-events: none;
-    background: radial-gradient(circle, rgba(255,255,255,0.08), transparent);
-}
-.dash-hero-circle-1 { width: 280px; height: 280px; top: -80px; right: -60px; }
-.dash-hero-circle-2 { width: 200px; height: 200px; bottom: -60px; left: 180px; opacity: 0.5; }
-.dash-hero-top {
-    padding: 18px 24px;
-    display: flex; align-items: center; justify-content: space-between;
-    flex-wrap: wrap; gap: 14px;
-}
-.dash-hero-brand { display: flex; align-items: center; gap: 14px; }
-.dash-hero-logo {
-    width: 48px; height: 48px; border-radius: 14px; flex-shrink: 0;
-    background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.2);
-    display: flex; align-items: center; justify-content: center;
-}
-.dash-hero-subtitle { color: rgba(255,255,255,0.6); font-size: 11px; font-weight: 500; }
-.dash-hero-title { color: #fff; font-size: clamp(16px,2.5vw,22px); font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; }
-.dash-hero-unit { color: rgba(255,255,255,0.45); font-size: 11px; margin-top: 2px; }
-.dash-hero-stats { display: flex; gap: 8px; flex-wrap: wrap; }
-.dash-hero-stat-pill {
-    text-align: center; padding: 10px 14px; border-radius: 12px; min-width: 66px;
-    background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.15);
-}
-.dash-hero-stat-num { font-size: 22px; font-weight: 800; font-family:'DM Mono',monospace; line-height: 1; }
-.dash-hero-stat-label { color: rgba(255,255,255,0.55); font-size: 11px; margin-top: 4px; }
-.dash-ticker {
-    background: rgba(0,0,0,0.18); border-top: 1px solid rgba(255,255,255,0.08);
-    padding: 8px 24px; display: flex; align-items: center; gap: 10px; overflow: hidden; flex-wrap: nowrap;
-}
-.dash-ticker-live {
-    background: #fff; color: #00A884; font-size: 10px; font-weight: 800;
-    padding: 3px 8px; border-radius: 6px; letter-spacing: 0.07em;
-    display: flex; align-items: center; gap: 5px; flex-shrink: 0;
-}
-.dash-ticker-name { color: #fff; font-weight: 700; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
-.dash-ticker-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 20px; flex-shrink: 0; }
-.dash-ticker-bed { color: rgba(255,255,255,0.7); font-size: 11px; flex-shrink: 0; }
-.dash-ticker-dots { display: flex; gap: 4px; align-items: center; }
+@media(min-width:860px){ .db-hero { grid-template-columns:1fr auto; } }
+.db-hero::before { content:''; position:absolute; width:260px; height:260px; border-radius:50%; right:-80px; top:-100px; background:radial-gradient(circle,rgba(255,255,255,.1),transparent); pointer-events:none; }
+.db-hero-copy { position:relative; z-index:2; }
+.db-hero-logo { width:44px; height:44px; border-radius:13px; background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.22); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.db-ticker { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:10px; }
+.db-ticker-live { background:#fff; color:#00A884; font-size:10px; font-weight:900; padding:3px 7px; border-radius:6px; letter-spacing:.07em; flex-shrink:0; }
+.db-ticker-name { color:#fff; font-weight:700; font-size:13px; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.db-tbadge { font-size:11px; font-weight:600; padding:2px 8px; border-radius:20px; flex-shrink:0; }
+.db-hbtn { display:inline-flex; align-items:center; gap:7px; padding:8px 14px; border-radius:10px; font-size:12px; font-weight:800; text-decoration:none; transition:transform .15s; white-space:nowrap; }
+.db-hbtn:hover { transform:translateY(-1px); }
+.db-hbtn.solid { background:#fff; color:#007a61; box-shadow:0 6px 18px rgba(0,0,0,.12); }
+.db-hbtn.outline { background:rgba(255,255,255,.14); color:#fff; border:1px solid rgba(255,255,255,.2); }
 
-/* KPI grid */
-.dash-kpi-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
+/* Animated character */
+.db-hero-vis { position:relative; min-height:190px; min-width:240px; align-self:flex-end; display:none; }
+@media(min-width:860px){ .db-hero-vis { display:block; } }
+.db-char {
+  position:absolute; right:8px; bottom:-16px; width:min(230px,100%); aspect-ratio:1;
+  border:1px solid rgba(255,255,255,.2); border-radius:28px;
+  background:linear-gradient(145deg,rgba(255,255,255,.28),rgba(255,255,255,.08));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.22), 0 18px 44px rgba(0,0,0,.13);
+  backdrop-filter:blur(14px); animation:hFloat 5.5s ease-in-out infinite;
 }
-@media (min-width: 640px) { .dash-kpi-grid { grid-template-columns: repeat(3, 1fr); } }
-@media (min-width: 1024px) { .dash-kpi-grid { grid-template-columns: repeat(5, 1fr); } }
-.dash-kpi-card {
-    background: var(--bg-card); border-radius: 14px;
-    border: 1px solid var(--border-default); box-shadow: var(--shadow-card);
-    padding: 16px; transition: transform .2s, box-shadow .2s; cursor: default;
-}
-.dash-kpi-icon {
-    width: 42px; height: 42px; border-radius: 12px;
-    display: flex; align-items: center; justify-content: center; margin-bottom: 12px;
-}
-.dash-kpi-val { font-size: 28px; font-weight: 800; font-family:'DM Mono',monospace; line-height: 1; margin-bottom: 4px; }
-.dash-kpi-label { font-size: 11px; color: var(--text-muted); font-weight: 500; margin-bottom: 10px; }
-.dash-kpi-bar { height: 4px; border-radius: 99px; overflow: hidden; }
-.dash-kpi-bar > div { height: 100%; border-radius: 99px; transition: width .6s; }
+.db-ocard { position:absolute; z-index:3; min-width:110px; padding:9px 12px; border:1px solid rgba(255,255,255,.2); border-radius:13px; background:rgba(255,255,255,.88); box-shadow:0 10px 24px rgba(0,55,42,.15); backdrop-filter:blur(14px); }
+.db-ocard span  { display:block; color:#64748B; font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:.07em; }
+.db-ocard strong{ display:block; margin-top:2px; color:#007A61; font-size:13px; font-weight:900; }
+.db-oa { right:220px; top:18px; animation:oA 4.6s ease-in-out infinite; }
+.db-ob { right:10px;  top:28px; animation:oB 5.2s ease-in-out infinite; }
+@keyframes hFloat { 0%,100%{transform:translateY(0)}  50%{transform:translateY(-8px)} }
+@keyframes oA     { 0%,100%{transform:translate(0,0)} 50%{transform:translate(6px,-8px)} }
+@keyframes oB     { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-5px,7px)} }
 
-/* Petugas stats */
-.dash-petugas-stats {
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
-}
-.dash-petugas-card {
-    background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border-default);
-    padding: 12px 14px; display: flex; align-items: center; gap: 10px;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
-}
-.dash-petugas-icon {
-    width: 36px; height: 36px; border-radius: 10px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 14px; font-weight: 800; font-family:'DM Mono',monospace; flex-shrink: 0;
-}
+/* ── KPI ───────────────────────────────────────────────────────────────────── */
+.db-kgrid { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; }
+@media(min-width:640px)  { .db-kgrid { grid-template-columns:repeat(3,1fr); } }
+@media(min-width:1024px) { .db-kgrid { grid-template-columns:repeat(5,1fr); } }
+.db-kcard { background:var(--bg-card); border:1px solid var(--border-default); border-radius:14px; padding:16px; box-shadow:var(--shadow-card); transition:transform .2s; }
+.db-kcard:hover { transform:translateY(-3px); }
+.db-kicon { width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; margin-bottom:10px; }
+.db-kval  { font-size:26px; font-weight:800; font-family:'DM Mono',monospace; line-height:1; margin-bottom:3px; }
+.db-klabel{ font-size:11px; color:var(--text-muted); font-weight:500; margin-bottom:6px; }
+.db-ksub  { font-size:10px; color:var(--text-muted); font-weight:700; margin-bottom:10px; min-height:13px; }
+.db-kbar  { height:4px; border-radius:99px; overflow:hidden; }
+.db-kbar > div { height:100%; border-radius:99px; transition:width .6s; }
 
-/* Main grid */
-.dash-main-grid {
-    padding: 16px 20px 24px;
-    display: grid; grid-template-columns: 1fr; gap: 16px;
-}
-@media (min-width: 640px) { .dash-main-grid { padding: 20px 24px 24px; } }
-@media (min-width: 1024px) { .dash-main-grid { grid-template-columns: 1fr 300px; } }
-@media (min-width: 1280px) { .dash-main-grid { grid-template-columns: 1fr 320px; } }
+/* Petugas */
+.db-pgrid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+@media(max-width:480px){ .db-pgrid { grid-template-columns:1fr; } }
+.db-pcard { background:var(--bg-card); border:1px solid var(--border-default); border-radius:12px; padding:12px 14px; display:flex; align-items:center; gap:10px; }
+.db-picon { width:36px; height:36px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:800; font-family:'DM Mono',monospace; flex-shrink:0; }
 
-/* Table card */
-.dash-table-card {
-    background: var(--bg-card); border-radius: 14px; border: 1px solid var(--border-default);
-    box-shadow: var(--shadow-card); overflow: hidden;
-}
-.dash-table-header { padding: 14px 18px; border-bottom: 1px solid var(--border-default); }
-.dash-table-title-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; flex-wrap: wrap; gap: 8px; }
-.dash-table-title { font-size: 14px; font-weight: 700; color: var(--text-primary); }
-.dash-count-badge { background: #ECFDF5; color: #00A884; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
-.dash-search-wrap { position: relative; }
-.dash-search-icon { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: #9CA3AF; }
-.dash-search-input {
-    padding: 6px 12px 6px 30px; border: 1.5px solid #E2E8F0; border-radius: 10px;
-    font-size: 12px; color: #0F172A; background: #F8FAFC; outline: none; width: 200px;
-    transition: border-color .2s;
-}
-@media (max-width: 640px) { .dash-search-input { width: 150px; } }
-.dash-filter-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.dash-filter-tabs { display: flex; gap: 2px; background: #F1F5F9; border-radius: 10px; padding: 3px; }
-.dash-filter-tab { padding: 4px 10px; border-radius: 7px; font-size: 11px; font-weight: 600; border: none; cursor: pointer; transition: all .15s; background: transparent; color: #64748B; }
-.dash-filter-tab.active { background: #fff; color: #00A884; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
-.dash-date-filter { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #64748B; }
-.dash-date-input { padding: 4px 6px; border: 1.5px solid #E2E8F0; border-radius: 7px; font-size: 10px; color: #0F172A; background: #F8FAFC; outline: none; }
-.dash-reset-btn { padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 600; background: #FEF2F2; color: #DC2626; border: 1.5px solid rgba(220,38,38,0.15); cursor: pointer; }
-.dash-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.dash-table thead tr { background: #F8FAFC; border-bottom: 2px solid #E2E8F0; }
-.dash-table th { padding: 10px 14px; text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #64748B; }
-.dash-table tbody tr { border-bottom: 1px solid #F1F5F9; transition: background .12s; }
-.dash-table td { padding: 10px 14px; vertical-align: middle; }
-.dash-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 40px 16px; }
-.dash-empty-icon { width: 44px; height: 44px; border-radius: 12px; background: #F1F5F9; display: flex; align-items: center; justify-content: center; color: #CBD5E1; }
-.dash-empty-icon svg { width: 22px; height: 22px; }
-.dash-patient-av { width: 32px; height: 32px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; }
-.dash-badge { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 20px; }
-.dash-status-badge { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 20px; display: inline-flex; align-items: center; gap: 4px; }
-.dash-table-footer { padding: 10px 18px; border-top: 1px solid #F1F5F9; display: flex; align-items: center; justify-content: space-between; background: #FAFAFA; flex-wrap: wrap; gap: 6px; }
-.dash-refresh-btn { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #64748B; background: none; border: none; cursor: pointer; padding: 4px 8px; border-radius: 8px; transition: background .15s; }
-.dash-refresh-btn:hover { background: #F1F5F9; }
+/* Filter bar */
+.db-fbar    { background:var(--bg-surface); border:1px solid var(--border-default); border-radius:12px; padding:12px 16px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.db-presets { display:flex; gap:2px; background:var(--bg-input); border:1px solid var(--border-default); border-radius:10px; padding:3px; flex-shrink:0; flex-wrap:wrap; }
+.db-pbtn    { padding:4px 10px; border-radius:7px; font-size:11px; font-weight:600; border:none; cursor:pointer; background:transparent; color:var(--text-secondary); transition:all .14s; white-space:nowrap; }
+.db-pbtn.active { background:var(--bg-card); color:#00A884; box-shadow:0 1px 4px rgba(0,0,0,.08); }
+.db-drange  { display:flex; align-items:center; gap:5px; flex-wrap:wrap; }
+.db-dinput  { padding:5px 8px; border:1.5px solid var(--border-default); border-radius:8px; font-size:11px; color:var(--text-primary); background:var(--bg-input); outline:none; min-width:0; }
+.db-abtn    { padding:5px 12px; border-radius:8px; font-size:11px; font-weight:700; background:#00A884; color:#fff; border:none; cursor:pointer; }
+.db-swrap   { position:relative; flex:1; min-width:140px; }
+.db-sinput  { width:100%; padding:7px 12px 7px 30px; border:1.5px solid var(--border-default); border-radius:10px; font-size:12px; color:var(--text-primary); background:var(--bg-input); outline:none; box-sizing:border-box; }
+.db-sinput:focus { border-color:#00A884; box-shadow:0 0 0 3px rgba(0,168,132,.1); }
+.db-jtabs   { display:flex; gap:2px; background:var(--bg-input); border:1px solid var(--border-default); border-radius:10px; padding:3px; flex-shrink:0; }
+.db-jtab    { padding:4px 10px; border-radius:7px; font-size:11px; font-weight:600; border:none; cursor:pointer; background:transparent; color:var(--text-secondary); transition:all .14s; }
+.db-jtab.active { background:var(--bg-card); color:#00A884; box-shadow:0 1px 4px rgba(0,0,0,.08); }
 
-/* Date filter row */
-.dash-date-filter-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:8px; }
-.dash-preset-group { display:flex; gap:3px; background:#F1F5F9; border-radius:10px; padding:3px; }
-.dash-preset-btn { padding:4px 10px; border-radius:7px; font-size:11px; font-weight:600; border:none; cursor:pointer; background:transparent; color:#64748B; transition:all .15s; white-space:nowrap; }
-.dash-preset-btn.active { background:#fff; color:#00A884; box-shadow:0 1px 4px rgba(0,0,0,0.08); }
-.dash-date-range { display:flex; align-items:center; gap:5px; flex-wrap:wrap; }
-.dash-apply-btn { padding:5px 12px; border-radius:8px; font-size:11px; font-weight:700; background:#00A884; color:#fff; border:none; cursor:pointer; }
-.dash-apply-btn:hover { filter:brightness(1.08); }
+/* Main 2-col */
+.db-main { display:grid; grid-template-columns:1fr; gap:14px; }
+@media(min-width:1024px){ .db-main { grid-template-columns:1fr; } }
+.db-sidebar { display:flex; flex-direction:column; gap:14px; }
 
-/* Right column */
-.dash-right-col { display: flex; flex-direction: column; gap: 14px; }
-.dash-side-card { background: var(--bg-card); border-radius: 14px; border: 1px solid var(--border-default); box-shadow: var(--shadow-card); padding: 18px; }
+/* Card */
+.db-card      { background:var(--bg-card); border:1px solid var(--border-default); border-radius:14px; box-shadow:var(--shadow-card); overflow:hidden; }
+.db-card-hdr  { padding:14px 18px 10px; border-bottom:1px solid var(--border-default); display:flex; align-items:center; gap:8px; }
+.db-card-t    { font-size:13px; font-weight:700; color:var(--text-primary); }
+.db-cpill     { background:#ECFDF5; color:#00A884; font-size:11px; font-weight:700; padding:2px 8px; border-radius:20px; }
+
+/* Table */
+.db-tbl { width:100%; border-collapse:collapse; font-size:13px; min-width:540px; }
+.db-tbl thead tr { background:var(--bg-surface,#F8FAFC); border-bottom:2px solid var(--border-default); }
+.db-tbl th  { padding:9px 14px; text-align:left; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted); }
+.db-tbl tbody tr { border-bottom:1px solid var(--border-row,#F1F5F9); transition:background .12s; }
+.db-tbl tbody tr:hover { background:var(--bg-row-hover,#F8FAFC) !important; }
+.db-tbl td  { padding:9px 14px; vertical-align:middle; }
+.db-empty   { display:flex; flex-direction:column; align-items:center; gap:8px; padding:40px 16px; }
+.db-av      { width:30px; height:30px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; flex-shrink:0; }
+.db-badge   { font-size:11px; font-weight:600; padding:2px 8px; border-radius:20px; }
+.db-sbadge  { font-size:11px; font-weight:600; padding:2px 8px; border-radius:20px; display:inline-flex; align-items:center; gap:4px; }
+.db-trunc   { max-width:150px; overflow:hidden; font-size:12px; text-overflow:ellipsis; white-space:nowrap; color:var(--text-secondary); }
+.db-trunc.sm{ font-size:11px; }
+.db-bed     { font-size:12px; font-weight:700; color:var(--text-accent); }
+.db-bed-e   { font-size:12px; font-weight:600; color:var(--text-muted); }
+.db-tfooter { padding:10px 18px; border-top:1px solid var(--border-default); background:var(--bg-surface,#FAFAFA); display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
+.db-rbtn    { display:flex; align-items:center; gap:5px; font-size:11px; color:var(--text-secondary); background:none; border:none; cursor:pointer; padding:4px 8px; border-radius:8px; transition:background .14s; }
+.db-rbtn:hover { background:var(--bg-input); }
+
+/* Charts row */
+.db-charts { display:grid; grid-template-columns:1fr; gap:14px; padding-bottom:28px !important; }
+@media(min-width:768px)  { .db-charts { grid-template-columns:repeat(2,1fr); } }
+@media(min-width:1200px) { .db-charts { grid-template-columns:repeat(3,1fr); } }
+.db-cempty  { display:flex; flex-direction:column; align-items:center; gap:8px; padding:24px; color:var(--text-muted); font-size:12px; }
+
+@media(max-width:640px){
+  .db-kgrid  { grid-template-columns:repeat(2,1fr); }
+  .db-fbar   { flex-direction:column; align-items:stretch; }
+  .db-swrap  { min-width:0; }
+  .db-drange { width:100%; }
+  .db-dinput { flex:1; min-width:0; }
+  .db-presets{ width:100%; justify-content:space-between; }
+  .db-jtabs  { width:100%; justify-content:space-between; }
+  .db-pgrid  { grid-template-columns:1fr; }
+}
 </style>

@@ -210,23 +210,6 @@ const roleColor = computed(() => roleColors[userRole.value] ?? { bg:'rgba(100,11
 
                 <!-- Right: clock, refresh, theme, avatar -->
                 <div class="flex items-center gap-2">
-                    <!-- Clock chip -->
-                    <div class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg topbar-chip">
-                        <svg class="w-3 h-3" style="color:var(--text-accent)" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                        </svg>
-                        <span class="font-mono text-xs font-semibold" style="color:var(--text-accent)">{{ formattedTime }}</span>
-                    </div>
-
-                    <!-- Auto-refresh chip -->
-                    <div class="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg topbar-chip">
-                        <span class="relative flex h-2 w-2">
-                            <span class="ping-dot absolute inline-flex h-full w-full rounded-full" style="background:#00A884; opacity:.75"></span>
-                            <span class="relative inline-flex h-2 w-2 rounded-full" style="background:#00A884"></span>
-                        </span>
-                        <span class="text-xs font-semibold" style="color:var(--text-muted)">{{ countdown }}s</span>
-                    </div>
-
                     <!-- Theme toggle -->
                     <button @click="toggle" class="theme-toggle-wrap" :title="isDark ? 'Mode Terang' : 'Mode Gelap'">
                         <svg v-if="isDark" style="width:13px;height:13px;color:var(--text-muted);flex-shrink:0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">

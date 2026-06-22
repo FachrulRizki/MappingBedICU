@@ -11,33 +11,41 @@ use Illuminate\Support\Facades\DB;
 
 class DashboardService
 {
+    /**
+     * Driver sqlsrv di Windows mengembalikan array, bukan stdClass.
+     * Helper ini membaca property dari array maupun object secara aman.
+     */
+    private function val(mixed $row, string $key, mixed $default = null): mixed
+    {
+        if (is_array($row)) return $row[$key] ?? $default;
+        return $row->$key ?? $default;
+    }
+
     public function getDashboardData(?User $user = null, array $filters = []): array
     {
         $role           = $user?->role ?? 'guest';
         $isPetugasRuang = $role === 'petugas_ruang';
 
-        // Filter tanggal — default: hari ini
-        $tglDari    = $filters['tgl_dari']   ?? now()->format('Y-m-d');
-        $tglSampai  = $filters['tgl_sampai'] ?? now()->format('Y-m-d');
-        $search     = trim($filters['search'] ?? '');
+        $tglDari   = $filters['tgl_dari']   ?? now()->format('Y-m-d');
+        $tglSampai = $filters['tgl_sampai'] ?? now()->format('Y-m-d');
+        $search    = trim($filters['search'] ?? '');
 
-        // ── Info bed (semua role lihat bed) ───────────────────────────────
+        // ── Info bed ──────────────────────────────────────────────────────
         $bedData    = MRuangMaster::bedIcuDenganStatus();
         $semuaKamar = $bedData->map(fn($row) => [
-            'Kode_Ruang' => $row->Kode_RuangM,
-            'Status'     => $row->Status ?? 'KOSONG',
-            'nama_ruang' => $row->Nama_RuangM,
-            'kode_kelas' => $row->kelas_master ?? $row->Kode_Kelas,
-            'nama_kelas' => $row->Nama_Kelas,
-            'No_MR'      => $row->No_MR ?? null,
+            'Kode_Ruang' => $this->val($row, 'Kode_RuangM'),
+            'Status'     => $this->val($row, 'Status', 'KOSONG'),
+            'nama_ruang' => $this->val($row, 'Nama_RuangM'),
+            'kode_kelas' => $this->val($row, 'kelas_master') ?? $this->val($row, 'Kode_Kelas'),
+            'nama_kelas' => $this->val($row, 'Nama_Kelas'),
+            'No_MR'      => $this->val($row, 'No_MR'),
         ])->values();
 
-        // ── Stats & list aktif berdasarkan role ────────────────────────────
+        // ── Stats & list aktif ────────────────────────────────────────────
         if ($isPetugasRuang && $user) {
             $actorNames = $this->resolveActorNames($user);
             $col        = $this->nameUserColumn();
 
-            // Petugas ruang: hanya SPRI milik sendiri, tidak ada booking external
             $statsExternal = ['pending' => 0, 'bed_confirmed' => 0, 'terverifikasi' => 0];
             $statsInternal = [
                 'pending_admisi' => IcuSpriInternal::whereIn($col, $actorNames)->where('status', 'pending_admisi')->count(),
@@ -52,7 +60,6 @@ class DashboardService
                 ->when($search, fn($q) => $q->where('No_MR', 'like', "%{$search}%"))
                 ->latest()->get();
         } else {
-            // Admin, admisi, ICU → lihat semua
             $statsExternal = [
                 'pending'       => IcuBookingExternal::where('status', 'pending_icu')->count(),
                 'bed_confirmed' => IcuBookingExternal::where('status', 'bed_confirmed')->count(),
@@ -71,19 +78,32 @@ class DashboardService
                        ->orWhere('No_MR', 'like', "%{$search}%")
                 ))
                 ->latest()->get();
+
             $intList = IcuSpriInternal::whereIn('status', ['pending_admisi', 'pending_icu', 'bed_verified'])
                 ->whereBetween('created_at', [$tglDari . ' 00:00:00', $tglSampai . ' 23:59:59'])
                 ->when($search, fn($q) => $q->where('No_MR', 'like', "%{$search}%"))
                 ->latest()->get();
         }
 
-        // ── Lookup nama pasien internal ────────────────────────────────────
-        $noMRs     = $intList->pluck('No_MR')->filter()->unique()->values();
-        $pasienMap = RegistrasiPasien::whereIn('No_MR', $noMRs)
-            ->get(['No_MR', 'Nama_Pasien', 'jenis_kelamin'])
-            ->keyBy('No_MR');
+        // ── Lookup nama pasien via DB langsung (sqlsrv-safe) ─────────────
+        $noMRs = $intList->pluck('No_MR')->filter()->unique()->values()->toArray();
 
-        // ── Format external ────────────────────────────────────────────────
+        $pasienMap = [];
+        if (!empty($noMRs)) {
+            $model = new RegistrasiPasien();
+            $rows  = DB::connection($model->getConnectionName())
+                ->table($model->getTable())
+                ->select('No_MR', 'Nama_Pasien', 'jenis_kelamin')
+                ->whereIn('No_MR', $noMRs)
+                ->get();
+
+            foreach ($rows as $row) {
+                $key = $this->val($row, 'No_MR');
+                $pasienMap[$key] = $row;
+            }
+        }
+
+        // ── Format external (mysql — stdClass aman, tapi pakai val()) ────
         $listExt = $extList->map(fn($b) => [
             'id'             => 'ext_' . $b->id,
             'jalur'          => 'external',
@@ -102,15 +122,16 @@ class DashboardService
             'created_at_raw' => $b->created_at?->format('Y-m-d'),
         ]);
 
-        // ── Lookup nama dokter & asal ruang internal dari pasien map ───────
-        $intList = $intList->map(function ($s) use ($pasienMap) {
-            $pasien    = $pasienMap[$s->No_MR] ?? null;
+        // ── Format internal ───────────────────────────────────────────────
+        $listInt = $intList->map(function ($s) use ($pasienMap) {
+            $row       = $pasienMap[$s->No_MR] ?? null;
             $statusKey = $s->status === 'pending_icu' ? 'pending_icu_int' : $s->status;
+
             return [
                 'id'             => 'int_' . $s->id,
                 'jalur'          => 'internal',
-                'nama_pasien'    => $pasien?->Nama_Pasien ?? '-',
-                'jenis_kelamin'  => $pasien?->jenis_kelamin,
+                'nama_pasien'    => $this->val($row, 'Nama_Pasien', '-'),
+                'jenis_kelamin'  => $this->val($row, 'jenis_kelamin'),
                 'No_MR'          => $s->No_MR,
                 'Diagnosis'      => $s->Diagnosis,
                 'diagnosa'       => $s->Diagnosis,
@@ -125,7 +146,10 @@ class DashboardService
             ];
         });
 
-        $listAktif = $listExt->merge($intList)->sortByDesc('created_at_raw')->values();
+        $listAktif = collect($listExt->values()->all())
+            ->merge(collect($listInt->values()->all()))
+            ->sortByDesc(fn($item) => $item['created_at_raw'] ?? '')
+            ->values();
 
         return [
             'semuaKamar'    => $semuaKamar,
