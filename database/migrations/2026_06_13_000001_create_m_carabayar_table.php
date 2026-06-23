@@ -28,8 +28,4 @@ return new class extends Migration
     {
         Schema::dropIfExists('m_carabayar');
     }
-<<<<<<< HEAD
 };
-=======
-};
->>>>>>> 236b3c1fac072b09c77d6a23012899a19b112fce
