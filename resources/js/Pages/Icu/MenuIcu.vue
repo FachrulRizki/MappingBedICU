@@ -5,6 +5,8 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 import { useAuth } from '@/composables/useAuth.js';
 
 const { canKonfirmasiIcu, isAdmin } = useAuth();
+const logoUrl      = `${import.meta.env.BASE_URL}images/logo-urip.png`;
+const doctorImgUrl = `${import.meta.env.BASE_URL}images/welcome-doctors.svg`;
 
 const props = defineProps({
     antrian:     { type: Array,  default: () => [] },
@@ -92,11 +94,11 @@ const actionsOf = (item) => {
 
 // ── Summary ────────────────────────────────────────────────
 const CARDS = computed(() => [
-    { key:'',           label:'Total',        val: props.summary.total         ?? 0, color:'#5A6B7C' },
-    { key:'pending_icu',label:'Menunggu ICU', val: props.antrian.filter(a=>a.status==='pending_icu').length, color:'#E67E22' },
-    { key:'bed_confirmed',label:'Dikonfirmasi',val: props.summary.bed_confirmed ?? 0, color:'#00A884' },
-    { key:'bed_verified,admisi_verified',label:'Terverifikasi',val: props.summary.verified ?? 0, color:'#00A884' },
-    { key:'ditolak',    label:'Ditolak',      val: props.summary.ditolak       ?? 0, color:'#E74C3C' },
+    { key:'',           label:'Total',        val: props.summary.total         ?? 0, color:'#5A6B7C', icon:'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
+    { key:'pending_icu',label:'Menunggu ICU', val: props.antrian.filter(a=>a.status==='pending_icu').length, color:'#E67E22', icon:'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
+    { key:'bed_confirmed',label:'Dikonfirmasi',val: props.summary.bed_confirmed ?? 0, color:'#00A884', icon:'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
+    { key:'bed_verified,admisi_verified',label:'Terverifikasi',val: props.summary.verified ?? 0, color:'#059669', icon:'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' },
+    { key:'ditolak',    label:'Ditolak',      val: props.summary.ditolak       ?? 0, color:'#E74C3C', icon:'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z' },
 ]);
 
 const clickCard = (key) => {
@@ -160,17 +162,23 @@ const jenisOptions = [
 
   <div class="p-6 sm:p-8 space-y-6" style="font-family:'Inter','Plus Jakarta Sans',sans-serif; background:var(--bg-main); min-height:100%">
 
-    <!-- ═══ 1. PAGE HEADER ═══════════════════════════════════════════════ -->
-    <div class="space-y-1">
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0" style="background:rgba(0,168,132,.15)">
-          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="#00A884" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-          </svg>
+    <!-- ═══ 1. PAGE HEADER (HERO) ════════════════════════════════════════ -->
+    <div class="db-hero">
+      <div class="db-hero-copy">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
+          <div class="db-hero-logo"><img :src="logoUrl" alt="Logo" style="width:36px;height:36px;object-fit:contain" @error="$event.target.style.display='none'"/></div>
+          <div style="min-width:0">
+            <p style="color:rgba(255,255,255,.6);font-size:11px;font-weight:500">ICU Command Center</p>
+            <h1 style="color:#fff;font-size:clamp(18px,4vw,30px);font-weight:900;letter-spacing:-.02em;line-height:1.1">Menu Antrian ICU</h1>
+            <p style="color:rgba(255,255,255,.45);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:280px">Kelola antrian Booking Eksternal &amp; SPRI Internal</p>
+          </div>
         </div>
-        <div>
-          <h1 class="text-2xl font-bold tracking-tight" style="color:var(--text-primary)">Menu ICU</h1>
-          <p class="text-sm" style="color:var(--text-secondary)">Kelola semua antrian — Booking Eksternal &amp; SPRI Internal</p>
+      </div>
+
+      <!-- Doctor illustration -->
+      <div class="db-hero-vis" aria-hidden="true">
+        <div class="db-char">
+          <img :src="doctorImgUrl" alt="Dokter ICU" style="width:100%;height:100%;object-fit:contain"/>
         </div>
       </div>
     </div>
@@ -180,15 +188,25 @@ const jenisOptions = [
       <button
         v-for="c in CARDS" :key="c.key"
         @click="clickCard(c.key)"
-        class="group relative flex flex-col gap-2 p-5 rounded-2xl text-left transition-all duration-200 hover:-translate-y-1"
-        style="background:var(--bg-card); border:1px solid var(--border-default); box-shadow:var(--shadow-card); min-height:100px"
-        :style="fStatus===c.key ? `border:2.5px solid ${c.color}; box-shadow:0 0 0 3px ${c.color}18` : ''"
+        class="group relative flex items-center gap-4 p-4 rounded-2xl text-left transition-all duration-200 hover:-translate-y-1 hover:shadow-lg"
+        style="background:var(--bg-card); border:1px solid var(--border-default); box-shadow:var(--shadow-card); min-height:88px; width:100%"
+        :style="fStatus===c.key ? `border:2px solid ${c.color}; box-shadow:0 0 0 3px ${c.color}15; background:var(--bg-surface)` : ''"
       >
-        <!-- Dot indicator kiri -->
-        <span class="absolute left-0 top-6 bottom-6 w-1 rounded-r-full transition-all"
-          :style="`background:${c.color}; opacity:${fStatus===c.key?'1':'0.35'}`"></span>
-        <span class="text-3xl font-bold tracking-tight" :style="`color:${c.color}`">{{ c.val }}</span>
-        <span class="text-xs font-medium leading-tight" style="color:var(--text-secondary)">{{ c.label }}</span>
+        <div class="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110"
+          :style="`background:${c.color}12`">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" :style="`color:${c.color}`">
+            <path stroke-linecap="round" stroke-linejoin="round" :d="c.icon" />
+          </svg>
+        </div>
+        <div class="min-w-0 flex-1">
+          <p class="text-2xl font-black tracking-tight" :style="`color:${c.color}`" style="font-family:'DM Mono',monospace; line-height:1.1">{{ c.val }}</p>
+          <p class="text-xs font-semibold mt-1" style="color:var(--text-secondary); line-height:1.2">{{ c.label }}</p>
+        </div>
+        <span class="opacity-0 group-hover:opacity-100 transition-opacity absolute right-3 top-3">
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" :style="`color:${c.color}`">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </span>
       </button>
     </div>
 
@@ -755,3 +773,22 @@ const jenisOptions = [
 
 </AppLayout>
 </template>
+
+<style scoped>
+/* ── Hero ────────────────────────────────────────────────────────────────── */
+.db-hero {
+  background:#00A884;
+  border-radius:16px; padding:22px 28px 18px; position:relative; overflow:hidden;
+  border:1px solid rgba(255,255,255,.1); box-shadow:0 12px 32px rgba(0,168,132,.15);
+  display:grid; grid-template-columns:1fr; gap:18px; align-items:center;
+}
+@media(min-width:860px){ .db-hero { grid-template-columns:1fr auto; } }
+.db-hero::before { content:''; position:absolute; width:260px; height:260px; border-radius:50%; right:-80px; top:-100px; background:radial-gradient(circle,rgba(255,255,255,.1),transparent); pointer-events:none; }
+.db-hero-copy { position:relative; z-index:2; }
+.db-hero-logo { width:44px; height:44px; border-radius:13px; background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.22); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.db-hero-vis { position:relative; min-height:140px; min-width:200px; align-self:center; display:none; }
+@media(min-width:860px){ .db-hero-vis { display:block; } }
+.db-char {
+  position:absolute; right:0; bottom:-16px; width:min(200px,100%); aspect-ratio:1;
+}
+</style>

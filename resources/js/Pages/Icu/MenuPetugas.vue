@@ -6,6 +6,9 @@ import Icd10Search from '@/Components/Icd10Search.vue'
 import { useAuth } from '@/composables/useAuth.js'
 
 const { canBuatSpriInternal, isAdmin } = useAuth()
+const logoUrl      = `${import.meta.env.BASE_URL}images/logo-urip.png`;
+const doctorImgUrl = `${import.meta.env.BASE_URL}images/welcome-doctors.svg`;
+
 const props = defineProps({
     spriList:        { type: Array,   default: () => [] },
     summary:         { type: Object,  default: () => ({}) },
@@ -75,10 +78,10 @@ const gColor = (g) => g === 'L' ? '#00A884' : g === 'P' ? '#8E44AD' : 'var(--tex
 
 // ── Summary cards ─────────────────────────────────────────────────────────────
 const CARDS = computed(() => [
-    { key: '',              label: 'Total',      val: props.summary.total        ?? 0, color: '#5A6B7C' },
-    { key: 'pending_icu',   label: 'Menunggu ICU', val: props.summary.pending_icu  ?? 0, color: '#E0923A' },
-    { key: 'bed_verified',  label: 'Bed Verified', val: props.summary.bed_verified  ?? 0, color: '#00A884' },
-    { key: 'ditolak',       label: 'Ditolak',      val: props.summary.ditolak       ?? 0, color: '#E74C3C' },
+    { key: '',              label: 'Total',      val: props.summary.total        ?? 0, color: '#5A6B7C', icon:'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
+    { key: 'pending_icu',   label: 'Menunggu ICU', val: props.summary.pending_icu  ?? 0, color: '#E0923A', icon:'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
+    { key: 'bed_verified',  label: 'Bed Verified', val: props.summary.bed_verified  ?? 0, color: '#059669', icon:'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' },
+    { key: 'ditolak',       label: 'Ditolak',      val: props.summary.ditolak       ?? 0, color: '#E74C3C', icon:'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z' },
 ])
 
 const statusOptions = [
@@ -270,52 +273,60 @@ const canSubmit  = computed(() =>
 <AppLayout :flash="flash" page-title="Menu Rawat Inap">
 <div class="mp-wrap">
 
-  <!-- ══ PAGE HEADER ══════════════════════════════════════════ -->
-  <div class="mp-header">
-    <div class="mp-header-left">
-      <div class="mp-header-icon">
-        <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-        </svg>
+  <!-- ══ PAGE HEADER (HERO) ════════════════════════════════════ -->
+  <div class="db-hero mb-6">
+    <div class="db-hero-copy">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
+        <div class="db-hero-logo"><img :src="logoUrl" alt="Logo" style="width:36px;height:36px;object-fit:contain" @error="$event.target.style.display='none'"/></div>
+        <div style="min-width:0">
+          <p style="color:rgba(255,255,255,.6);font-size:11px;font-weight:500">ICU Command Center</p>
+          <h1 style="color:#fff;font-size:clamp(18px,4vw,30px);font-weight:900;letter-spacing:-.02em;line-height:1.1">Permintaan Rawat ICU</h1>
+          <p style="color:rgba(255,255,255,.45);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:280px;margin-top:2px">
+            <span v-if="isSSO">SSO · Bangsal: <strong>{{ wardIds.join(', ') || '-' }}</strong></span>
+            <span v-else>Login Lokal · Data MySQL</span>
+          </p>
+        </div>
       </div>
-      <div>
-        <h1 class="mp-page-title">Permintaan Rawat ICU</h1>
-        <p class="mp-page-sub">
-          <span v-if="isSSO" class="mp-sso-badge">
-            <span class="mp-live-dot" style="background:#00A884"></span>
-            SSO · Bangsal: <strong style="color:#00A884">{{ wardIds.join(', ') || '-' }}</strong>
-          </span>
-          <span v-else class="mp-sso-badge">
-            <span class="mp-live-dot" style="background:#00A884"></span>
-            Login Lokal · Data MySQL
-          </span>
-        </p>
+      <!-- Action button inside Hero -->
+      <button v-if="!isSSO && (canBuatSpriInternal || isAdmin)" @click="openModal('spri')"
+        class="flex items-center gap-2 font-bold px-5 py-2.5 rounded-xl transition-all duration-150 hover:-translate-y-px mt-2"
+        style="background:#fff; color:#00A884; font-size:13px; box-shadow:0 4px 14px rgba(0,0,0,0.12); border:none; cursor:pointer">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+        </svg>
+        Buat BU Manual
+      </button>
+    </div>
+
+    <!-- Doctor illustration -->
+    <div class="db-hero-vis" aria-hidden="true">
+      <div class="db-char">
+        <img :src="doctorImgUrl" alt="Dokter ICU" style="width:100%;height:100%;object-fit:contain"/>
       </div>
     </div>
-    <button v-if="!isSSO && (canBuatSpriInternal || isAdmin)" @click="openModal('spri')" class="mp-add-btn">
-      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
-      </svg>
-      Buat BU Manual
-    </button>
   </div>
 
   <!-- ══ KPI CARDS ════════════════════════════════════════════ -->
-  <div class="mp-kpi-grid">
-    <button v-for="c in CARDS" :key="c.key" @click="fStatus = c.key; applyFilters()" class="mp-kpi-card kpi-card"
-      :style="fStatus === c.key ? `border-color:${c.color}; box-shadow:0 0 0 3px ${c.color}18` : ''">
-      <span class="mp-kpi-bar" :style="`background:${c.color}; opacity:${fStatus===c.key?'1':'0.3'}`"></span>
-      <div class="mp-kpi-inner">
-        <div class="mp-kpi-icon-wrap" :style="`background:${c.color}12`">
-          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" :style="`color:${c.color}`">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-          </svg>
-        </div>
-        <div>
-          <p class="mp-kpi-val" :style="`color:${c.color}`">{{ c.val }}</p>
-          <p class="mp-kpi-label">{{ c.label }}</p>
-        </div>
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-5">
+    <button v-for="c in CARDS" :key="c.key" @click="fStatus = c.key; applyFilters()"
+      class="group relative flex items-center gap-4 p-4 rounded-2xl text-left transition-all duration-200 hover:-translate-y-1 hover:shadow-lg"
+      style="background:var(--bg-card); border:1px solid var(--border-default); box-shadow:var(--shadow-card); min-height:88px; width:100%"
+      :style="fStatus === c.key ? `border:2px solid ${c.color}; box-shadow:0 0 0 3px ${c.color}15; background:var(--bg-surface)` : ''">
+      <div class="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110"
+        :style="`background:${c.color}12`">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" :style="`color:${c.color}`">
+          <path stroke-linecap="round" stroke-linejoin="round" :d="c.icon" />
+        </svg>
       </div>
+      <div class="min-w-0 flex-1">
+        <p class="text-2xl font-black tracking-tight" :style="`color:${c.color}`" style="font-family:'DM Mono',monospace; line-height:1.1">{{ c.val }}</p>
+        <p class="text-xs font-semibold mt-1" style="color:var(--text-secondary); line-height:1.2">{{ c.label }}</p>
+      </div>
+      <span class="opacity-0 group-hover:opacity-100 transition-opacity absolute right-3 top-3">
+        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" :style="`color:${c.color}`">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+      </span>
     </button>
   </div>
 
@@ -686,26 +697,22 @@ const canSubmit  = computed(() =>
 .mp-wrap { min-height:100%; background:var(--bg-main); font-family:'Inter','Plus Jakarta Sans',sans-serif; padding:20px 16px; }
 @media (min-width:640px) { .mp-wrap { padding:20px 24px; } }
 
-/* Header */
-.mp-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:20px; }
-.mp-header-left { display:flex; align-items:center; gap:12px; }
-.mp-header-icon { width:42px; height:42px; border-radius:12px; background:linear-gradient(135deg,#00A884,#007a61); display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 4px 12px rgba(0,168,132,.3); }
-.mp-page-title { font-size:20px; font-weight:800; color:var(--text-primary); letter-spacing:-0.02em; }
-.mp-page-sub { font-size:12px; color:var(--text-muted); margin-top:2px; }
-.mp-sso-badge { display:inline-flex; align-items:center; gap:5px; }
-.mp-live-dot { width:7px; height:7px; border-radius:50%; display:inline-block; flex-shrink:0; }
-.mp-add-btn { display:flex; align-items:center; gap:7px; padding:9px 18px; border-radius:12px; font-size:13px; font-weight:700; color:#fff; background:#00A884; border:none; cursor:pointer; box-shadow:0 4px 14px rgba(0,168,132,.3); transition:all .15s; }
-.mp-add-btn:hover { filter:brightness(1.08); transform:translateY(-1px); }
-
-/* KPI */
-.mp-kpi-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:20px; }
-@media (min-width:640px) { .mp-kpi-grid { grid-template-columns:repeat(4,1fr); } }
-.mp-kpi-card { background:var(--bg-card); border-radius:13px; border:2px solid var(--border-default); box-shadow:var(--shadow-card); padding:14px 16px; text-align:left; cursor:pointer; transition:all .18s; position:relative; overflow:hidden; }
-.mp-kpi-bar { position:absolute; left:0; top:20%; bottom:20%; width:3px; border-radius:0 3px 3px 0; transition:opacity .18s; }
-.mp-kpi-inner { display:flex; align-items:center; gap:12px; padding-left:6px; }
-.mp-kpi-icon-wrap { width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-.mp-kpi-val { font-size:26px; font-weight:800; font-family:'DM Mono',monospace; line-height:1; margin-bottom:4px; }
-.mp-kpi-label { font-size:11px; color:var(--text-muted); font-weight:500; }
+/* ── Hero ────────────────────────────────────────────────────────────────── */
+.db-hero {
+  background:#00A884;
+  border-radius:16px; padding:22px 28px 18px; position:relative; overflow:hidden;
+  border:1px solid rgba(255,255,255,.1); box-shadow:0 12px 32px rgba(0,168,132,.15);
+  display:grid; grid-template-columns:1fr; gap:18px; align-items:center;
+}
+@media(min-width:860px){ .db-hero { grid-template-columns:1fr auto; } }
+.db-hero::before { content:''; position:absolute; width:260px; height:260px; border-radius:50%; right:-80px; top:-100px; background:radial-gradient(circle,rgba(255,255,255,.1),transparent); pointer-events:none; }
+.db-hero-copy { position:relative; z-index:2; }
+.db-hero-logo { width:44px; height:44px; border-radius:13px; background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.22); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.db-hero-vis { position:relative; min-height:140px; min-width:200px; align-self:center; display:none; }
+@media(min-width:860px){ .db-hero-vis { display:block; } }
+.db-char {
+  position:absolute; right:0; bottom:-16px; width:min(200px,100%); aspect-ratio:1;
+}
 
 /* Main grid */
 .mp-main-grid { display:grid; grid-template-columns:1fr; gap:20px; }
