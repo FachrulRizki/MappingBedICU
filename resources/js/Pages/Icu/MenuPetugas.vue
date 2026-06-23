@@ -294,7 +294,7 @@ const canSubmit  = computed(() =>
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
         </svg>
-        Buat BU Manual
+        Buat Booking ICU Manual
       </button>
     </div>
 
@@ -409,7 +409,7 @@ const canSubmit  = computed(() =>
           <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
         </svg>
         <p class="text-sm font-semibold" style="color:var(--text-secondary)">Mode Login Lokal</p>
-        <p class="text-xs mt-1" style="color:var(--text-muted)">Gunakan tombol "Buat BU Manual" di atas untuk mencari pasien.</p>
+        <p class="text-xs mt-1" style="color:var(--text-muted)">Gunakan tombol "Buat Booking ICU Manual" di atas untuk mencari pasien.</p>
       </div>
     </div>
 
@@ -422,7 +422,7 @@ const canSubmit  = computed(() =>
           <svg class="w-4 h-4" style="color:var(--text-accent)" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/>
           </svg>
-          <p class="text-sm font-bold" style="color:var(--text-primary)">Filter Riwayat BU</p>
+          <p class="text-sm font-bold" style="color:var(--text-primary)">Filter Riwayat Booking ICU</p>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
           <div>
@@ -474,7 +474,7 @@ const canSubmit  = computed(() =>
       <div class="mp-panel mp-riwayat-panel">
         <div class="mp-panel-header" style="padding-bottom:12px">
           <div class="flex items-center justify-between">
-            <p class="text-sm font-bold" style="color:var(--text-primary)">Riwayat BU (Booking ICU)</p>
+            <p class="text-sm font-bold" style="color:var(--text-primary)">Riwayat Booking ICU</p>
             <span v-if="spriList.length" class="mp-count-badge">{{ spriList.length }}</span>
           </div>
         </div>
@@ -486,8 +486,8 @@ const canSubmit  = computed(() =>
               <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
             </svg>
           </div>
-          <p class="text-sm font-semibold" style="color:var(--text-secondary)">Belum ada BU (Booking ICU)</p>
-          <p class="text-xs mt-1" style="color:var(--text-muted)">{{ isSSO ? 'Pilih pasien di daftar kiri untuk request.' : 'Klik Buat BU Manual untuk membuat.' }}</p>
+          <p class="text-sm font-semibold" style="color:var(--text-secondary)">Belum ada Booking ICU</p>
+          <p class="text-xs mt-1" style="color:var(--text-muted)">{{ isSSO ? 'Pilih pasien di daftar kiri untuk request.' : 'Klik Buat Booking ICU Manual untuk membuat.' }}</p>
         </div>
 
         <!-- List -->
@@ -568,7 +568,7 @@ const canSubmit  = computed(() =>
           <svg class="w-5 h-5 text-white flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
           </svg>
-          <p class="text-sm font-bold text-white">BU (Booking ICU) — Pasien Internal</p>
+          <p class="text-sm font-bold text-white">Booking ICU — Pasien Internal</p>
         </div>
         <div class="mp-modal-sub-header">
           <p class="text-sm" style="color:var(--text-secondary)">Isi data klinis dan kirim langsung ke ICU</p>
@@ -681,7 +681,7 @@ const canSubmit  = computed(() =>
             <button type="button" @click="closeModal" class="mp-btn-cancel">Batal</button>
             <button type="submit" :disabled="!canSubmit || fmSpri.processing" class="mp-btn-submit"
               :style="canSubmit&&!fmSpri.processing?'background:#00A884;box-shadow:0 4px 14px rgba(0,168,132,.3)':'background:#f1f5f9;color:#94a3b8'">
-              {{ fmSpri.processing ? 'Menyimpan…' : 'Kirim BU ke ICU' }}
+              {{ fmSpri.processing ? 'Menyimpan…' : 'Kirim Booking ICU ke ICU' }}
             </button>
           </div>
         </form>
