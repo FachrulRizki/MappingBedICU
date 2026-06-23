@@ -29,10 +29,7 @@ class MenuIcuController extends Controller
         return $user?->name ?? 'petugas_icu';
     }
 
-    // -------------------------------------------------------------------------
     // READ
-    // -------------------------------------------------------------------------
-
     public function index(Request $request): Response
     {
         $data = $this->service->build($request);
@@ -43,6 +40,7 @@ class MenuIcuController extends Controller
             'filters'     => $data['filters'],
             'kamarKosong' => MRuangMaster::bedKosong(),
             'masterKelas' => MRuangMaster::jenisIcuTersedia(),
+            'caraBayar'   => \App\Models\MCaraBayar::list(),
             'flash'       => [
                 'success' => session('success'),
                 'error'   => session('error'),
@@ -50,10 +48,7 @@ class MenuIcuController extends Controller
         ]);
     }
 
-    // -------------------------------------------------------------------------
     // ACTION — Booking External: pending_icu -> bed_confirmed
-    // -------------------------------------------------------------------------
-
     public function konfirmasiExt(Request $request, int $id): RedirectResponse
     {
         $v = $request->validate([
@@ -83,10 +78,7 @@ class MenuIcuController extends Controller
         return back()->with('success', "Bed {$namaBed} ({$v['kebutuhan_bed']}) dikonfirmasi untuk {$booking->nama_pasien}.");
     }
 
-    // -------------------------------------------------------------------------
     // ACTION — Booking External: tolak (pending_icu -> ditolak)
-    // -------------------------------------------------------------------------
-
     public function tolakExt(Request $request, int $id): RedirectResponse
     {
         $v = $request->validate([
@@ -110,10 +102,7 @@ class MenuIcuController extends Controller
         return back()->with('success', "Booking {$booking->nama_pasien} ditolak.");
     }
 
-    // -------------------------------------------------------------------------
     // ACTION — BU Internal: pending_icu -> bed_verified
-    // -------------------------------------------------------------------------
-
     public function verifikasiInt(Request $request, int $id): RedirectResponse
     {
         $v = $request->validate([
@@ -142,11 +131,8 @@ class MenuIcuController extends Controller
 
         return back()->with('success', "Bed {$namaBed} terverifikasi untuk {$bu->pasien?->Nama_Pasien}.");
     }
-
-    // -------------------------------------------------------------------------
+    
     // ACTION — BU Internal: tolak (pending_icu -> ditolak)
-    // -------------------------------------------------------------------------
-
     public function tolakInt(Request $request, int $id): RedirectResponse
     {
         $v = $request->validate([

@@ -309,7 +309,7 @@ const jenisOptions = [
 
         <!-- ═══ FILTER BAR ══════════════════════════════════════════════ -->
         <div class="rounded-2xl p-5 sm:p-6 space-y-4" style="background:var(--bg-surface); border:1px solid var(--border-default); box-shadow:var(--shadow-card)">
-            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
                 <div class="space-y-1.5">
                     <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Status</label>
                     <select v-model="fStatus" @change="applyFilters" class="w-full rounded-xl outline-none"
@@ -334,14 +334,14 @@ const jenisOptions = [
                     <input v-model="fTglDari" @change="applyFilters" type="date" class="w-full rounded-xl outline-none"
                         style="padding:10px 14px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary); font-size:13px"/>
                 </div>
+                <div class="space-y-1.5">
+                    <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Tgl Selesai</label>
+                    <input v-model="fTglAkh" @change="applyFilters" type="date" :min="fTglDari" class="w-full rounded-xl outline-none"
+                        style="padding:10px 14px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary); font-size:13px"/>
+                </div>
             </div>
             <!-- Row 2: tgl akhir + presets + sort -->
             <div class="flex flex-wrap items-center gap-3">
-                <div class="flex items-center gap-2">
-                    <span class="text-xs font-semibold" style="color:var(--text-muted)">s/d</span>
-                    <input v-model="fTglAkh" @change="applyFilters" type="date" :min="fTglDari" class="rounded-xl outline-none"
-                        style="padding:8px 12px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary); font-size:12px; width:152px"/>
-                </div>
                 <!-- Presets -->
                 <div class="flex gap-1 p-1 rounded-xl" style="background:var(--bg-input)">
                     <button v-for="p in [{l:'Hari ini',d:today,s:today},{l:'Kemarin',d:yesterday,s:yesterday},{l:'7 Hari',d:week7,s:today}]"

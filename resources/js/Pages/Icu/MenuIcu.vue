@@ -12,6 +12,7 @@ const props = defineProps({
     antrian:     { type: Array,  default: () => [] },
     summary:     { type: Object, default: () => ({}) },
     filters:     { type: Object, default: () => ({}) },
+    caraBayar:   { type: Array,  default: () => [] },
     kamarKosong: { type: Array,  default: () => [] },
     masterKelas: { type: Array,  default: () => [] },
     flash:       { type: Object, default: () => ({}) },
@@ -76,9 +77,14 @@ const SRC = {
     external: { bg:'rgba(0,168,132,.12)', color:'#00A884' },
     internal: { bg:'rgba(90,107,124,.12)', color:'#5A6B7C' },
 };
+const jaminanLabel = (k) => {
+    if (!k) return '—';
+    // Cek apakah k adalah kode yang ada di caraBayar
+    const found = props.caraBayar.find(c => c.kode === k);
+    return found ? found.nama : k; // jika tidak ketemu (sudah berupa nama), tampilkan langsung
+};
 const gIcon  = (g) => g==='L'?'♂':g==='P'?'♀':'·';
 const gColor = (g) => g==='L'?'#00A884':g==='P'?'#8E44AD':'var(--text-secondary)';
-const jaminanLabel = (k) => k ?? '—';
 
 // ── Aksi yang tersedia per item ────────────────────────────
 const actionsOf = (item) => {
@@ -228,7 +234,7 @@ const jenisOptions = [
 
     <!-- ═══ 4. FILTER BAR ════════════════════════════════════════════════ -->
     <div class="rounded-2xl p-5 sm:p-6 space-y-4" style="background:var(--bg-surface); border:1px solid var(--border-default); box-shadow:var(--shadow-card)">
-      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
         <div class="space-y-1.5">
           <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Status</label>
           <select v-model="fStatus" @change="applyFilters"
@@ -257,15 +263,16 @@ const jenisOptions = [
             class="w-full rounded-xl outline-none transition-all"
             style="padding:10px 14px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary); font-size:13px"/>
         </div>
+
+        <div class="space-y-1.5">
+          <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Tgl Selesai</label>
+          <input v-model="fTglAkh" @change="applyFilters" type="date" :min="fTglDari"
+            class="w-full rounded-xl outline-none transition-all"
+            style="padding:10px 14px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary); font-size:13px"/>
+        </div>
       </div>
       <!-- Row 2: tgl akhir + presets + sort -->
       <div class="flex flex-wrap items-center gap-3">
-        <div class="flex items-center gap-2">
-          <span class="text-xs font-semibold" style="color:var(--text-muted)">s/d</span>
-          <input v-model="fTglAkh" @change="applyFilters" type="date" :min="fTglDari"
-            class="rounded-xl outline-none transition-all"
-            style="padding:8px 12px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary); font-size:12px; width:150px"/>
-        </div>
         <!-- Preset buttons -->
         <div class="flex gap-1 p-1 rounded-xl" style="background:var(--bg-input)">
           <button v-for="p in [{l:'Hari ini',d:today,s:today},{l:'Kemarin',d:yesterday,s:yesterday},{l:'7 Hari',d:week7,s:today}]" :key="p.l"
