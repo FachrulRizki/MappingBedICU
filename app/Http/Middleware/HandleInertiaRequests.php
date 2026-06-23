@@ -50,6 +50,8 @@ class HandleInertiaRequests extends Middleware
                     'ward_ids'      => $request->user()->getWardIdsArray(),
                 ] : null,
             ],
+            // Status koneksi SQL Server RS — dipakai Vue untuk show/hide fitur yang butuh data RS
+            'rsus_available' => app(\App\Services\RsusConnectionService::class)->isAvailable(),
         ];
     }
 }

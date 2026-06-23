@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Log;
 use App\Models\Concerns\UsesRsusConnection;
 
 class MCaraBayar extends Model
@@ -15,8 +14,8 @@ class MCaraBayar extends Model
 
     protected $primaryKey = 'KODE_BAYAR';
     public    $incrementing = false;
-    protected $keyType    = 'string';
-    public    $timestamps = false;
+    protected $keyType     = 'string';
+    public    $timestamps  = false;
 
     protected $fillable = [
         'KODE_BAYAR',
@@ -38,7 +37,7 @@ class MCaraBayar extends Model
                 ])
                 ->values();
         } catch (\Exception $e) {
-            Log::error('[MCaraBayar::list] ' . $e->getMessage());
+            \Illuminate\Support\Facades\Log::error('[MCaraBayar::list] ' . $e->getMessage());
             return collect();
         }
     }

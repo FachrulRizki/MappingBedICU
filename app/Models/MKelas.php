@@ -14,8 +14,8 @@ class MKelas extends Model
 
     protected $primaryKey = 'Kode_Kelas';
     public    $incrementing = false;
-    protected $keyType    = 'string';
-    public    $timestamps = false;
+    protected $keyType     = 'string';
+    public    $timestamps  = false;
 
     protected $fillable = [
         'Kode_Kelas',

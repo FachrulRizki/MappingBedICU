@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Icu;
 
 use App\Http\Controllers\Controller;
 use App\Models\IcuSpriInternal;
+use App\Models\MCaraBayar;
 use App\Models\MRuangMaster;
 use App\Models\RegistrasiPasien;
 use App\Services\ActivityLogService;
@@ -40,24 +41,6 @@ class MenuPetugasController extends Controller
         return array_unique(array_filter($names));
     }
 
-    /**
-     * Cek nama kolom user di tabel icu_spri_internal.
-     * Beberapa environment memakai 'NameUser', lainnya 'NamaUser'.
-     * Return nama kolom yang benar.
-     */
-    private function nameUserColumn(): string
-    {
-        static $col = null;
-        if ($col !== null) return $col;
-        try {
-            $cols = DB::connection('mysql')->getSchemaBuilder()->getColumnListing('icu_spri_internal');
-            $col  = in_array('NamaUser', $cols) ? 'NamaUser' : 'NameUser';
-        } catch (\Exception) {
-            $col = 'NameUser'; // fallback ke migration default
-        }
-        return $col;
-    }
-
     private function userWardIds(): array
     {
         /** @var \App\Models\User|null $u */
@@ -74,20 +57,24 @@ class MenuPetugasController extends Controller
         $fTglAkh  = $request->query('tgl_sampai', $fTgl ?: $today);
         $fStatus  = $request->query('status', '');
         $fJaminan = trim($request->query('jaminan', ''));
-        // Kolom yang bisa di-sort langsung di DB
-        $dbSortAllowed = ['created_at', 'status'];
         $sortBy   = $request->query('sort', 'created_at');
         $sortDir  = $request->query('dir', 'desc') === 'asc' ? 'asc' : 'desc';
 
-        $q = IcuSpriInternal::query()->whereIn($this->nameUserColumn(), $this->actorNames());
+        $dbSortAllowed = ['created_at', 'status'];
+
+        $q = IcuSpriInternal::query()->whereIn('NameUser', $this->actorNames());
+
         if ($fStatus) $q->where('status', $fStatus);
+
         if ($fNama) {
-            $ids = RegistrasiPasien::where('Nama_Pasien', 'like', "%{$fNama}%")->pluck('No_MR')->toArray();
+            $ids = RegistrasiPasien::rsusAvailable()
+                ? RegistrasiPasien::where('Nama_Pasien', 'like', "%{$fNama}%")->pluck('No_MR')->toArray()
+                : [];
             $q->where(fn ($qq) => $qq->whereIn('No_MR', $ids)->orWhere('No_MR', 'like', "%{$fNama}%"));
         }
-        // Filter tanggal: selalu pakai range (default today-today)
+
         $q->whereBetween('created_at', [$fTglDari . ' 00:00:00', $fTglAkh . ' 23:59:59']);
-        // Hanya sort di DB jika kolom ada di tabel; nama_pasien di-sort di collection
+
         if (in_array($sortBy, $dbSortAllowed)) {
             $q->orderBy($sortBy, $sortDir);
         } else {
@@ -97,66 +84,32 @@ class MenuPetugasController extends Controller
         $data      = $q->get();
         $pasienMap = RegistrasiPasien::whereIn('No_MR', $data->pluck('No_MR')->unique())->get()->keyBy('No_MR');
 
-        // Batch-lookup jaminan dari PENDAFTARAN → M_CARABAYAR
-        $noRegs = $data->pluck('No_Reg')->filter()->unique()->values()->toArray();
-        $jaminanMap = [];
-        if (! empty($noRegs)) {
-            try {
-                $isRsus  = RegistrasiPasien::rsusAvailable();
-                $conn    = $isRsus ? 'sqlsrv_rsus' : 'mysql';
-                $pTable  = $isRsus ? 'PENDAFTARAN'  : 'pendaftaran';
-                $cbTable = $isRsus ? 'M_CARABAYAR'  : 'm_carabayar';
-                $rows = DB::connection($conn)
-                    ->table("{$pTable} as p")
-                    ->leftJoin("{$cbTable} as cb", 'p.Kode_Bayar', '=', 'cb.Kode_Bayar')
-                    ->whereIn('p.No_Reg', $noRegs)
-                    ->select([
-                        'p.No_Reg', 'p.Kode_Bayar',
-                        DB::raw($isRsus
-                            ? "ISNULL(cb.Ket_Bayar, p.Kode_Bayar) as ket_bayar"
-                            : "COALESCE(cb.Ket_Bayar, p.Kode_Bayar) as ket_bayar"),
-                    ])->get();
-                foreach ($rows as $row) {
-                    $jaminanMap[$row->No_Reg] = [
-                        'kode'  => $row->Kode_Bayar ?? '',
-                        'nama'  => $this->formatNamaDokter(trim($row->ket_bayar ?? $row->Kode_Bayar ?? '')),
-                    ];
-                }
-            } catch (\Exception $e) {
-                Log::warning('[jaminanMap] ' . $e->getMessage());
-            }
-        }
+        // Batch-lookup jaminan dari SQL Server RS
+        $noRegs     = $data->pluck('No_Reg')->filter()->unique()->values()->toArray();
+        $jaminanMap = $this->buildJaminanMap($noRegs);
 
         $spriList = $data->map(fn ($s) => $this->format($s, $pasienMap, $jaminanMap[$s->No_Reg] ?? null));
 
-        // Filter jaminan: jika ada filter, hanya tampilkan yg kode cocok
         if ($fJaminan) {
             $spriList = $spriList->filter(fn ($i) => ($i['jaminan_kode'] ?? '') === $fJaminan)->values();
         }
-        // Sort by nama_pasien dilakukan di collection setelah data di-format
+
         if ($sortBy === 'nama_pasien') {
             $spriList = $sortDir === 'asc'
                 ? $spriList->sortBy(fn ($i) => strtolower($i['nama_pasien']))->values()
                 : $spriList->sortByDesc(fn ($i) => strtolower($i['nama_pasien']))->values();
         }
 
-        // Summary dihitung dari SEMUA data user (tanpa filter status), agar card summary selalu akurat
-        $allData = IcuSpriInternal::query()->whereIn($this->nameUserColumn(), $this->actorNames())->get();
+        $allData = IcuSpriInternal::query()->whereIn('NameUser', $this->actorNames())->get();
         $summary = [
             'total'        => $allData->count(),
-            'pending_icu'  => $allData->filter(fn ($i) => $i->status === 'pending_icu')->count(),
-            'bed_verified' => $allData->filter(fn ($i) => $i->status === 'bed_verified')->count(),
-            'ditolak'      => $allData->filter(fn ($i) => $i->status === 'ditolak')->count(),
+            'pending_icu'  => $allData->where('status', 'pending_icu')->count(),
+            'bed_verified' => $allData->where('status', 'bed_verified')->count(),
+            'ditolak'      => $allData->where('status', 'ditolak')->count(),
         ];
 
-        Log::info('[DEBUG] actorNames: ' . json_encode($this->actorNames()));
         /** @var \App\Models\User|null $authUser */
         $authUser = Auth::user();
-        Log::info('[DEBUG] ward_ids: ' . json_encode($authUser?->ward_ids));
-
-        $data = $q->get();
-        Log::info('[DEBUG] total rows: ' . $data->count());
-        Log::info('[DEBUG] nameUserColumn: ' . $this->nameUserColumn());
 
         return Inertia::render('Icu/MenuPetugas', [
             'spriList'        => $spriList,
@@ -169,12 +122,47 @@ class MenuPetugasController extends Controller
             'unitKerja'       => $authUser?->unit_kerja ?? '',
             'kamarKosong'     => MRuangMaster::bedKosong(),
             'masterKelas'     => MRuangMaster::jenisIcuTersedia(),
-            'masterCaraBayar' => \App\Models\MCaraBayar::orderBy('Ket_Bayar')
-                ->get(['Kode_Bayar', 'Ket_Bayar'])
-                ->map(fn ($c) => ['kode' => $c->Kode_Bayar, 'nama' => $c->Ket_Bayar])
-                ->toArray(),
+            'masterCaraBayar' => MCaraBayar::list(),
             'flash'           => ['success' => session('success'), 'error' => session('error')],
         ]);
+    }
+
+    private function buildJaminanMap(array $noRegs): array
+    {
+        if (empty($noRegs)) return [];
+
+        $conn    = RegistrasiPasien::activeConnection();
+        $isRsus  = RegistrasiPasien::rsusAvailable();
+        $pTable  = $isRsus ? 'PENDAFTARAN'  : 'pendaftaran';
+        $cbTable = $isRsus ? 'M_CARABAYAR'  : 'm_carabayar';
+        $cbKet   = $isRsus ? 'Ket_Bayar'    : 'KET_BAYAR';
+        $cbKode  = $isRsus ? 'Kode_Bayar'   : 'KODE_BAYAR';
+        $isnull  = $isRsus ? 'ISNULL' : 'COALESCE';
+
+        try {
+            $rows = DB::connection($conn)
+                ->table("{$pTable} as p")
+                ->leftJoin("{$cbTable} as cb", "p.Kode_Bayar", '=', "cb.{$cbKode}")
+                ->whereIn('p.No_Reg', $noRegs)
+                ->select([
+                    'p.No_Reg',
+                    'p.Kode_Bayar',
+                    DB::raw("{$isnull}(cb.{$cbKet}, p.Kode_Bayar) as ket_bayar"),
+                ])
+                ->get();
+
+            $map = [];
+            foreach ($rows as $row) {
+                $map[$row->No_Reg] = [
+                    'kode' => $row->Kode_Bayar ?? '',
+                    'nama' => $this->formatNamaDokter(trim($row->ket_bayar ?? $row->Kode_Bayar ?? '')),
+                ];
+            }
+            return $map;
+        } catch (\Exception $e) {
+            Log::warning('[buildJaminanMap] ' . $e->getMessage());
+            return [];
+        }
     }
 
     private function getPasienAktif(string $cari): array
@@ -183,11 +171,9 @@ class MenuPetugasController extends Controller
         $user = Auth::user();
         if (! $user) return [];
 
-        if ($user->auth_provider === 'keycloak') {
-            return $this->getPasienAktifSSO($cari);
-        }
-
-        return $this->getPasienAktifLokal($cari);
+        return RegistrasiPasien::rsusAvailable()
+            ? $this->getPasienAktifSSO($cari)
+            : $this->getPasienAktifLokal($cari);
     }
 
     private function isIgdUser(): bool
@@ -196,13 +182,11 @@ class MenuPetugasController extends Controller
         $user = Auth::user();
         if (! $user) return false;
 
-        // Cek dari unit_kerja field
         $unitKerja = strtoupper($user->unit_kerja ?? '');
         if (str_contains($unitKerja, 'IGD') || str_contains($unitKerja, 'UGD') || str_contains($unitKerja, 'EMERGENCY')) {
             return true;
         }
 
-        // Cek apakah ada kode IGD/UGD di ward_ids
         foreach ($this->userWardIds() as $w) {
             $upper = strtoupper((string) $w);
             if (str_contains($upper, 'IGD') || str_contains($upper, 'UGD') || str_contains($upper, 'EMR')) {
@@ -213,101 +197,27 @@ class MenuPetugasController extends Controller
         return false;
     }
 
-    private function getPasienAktifSSO(string $cari): array
-    {
-        $wardIds = $this->userWardIds();
-        if (empty($wardIds) || ! RegistrasiPasien::rsusAvailable()) return [];
-
-        try {
-            $isIgd = $this->isIgdUser();
-
-            $q = DB::connection('sqlsrv_rsus')
-                ->table('PENDAFTARAN as p')
-                ->join('REGISTER_PASIEN as rp', 'p.No_MR', '=', 'rp.No_MR')
-                ->leftJoin('M_RUANG_MASTER as rm', 'p.Kode_Ruang', '=', 'rm.Kode_RuangM')
-                ->leftJoin('M_BANGSAL as b', 'rm.Kode_Bangsal', '=', 'b.Kode_Bangsal')
-                // Join tabel DOKTER untuk resolve nama dari kode
-                ->leftJoin('DOKTER as d', 'p.Kode_Dokter', '=', 'd.Kode_Dokter')
-                ->where('p.Status', '1')
-                ->where('p.Status_Pulang', 'Belum')
-                ->select([
-                    'p.No_MR', 'p.No_Reg', 'p.Kode_Masuk', 'p.Kode_Ruang',
-                    'p.PermintaanDPJP',
-                    'rp.Nama_Pasien', 'rp.jenis_kelamin',
-                    DB::raw("ISNULL(rm.Kode_RuangM, p.Kode_Ruang) as Kode_RuangM"),
-                    DB::raw("ISNULL(rm.Nama_RuangM, p.Kode_Ruang) as Nama_RuangM"),
-                    DB::raw("ISNULL(b.Kode_Bangsal, '') as Kode_Bangsal"),
-                    DB::raw("ISNULL(b.Nama_Bangsal, '') as Nama_Bangsal"),
-                    // Prioritaskan nama dari tabel DOKTER, fallback ke PermintaanDPJP
-                    DB::raw("ISNULL(NULLIF(LTRIM(RTRIM(d.Nama_Dokter)),''), p.PermintaanDPJP) as Nama_Dokter"),
-                ]);
-
-            if ($isIgd) {
-                $q->where('p.Kode_Masuk', '1');
-                Log::info('[getPasienAktifSSO] Mode IGD, filter Kode_Masuk=1');
-            } else {
-                $q->where('p.Medis', 'RAWAT INAP')
-                  ->whereIn('rm.Kode_Bangsal', $wardIds);
-                Log::info('[getPasienAktifSSO] Mode Bangsal, ward_ids: ' . json_encode($wardIds));
-            }
-
-            if ($cari) {
-                $q->where(fn ($qq) => $qq
-                    ->where('rp.Nama_Pasien', 'like', "%{$cari}%")
-                    ->orWhere('p.No_MR', 'like', "%{$cari}%")
-                );
-            }
-
-            $results = $q->orderBy('Nama_RuangM')->orderBy('rp.Nama_Pasien')->limit(200)->get();
-            Log::info('[getPasienAktifSSO] Jumlah: ' . $results->count());
-
-            return $results->map(fn ($r) => [
-                'No_MR'         => $r->No_MR,
-                'No_Reg'        => $r->No_Reg,
-                'Kode_Masuk'    => $r->Kode_Masuk,
-                'Nama_Pasien'   => $r->Nama_Pasien,
-                'jenis_kelamin' => strtoupper($r->jenis_kelamin ?? ''),
-                'Kode_RuangM'   => $r->Kode_RuangM,
-                'Nama_RuangM'   => $r->Nama_RuangM,
-                'Kode_Bangsal'  => $r->Kode_Bangsal,
-                'Nama_Bangsal'  => $r->Nama_Bangsal,
-                // Format nama dokter ke Title Case agar tidak ALL CAPS
-                'Dokter'        => $this->formatNamaDokter($r->Nama_Dokter ?? ''),
-            ])->toArray();
-
-        } catch (\Exception $e) {
-            Log::error('[getPasienAktifSSO] Error: ' . $e->getMessage());
-            return [];
-        }
-    }
-
-    private function formatNamaDokter(string $nama): string
-    {
-        $nama = trim($nama);
-        if (empty($nama)) return '';
-        return mb_convert_case(mb_strtolower($nama), MB_CASE_TITLE, 'UTF-8');
-    }
-
     private function getPasienAktifLokal(string $cari): array
     {
+        $conn     = config('database.default');
+        $isSqlSrv = str_starts_with($conn, 'sqlsrv');
+        $nullFn   = $isSqlSrv ? 'ISNULL' : 'COALESCE';
+
         try {
-            // Join ke pendaftaran agar bisa tampilkan No_Reg, dan groupBy No_MR agar tidak double
-            $q = \Illuminate\Support\Facades\DB::connection('mysql')
+            $q = DB::connection($conn)
                 ->table('registrasi_pasien as rp')
                 ->leftJoin(
-                    \Illuminate\Support\Facades\DB::raw(
-                        '(SELECT No_MR, MAX(No_Reg) as No_Reg, MAX(Kode_Asal) as Kode_Asal, MAX(PermintaanDPJP) as Dokter FROM pendaftaran GROUP BY No_MR) as p'
-                    ),
+                    DB::raw('(SELECT No_MR, MAX(No_Reg) as No_Reg, MAX(Kode_Asal) as Kode_Asal, MAX(PermintaanDPJP) as Dokter FROM pendaftaran GROUP BY No_MR) as p'),
                     'rp.No_MR', '=', 'p.No_MR'
                 )
                 ->leftJoin('m_ruang_master as rm', 'p.Kode_Asal', '=', 'rm.Kode_RuangM')
                 ->select([
-                    'rp.No_MR',
-                    'p.No_Reg',
-                    'rp.Nama_Pasien',
-                    'rp.jenis_kelamin',
-                    \Illuminate\Support\Facades\DB::raw("COALESCE(rm.Nama_RuangM, p.Kode_Asal, 'Data Lokal (Dev)') as Nama_RuangM"),
-                    \Illuminate\Support\Facades\DB::raw("COALESCE(rm.Kode_RuangM, 'LOKAL') as Kode_RuangM"),
+                    'rp.No_MR', 'p.No_Reg', 'rp.Nama_Pasien', 'rp.jenis_kelamin',
+                    DB::raw($isSqlSrv
+                        ? "ISNULL(rm.Nama_RuangM, ISNULL(p.Kode_Asal, 'Lokal')) as Nama_RuangM"
+                        : "COALESCE(rm.Nama_RuangM, p.Kode_Asal, 'Lokal') as Nama_RuangM"),
+                    DB::raw("{$nullFn}(rm.Kode_RuangM, 'LOKAL') as Kode_RuangM"),
+                    DB::raw("{$nullFn}(p.Dokter, '') as Dokter"),
                 ])
                 ->groupBy('rp.No_MR', 'rp.Nama_Pasien', 'rp.jenis_kelamin',
                           'p.No_Reg', 'p.Kode_Asal', 'p.Dokter',
@@ -324,17 +234,85 @@ class MenuPetugasController extends Controller
                 ->map(fn ($r) => [
                     'No_MR'         => $r->No_MR,
                     'No_Reg'        => $r->No_Reg,
+                    'Kode_Masuk'    => null,
                     'Nama_Pasien'   => $r->Nama_Pasien,
                     'jenis_kelamin' => strtoupper($r->jenis_kelamin ?? ''),
                     'Kode_RuangM'   => $r->Kode_RuangM,
                     'Nama_RuangM'   => $r->Nama_RuangM,
                     'Kode_Bangsal'  => null,
-                    'Nama_Bangsal'  => 'MySQL Lokal',
+                    'Nama_Bangsal'  => 'Data Lokal',
+                    'Dokter'        => $this->formatNamaDokter($r->Dokter ?? ''),
                 ])->toArray();
         } catch (\Exception $e) {
             Log::error('[getPasienAktifLokal] ' . $e->getMessage());
             return [];
         }
+    }
+
+    private function getPasienAktifSSO(string $cari): array
+    {
+        $wardIds = $this->userWardIds();
+        $isIgd   = $this->isIgdUser();
+
+        if (empty($wardIds) && ! $isIgd) return [];
+
+        try {
+            $q = DB::connection('sqlsrv_rsus')
+                ->table('PENDAFTARAN as p')
+                ->join('REGISTER_PASIEN as rp', 'p.No_MR', '=', 'rp.No_MR')
+                ->leftJoin('M_RUANG_MASTER as rm', 'p.Kode_Ruang', '=', 'rm.Kode_RuangM')
+                ->leftJoin('M_BANGSAL as b', 'rm.Kode_Bangsal', '=', 'b.Kode_Bangsal')
+                ->leftJoin('DOKTER as d', 'p.Kode_Dokter', '=', 'd.Kode_Dokter')
+                ->where('p.Status', '1')
+                ->where('p.Status_Pulang', 'Belum')
+                ->select([
+                    'p.No_MR', 'p.No_Reg', 'p.Kode_Masuk', 'p.Kode_Ruang',
+                    'rp.Nama_Pasien', 'rp.jenis_kelamin',
+                    DB::raw("ISNULL(rm.Kode_RuangM, p.Kode_Ruang) as Kode_RuangM"),
+                    DB::raw("ISNULL(rm.Nama_RuangM, p.Kode_Ruang) as Nama_RuangM"),
+                    DB::raw("ISNULL(b.Kode_Bangsal, '') as Kode_Bangsal"),
+                    DB::raw("ISNULL(b.Nama_Bangsal, '') as Nama_Bangsal"),
+                    DB::raw("ISNULL(NULLIF(LTRIM(RTRIM(d.Nama_Dokter)),''), p.PermintaanDPJP) as Nama_Dokter"),
+                ]);
+
+            if ($isIgd) {
+                $q->where('p.Kode_Masuk', '1');
+            } else {
+                $q->where('p.Medis', 'RAWAT INAP')->whereIn('rm.Kode_Bangsal', $wardIds);
+            }
+
+            if ($cari) {
+                $q->where(fn ($qq) => $qq
+                    ->where('rp.Nama_Pasien', 'like', "%{$cari}%")
+                    ->orWhere('p.No_MR', 'like', "%{$cari}%")
+                );
+            }
+
+            return $q->orderBy('Nama_RuangM')->orderBy('rp.Nama_Pasien')->limit(200)->get()
+                ->map(fn ($r) => [
+                    'No_MR'         => $r->No_MR,
+                    'No_Reg'        => $r->No_Reg,
+                    'Kode_Masuk'    => $r->Kode_Masuk,
+                    'Nama_Pasien'   => $r->Nama_Pasien,
+                    'jenis_kelamin' => strtoupper($r->jenis_kelamin ?? ''),
+                    'Kode_RuangM'   => $r->Kode_RuangM,
+                    'Nama_RuangM'   => $r->Nama_RuangM,
+                    'Kode_Bangsal'  => $r->Kode_Bangsal,
+                    'Nama_Bangsal'  => $r->Nama_Bangsal,
+                    'Dokter'        => $this->formatNamaDokter($r->Nama_Dokter ?? ''),
+                ])->toArray();
+
+        } catch (\Exception $e) {
+            Log::error('[getPasienAktifSSO] ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    private function formatNamaDokter(string $nama): string
+    {
+        $nama = trim($nama);
+        if (empty($nama)) return '';
+        return mb_convert_case(mb_strtolower($nama), MB_CASE_TITLE, 'UTF-8');
     }
 
     public function pasienAktifSearch(Request $request): JsonResponse
@@ -356,87 +334,63 @@ class MenuPetugasController extends Controller
         if (! $pasien) return response()->json(['found' => false, 'message' => "No_MR '{$noMr}' tidak ditemukan."]);
 
         $kunjungans = collect();
+        $isRsus     = RegistrasiPasien::rsusAvailable();
+        $conn       = RegistrasiPasien::activeConnection();
+
         try {
-            if (RegistrasiPasien::rsusAvailable()) {
-                try {
-                    $rows = DB::connection('sqlsrv_rsus')
-                        ->table('PENDAFTARAN as p')
-                        ->leftJoin('M_RUANG_MASTER as rm', 'p.Kode_Ruang', '=', 'rm.Kode_RuangM')
-                        ->leftJoin('DOKTER as d', 'p.Kode_Dokter', '=', 'd.Kode_Dokter')
-                        ->leftJoin('M_CARABAYAR as cb', 'p.Kode_Bayar', '=', 'cb.Kode_Bayar')
-                        ->leftJoin(DB::raw('(SELECT No_Reg, MAX(Diagnosis) as Diagnosis FROM ASESMEN_SURAT_PERMINTAAN_RI GROUP BY No_Reg) as asmt'), 'p.No_Reg', '=', 'asmt.No_Reg')
-                        ->where('p.No_MR', $noMr)->orderByDesc('p.Tanggal')
-                        ->select([
-                            'p.No_Reg', 'p.Kode_Masuk', 'p.Kode_Ruang', 'p.PermintaanDPJP', 'p.Kode_Dokter',
-                            'p.Kode_Bayar',
-                            DB::raw("ISNULL(rm.Nama_RuangM, p.Kode_Ruang) as nama_asal_ruang"),
-                            DB::raw("ISNULL(d.Nama_Dokter, p.PermintaanDPJP) as nama_dokter"),
-                            DB::raw("ISNULL(cb.Ket_Bayar, p.Kode_Bayar) as ket_bayar"),
-                            'asmt.Diagnosis',
-                        ])->get();
-                } catch (\Exception $e) {
-                    Log::warning('[lookupPasien] Full join failed, fallback: ' . $e->getMessage());
-                    // Fallback tanpa DOKTER, M_CARABAYAR, dan ASESMEN
-                    $rows = DB::connection('sqlsrv_rsus')
-                        ->table('PENDAFTARAN as p')
-                        ->leftJoin('M_RUANG_MASTER as rm', 'p.Kode_Ruang', '=', 'rm.Kode_RuangM')
-                        ->leftJoin('M_CARABAYAR as cb', 'p.Kode_Bayar', '=', 'cb.Kode_Bayar')
-                        ->where('p.No_MR', $noMr)->orderByDesc('p.Tanggal')
-                        ->select([
-                            'p.No_Reg', 'p.Kode_Masuk', 'p.Kode_Ruang', 'p.PermintaanDPJP', 'p.Kode_Dokter',
-                            'p.Kode_Bayar',
-                            DB::raw("ISNULL(rm.Nama_RuangM, p.Kode_Ruang) as nama_asal_ruang"),
-                            'p.PermintaanDPJP as nama_dokter',
-                            DB::raw("ISNULL(cb.Ket_Bayar, p.Kode_Bayar) as ket_bayar"),
-                            DB::raw("NULL as Diagnosis"),
-                        ])->get();
-                }
-                $kunjungans = $rows->map(fn ($r) => [
-                    'No_Reg'      => $r->No_Reg,
-                    'Dokter'      => $this->formatNamaDokter(trim($r->nama_dokter ?? $r->PermintaanDPJP ?? '')),
-                    'Kode_Dokter' => trim($r->Kode_Dokter   ?? ''),
-                    'asal_ruang'  => trim($r->nama_asal_ruang ?? $r->Kode_Ruang ?? ''),
-                    'Diagnosis'   => trim($r->Diagnosis      ?? ''),
-                    'Kode_Bayar'  => trim($r->Kode_Bayar    ?? ''),
-                    'jaminan'     => $this->formatNamaDokter(trim($r->ket_bayar ?? $r->Kode_Bayar ?? '')),
-                ]);
+            if ($isRsus) {
+                $rows = DB::connection($conn)
+                    ->table('PENDAFTARAN as p')
+                    ->leftJoin('M_RUANG_MASTER as rm', 'p.Kode_Ruang', '=', 'rm.Kode_RuangM')
+                    ->leftJoin('DOKTER as d', 'p.Kode_Dokter', '=', 'd.Kode_Dokter')
+                    ->leftJoin('M_CARABAYAR as cb', 'p.Kode_Bayar', '=', 'cb.Kode_Bayar')
+                    ->leftJoin(DB::raw('(SELECT No_Reg, MAX(Diagnosis) as Diagnosis FROM ASESMEN_SURAT_PERMINTAAN_RI GROUP BY No_Reg) as asmt'), 'p.No_Reg', '=', 'asmt.No_Reg')
+                    ->where('p.No_MR', $noMr)->orderByDesc('p.Tanggal')
+                    ->select([
+                        'p.No_Reg', 'p.Kode_Masuk', 'p.Kode_Ruang', 'p.Kode_Dokter', 'p.Kode_Bayar',
+                        DB::raw("ISNULL(rm.Nama_RuangM, p.Kode_Ruang) as nama_asal_ruang"),
+                        DB::raw("ISNULL(NULLIF(LTRIM(RTRIM(d.Nama_Dokter)),''), p.PermintaanDPJP) as nama_dokter"),
+                        DB::raw("ISNULL(cb.Ket_Bayar, p.Kode_Bayar) as ket_bayar"),
+                        'asmt.Diagnosis',
+                    ])->get();
             } else {
-                $rows = DB::connection('mysql')->table('pendaftaran as p')
+                $rows = DB::connection($conn)
+                    ->table('pendaftaran as p')
                     ->leftJoin('m_ruang_master as rm', 'p.Kode_Asal', '=', 'rm.Kode_RuangM')
+                    ->leftJoin('m_carabayar as cb', 'p.Kode_Bayar', '=', 'cb.KODE_BAYAR')
                     ->where('p.No_MR', $noMr)->orderByDesc('p.created_at')
                     ->select([
-                        'p.No_Reg', 'p.Kode_Masuk', 'p.Kode_Asal',
-                        DB::raw("COALESCE(p.PermintaanDPJP,'') as Dokter"),
-                        DB::raw("COALESCE(p.Kode_Dokter,'') as Kode_Dokter"),
-                        DB::raw("COALESCE(rm.Nama_RuangM, p.Kode_Asal,'') as nama_asal_ruang"),
-                        DB::raw("NULL as Diagnosis"),
+                        'p.No_Reg', 'p.Kode_Masuk', 'p.Kode_Asal as Kode_Ruang',
+                        DB::raw("'' as Kode_Dokter"),
                         DB::raw("'' as Kode_Bayar"),
-                        DB::raw("'' as jaminan"),
+                        DB::raw("COALESCE(rm.Nama_RuangM, p.Kode_Asal, '') as nama_asal_ruang"),
+                        DB::raw("COALESCE(p.PermintaanDPJP, '') as nama_dokter"),
+                        DB::raw("COALESCE(cb.KET_BAYAR, '') as ket_bayar"),
+                        DB::raw("NULL as Diagnosis"),
                     ])->get();
-                $kunjungans = $rows->map(fn ($r) => [
-                    'No_Reg'     => $r->No_Reg,
-                    'Dokter'     => $r->Dokter ?? '',
-                    'Kode_Dokter'=> $r->Kode_Dokter ?? '',
-                    'asal_ruang' => $r->nama_asal_ruang ?? '',
-                    'Diagnosis'  => '',
-                    'Kode_Bayar' => '',
-                    'jaminan'    => '',
-                ]);
             }
+
+            $kunjungans = $rows->map(fn ($r) => [
+                'No_Reg'      => $r->No_Reg,
+                'Dokter'      => $this->formatNamaDokter(trim($r->nama_dokter ?? '')),
+                'Kode_Dokter' => trim($r->Kode_Dokter   ?? ''),
+                'asal_ruang'  => trim($r->nama_asal_ruang ?? $r->Kode_Ruang ?? ''),
+                'Diagnosis'   => trim($r->Diagnosis      ?? ''),
+                'Kode_Bayar'  => trim($r->Kode_Bayar    ?? ''),
+                'jaminan'     => $this->formatNamaDokter(trim($r->ket_bayar ?? '')),
+            ]);
         } catch (\Exception $e) {
             Log::error('[lookupPasien] ' . $e->getMessage());
         }
 
-        $prefill = IcuSpriInternal::where('No_MR', $noMr)->latest()->first(['Diagnosis','IndikasiRI','asal_ruang','Dokter']);
-
-        Log::info('[lookupPasien] No_MR=' . $noMr . ' kunjungans=' . $kunjungans->count() . ' sample=' . json_encode($kunjungans->first()));
+        $prefill = IcuSpriInternal::where('No_MR', $noMr)->latest()->first(['Diagnosis', 'IndikasiRI', 'asal_ruang', 'Dokter']);
 
         return response()->json([
             'found'       => true,
             'No_MR'       => $pasien->No_MR,
             'nama_pasien' => $pasien->Nama_Pasien,
             'kunjungans'  => $kunjungans,
-            'prefill'     => $prefill ? $prefill->only(['Diagnosis','IndikasiRI','asal_ruang','Dokter']) : null,
+            'prefill'     => $prefill?->only(['Diagnosis', 'IndikasiRI', 'asal_ruang', 'Dokter']),
         ]);
     }
 
@@ -453,15 +407,13 @@ class MenuPetugasController extends Controller
             'Keterangan' => 'nullable|string|max:500',
         ]);
 
-        // Alur ranap/IGD (internal) langsung ke ICU — tidak perlu konfirmasi Admisi
         $bu = IcuSpriInternal::create([
             ...$validated,
-            $this->nameUserColumn() => $this->actor(),
+            'NameUser' => $this->actor(),
             'status'   => 'pending_icu',
         ]);
 
         $nama = $bu->No_MR;
-        // Coba ambil nama pasien untuk flash message yang informatif
         try {
             $pasien = RegistrasiPasien::where('No_MR', $bu->No_MR)->first();
             if ($pasien) $nama = $pasien->Nama_Pasien . ' (' . $bu->No_MR . ')';
@@ -472,7 +424,7 @@ class MenuPetugasController extends Controller
         return back()->with('success', "BU (Booking ICU) untuk {$nama} berhasil dikirim ke ICU.");
     }
 
-    private function format(IcuSpriInternal $s, $pasienMap = null): array
+    private function format(IcuSpriInternal $s, $pasienMap = null, ?array $jaminan = null): array
     {
         $pasien = $pasienMap ? ($pasienMap[$s->No_MR] ?? null) : $s->pasien;
         return [
@@ -495,6 +447,8 @@ class MenuPetugasController extends Controller
             'alasan_tolak'   => $s->alasan_tolak,
             'approved_by'    => $s->approved_by,
             'verified_by'    => $s->verified_by,
+            'jaminan_kode'   => $jaminan['kode'] ?? null,
+            'jaminan_nama'   => $jaminan['nama'] ?? null,
             'created_at'     => $s->created_at?->format('Y-m-d H:i'),
             'created_at_fmt' => $s->created_at?->format('d/m/Y H:i'),
         ];

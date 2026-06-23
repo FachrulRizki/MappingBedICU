@@ -5,7 +5,6 @@ namespace App\Services\Icu;
 use App\Models\IcuBookingExternal;
 use App\Models\IcuSpriInternal;
 use App\Models\MRuangMaster;
-use App\Models\RegistrasiPasien;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -44,17 +43,16 @@ class DashboardService
         // ── Stats & list aktif ────────────────────────────────────────────
         if ($isPetugasRuang && $user) {
             $actorNames = $this->resolveActorNames($user);
-            $col        = $this->nameUserColumn();
 
             $statsExternal = ['pending' => 0, 'bed_confirmed' => 0, 'terverifikasi' => 0];
             $statsInternal = [
-                'pending_admisi' => IcuSpriInternal::whereIn($col, $actorNames)->where('status', 'pending_admisi')->count(),
-                'pending_icu'    => IcuSpriInternal::whereIn($col, $actorNames)->where('status', 'pending_icu')->count(),
-                'bed_verified'   => IcuSpriInternal::whereIn($col, $actorNames)->where('status', 'bed_verified')->count(),
+                'pending_admisi' => IcuSpriInternal::whereIn('NameUser', $actorNames)->where('status', 'pending_admisi')->count(),
+                'pending_icu'    => IcuSpriInternal::whereIn('NameUser', $actorNames)->where('status', 'pending_icu')->count(),
+                'bed_verified'   => IcuSpriInternal::whereIn('NameUser', $actorNames)->where('status', 'bed_verified')->count(),
             ];
 
             $extList = collect();
-            $intList = IcuSpriInternal::whereIn($col, $actorNames)
+            $intList = IcuSpriInternal::whereIn('NameUser', $actorNames)
                 ->whereIn('status', ['pending_admisi', 'pending_icu', 'bed_verified'])
                 ->whereBetween('created_at', [$tglDari . ' 00:00:00', $tglSampai . ' 23:59:59'])
                 ->when($search, fn($q) => $q->where('No_MR', 'like', "%{$search}%"))
@@ -85,21 +83,28 @@ class DashboardService
                 ->latest()->get();
         }
 
-        // ── Lookup nama pasien via DB langsung (sqlsrv-safe) ─────────────
+        // Lookup nama pasien via DB RS
         $noMRs = $intList->pluck('No_MR')->filter()->unique()->values()->toArray();
 
         $pasienMap = [];
         if (!empty($noMRs)) {
-            $model = new RegistrasiPasien();
-            $rows  = DB::connection($model->getConnectionName())
-                ->table($model->getTable())
-                ->select('No_MR', 'Nama_Pasien', 'jenis_kelamin')
-                ->whereIn('No_MR', $noMRs)
-                ->get();
+            try {
+                $conn    = \App\Models\RegistrasiPasien::activeConnection();
+                $isRsus  = \App\Models\RegistrasiPasien::rsusAvailable();
+                $tblName = $isRsus ? 'REGISTER_PASIEN' : 'registrasi_pasien';
 
-            foreach ($rows as $row) {
-                $key = $this->val($row, 'No_MR');
-                $pasienMap[$key] = $row;
+                $rows = DB::connection($conn)
+                    ->table($tblName)
+                    ->select('No_MR', 'Nama_Pasien', 'jenis_kelamin')
+                    ->whereIn('No_MR', $noMRs)
+                    ->get();
+
+                foreach ($rows as $row) {
+                    $key = $this->val($row, 'No_MR');
+                    $pasienMap[$key] = $row;
+                }
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::warning('[DashboardService] Lookup pasien gagal: ' . $e->getMessage());
             }
         }
 
@@ -171,18 +176,5 @@ class DashboardService
         if ($user->keycloak_username) $names[] = $user->keycloak_username;
         if ($user->username && $user->username !== $user->name) $names[] = $user->username;
         return array_unique(array_filter($names));
-    }
-
-    private function nameUserColumn(): string
-    {
-        static $col = null;
-        if ($col !== null) return $col;
-        try {
-            $cols = DB::connection('mysql')->getSchemaBuilder()->getColumnListing('icu_spri_internal');
-            $col  = in_array('NamaUser', $cols) ? 'NamaUser' : 'NameUser';
-        } catch (\Exception) {
-            $col = 'NameUser';
-        }
-        return $col;
     }
 }

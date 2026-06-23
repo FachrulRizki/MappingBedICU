@@ -82,10 +82,6 @@ class AuthController extends Controller
             ]
         );
 
-        // Hapus semua sessions lama milik user ini SETELAH kita sudah dapat user object
-        // Jangan hapus sebelum Auth::login karena session OAuth state masih dibutuhkan Socialite
-        $newSessionId = $request->session()->getId(); // simpan dulu session ID saat ini
-
         Auth::login($user, remember: false);
         $request->session()->regenerate();
 

@@ -14,11 +14,7 @@ use Inertia\Response;
 
 /**
  * LoginController — login lokal (username + password).
- *
- * Tetap aktif sebagai fallback ketika:
- *   - Keycloak tidak bisa dijangkau
- *   - Dev/admin login lokal
- *   - Testing dari luar jaringan RS
+ * Fallback ketika Keycloak tidak dapat dijangkau atau untuk akun admin lokal.
  */
 class LoginController extends Controller
 {
@@ -74,12 +70,5 @@ class LoginController extends Controller
         }
 
         return back()->with('error', 'Username atau password salah.');
-    }
-
-    public function logout(Request $request): RedirectResponse
-    {
-        // Delegasi ke AuthController untuk handle Keycloak logout jika perlu
-        $authController = app(AuthController::class);
-        return $authController->logout($request);
     }
 }

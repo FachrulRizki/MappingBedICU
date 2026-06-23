@@ -7,7 +7,6 @@ use App\Models\IcuBookingExternal;
 use App\Models\IcuSpriInternal;
 use App\Models\MRuangMaster;
 use App\Models\RegistrasiPasien;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;

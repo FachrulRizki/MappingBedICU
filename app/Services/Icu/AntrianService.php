@@ -4,8 +4,10 @@ namespace App\Services\Icu;
 
 use App\Models\IcuBookingExternal;
 use App\Models\IcuSpriInternal;
+use App\Models\RegistrasiPasien;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class AntrianService
 {
@@ -23,7 +25,6 @@ class AntrianService
         $fStatus  = $request->query('status', '');
         $fJenis   = $request->query('jenis', '');
         $fNama    = trim($request->query('nama', ''));
-        // Default: hari ini. Jika user kirim range, pakai range tersebut.
         $today    = now()->format('Y-m-d');
         $fTgl     = $request->query('tgl', '');
         $fTglDari = $request->query('tgl_dari', $fTgl ?: $today);
@@ -64,49 +65,32 @@ class AntrianService
     private function queryExternal(string $fStatus, string $fNama, string $fTglDari, string $fTglAkh): Collection
     {
         $q = IcuBookingExternal::with('pasien');
+
         if ($fStatus) $q->where('status', $fStatus);
+
         if ($fNama) {
             $q->where(function ($qq) use ($fNama) {
                 $qq->where('nama_pasien', 'like', "%{$fNama}%")
                    ->orWhere('No_MR', 'like', "%{$fNama}%");
             });
         }
+
         if ($fTglDari && $fTglAkh) {
             $q->whereBetween('created_at', [$fTglDari . ' 00:00:00', $fTglAkh . ' 23:59:59']);
         }
 
         return $q->latest()->get()->map(fn ($b) => $this->fmtExt($b));
     }
-    
-
-    // private function queryInternal(string $fStatus, string $fNama, string $fTgl): Collection
-    // {
-    //     $q = IcuSpriInternal::with('pasien');
-    //     if ($fStatus) $q->where('status', $fStatus);
-    //     if ($fNama) {
-    //         $q->where(function ($qq) use ($fNama) {
-    //             $qq->whereHas('pasien', fn ($p) => $p->where('Nama_Pasien', 'like', "%{$fNama}%"))
-    //                ->orWhere('No_MR', 'like', "%{$fNama}%");
-    //         });
-    //     }
-    //     if ($fTgl) $q->whereDate('created_at', $fTgl);
-
-    //     return $q->latest()->get()->map(fn ($s) => $this->fmtInt($s));
-    // }
 
     private function queryInternal(string $fStatus, string $fNama, string $fTglDari, string $fTglAkh): Collection
     {
         $q = IcuSpriInternal::query();
 
-        if ($fStatus) {
-            $q->where('status', $fStatus);
-        }
+        if ($fStatus) $q->where('status', $fStatus);
 
         if ($fNama) {
-            $pasienIds = \App\Models\RegistrasiPasien::query()
-                ->where('Nama_Pasien', 'like', "%{$fNama}%")
-                ->pluck('No_MR')
-                ->toArray();
+            $pasienIds = RegistrasiPasien::where('Nama_Pasien', 'like', "%{$fNama}%")
+                ->pluck('No_MR')->toArray();
             $q->where(function ($qq) use ($fNama, $pasienIds) {
                 $qq->whereIn('No_MR', $pasienIds)
                    ->orWhere('No_MR', 'like', "%{$fNama}%");
@@ -117,55 +101,48 @@ class AntrianService
             $q->whereBetween('created_at', [$fTglDari . ' 00:00:00', $fTglAkh . ' 23:59:59']);
         }
 
-        $results = $q->latest()->get();
-        $noRegs = $results->pluck('No_Reg')->filter()->unique()->values()->toArray();
-        $jaminanMap = [];
-        if (!empty($noRegs)) {
-            try {
-                $isRsus = \App\Models\RegistrasiPasien::rsusAvailable();
-                $conn    = $isRsus ? 'sqlsrv_rsus' : 'mysql';
-                $cbTable = $isRsus ? 'M_CARABAYAR' : 'm_carabayar';
-                $pTable  = $isRsus ? 'PENDAFTARAN'  : 'pendaftaran';
-                $ketCol  = 'Ket_Bayar';
+        $results    = $q->latest()->get();
+        $jaminanMap = $this->buildJaminanMap($results->pluck('No_Reg')->filter()->unique()->values()->toArray());
 
-                $rows = \Illuminate\Support\Facades\DB::connection($conn)
-                    ->table("{$pTable} as p")
-                    ->leftJoin("{$cbTable} as cb", 'p.Kode_Bayar', '=', 'cb.Kode_Bayar')
-                    ->whereIn('p.No_Reg', $noRegs)
-                    ->select([
-                        'p.No_Reg',
-                        \Illuminate\Support\Facades\DB::raw(
-                            $isRsus
-                                ? "ISNULL(cb.{$ketCol}, p.Kode_Bayar) as ket_bayar"
-                                : "COALESCE(cb.{$ketCol}, p.Kode_Bayar) as ket_bayar"
-                        ),
-                    ])
-                    ->get();
+        return $results->map(fn ($s) => $this->fmtInt($s, $jaminanMap[$s->No_Reg] ?? null));
+    }
 
-                foreach ($rows as $row) {
-                    $jaminanMap[$row->No_Reg] = $row->ket_bayar ?? '';
-                }
-            } catch (\Exception $e) {
-                // jaminan tidak wajib, abaikan error koneksi
-            }
+    private function buildJaminanMap(array $noRegs): array
+    {
+        if (empty($noRegs)) return [];
+
+        $conn    = RegistrasiPasien::activeConnection();
+        $isRsus  = RegistrasiPasien::rsusAvailable();
+        $pTable  = $isRsus ? 'PENDAFTARAN'  : 'pendaftaran';
+        $cbTable = $isRsus ? 'M_CARABAYAR'  : 'm_carabayar';
+        $cbKet   = $isRsus ? 'Ket_Bayar'    : 'KET_BAYAR';
+        $cbKode  = $isRsus ? 'Kode_Bayar'   : 'KODE_BAYAR';
+        $isnull  = $isRsus ? 'ISNULL' : 'COALESCE';
+
+        try {
+            $rows = DB::connection($conn)
+                ->table("{$pTable} as p")
+                ->leftJoin("{$cbTable} as cb", "p.Kode_Bayar", '=', "cb.{$cbKode}")
+                ->whereIn('p.No_Reg', $noRegs)
+                ->select([
+                    'p.No_Reg',
+                    DB::raw("{$isnull}(cb.{$cbKet}, p.Kode_Bayar) as ket_bayar"),
+                ])
+                ->get();
+
+            return $rows->pluck('ket_bayar', 'No_Reg')->toArray();
+        } catch (\Exception) {
+            return [];
         }
-
-        return $results->map(function ($s) use ($jaminanMap) {
-            return $this->fmtInt($s, $jaminanMap[$s->No_Reg] ?? null);
-        });
     }
 
     private function summary(Collection $data): array
     {
-        $pendingStatuses  = ['pending_icu', 'pending_admisi'];
-        $confirmedStatuses = ['bed_confirmed', 'bed_verified'];
-        $verifiedStatuses  = ['admisi_verified', 'bed_verified'];
-
         return [
             'total'         => $data->count(),
-            'pending'       => $data->filter(fn ($i) => in_array($i['status'] ?? '', $pendingStatuses))->count(),
-            'bed_confirmed' => $data->filter(fn ($i) => in_array($i['status'] ?? '', $confirmedStatuses))->count(),
-            'verified'      => $data->filter(fn ($i) => in_array($i['status'] ?? '', $verifiedStatuses))->count(),
+            'pending'       => $data->filter(fn ($i) => in_array($i['status'] ?? '', ['pending_icu', 'pending_admisi']))->count(),
+            'bed_confirmed' => $data->filter(fn ($i) => in_array($i['status'] ?? '', ['bed_confirmed', 'bed_verified']))->count(),
+            'verified'      => $data->filter(fn ($i) => in_array($i['status'] ?? '', ['admisi_verified', 'bed_verified']))->count(),
             'ditolak'       => $data->filter(fn ($i) => ($i['status'] ?? '') === 'ditolak')->count(),
             'by_sumber'     => [
                 'external' => $data->filter(fn ($i) => ($i['sumber'] ?? '') === 'external')->count(),
@@ -235,10 +212,9 @@ class AntrianService
             'alasan_tolak'   => $s->alasan_tolak,
             'created_at'     => $s->created_at?->format('Y-m-d H:i'),
             'created_at_fmt' => $s->created_at?->format('d/m/Y H:i'),
-            'created_by'     => $s->NameUser ?? $s->NamaUser ?? '-',
+            'created_by'     => $s->NameUser ?? '-',
             'approved_by'    => $s->approved_by,
             'verified_by'    => $s->verified_by,
         ];
     }
-
 }

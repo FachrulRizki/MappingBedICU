@@ -3,8 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use App\Models\Concerns\UsesRsusConnection;
 
 class MRuangMaster extends Model
@@ -16,8 +16,8 @@ class MRuangMaster extends Model
 
     protected $primaryKey = 'Kode_RuangM';
     public    $incrementing = false;
-    protected $keyType    = 'string';
-    public    $timestamps = false;
+    protected $keyType     = 'string';
+    public    $timestamps  = false;
 
     protected $fillable = [
         'Kode_RuangM',
@@ -42,11 +42,11 @@ class MRuangMaster extends Model
     public static function bedIcuDenganStatus(): \Illuminate\Support\Collection
     {
         $instance = new static();
-        $conn     = $instance->getConnectionName();
-
-        $rm = $instance->getTable();
-        $mk = (new MKelas())->getTable();
-        $sk = (new StatusKamar())->getTable();
+        $conn     = static::activeConnection();
+        $rm       = $instance->getTable();
+        $mk       = (new MKelas())->getTable();
+        $sk       = (new StatusKamar())->getTable();
+        $isnull   = static::rsusAvailable() ? 'ISNULL' : 'COALESCE';
 
         try {
             return DB::connection($conn)
@@ -67,8 +67,7 @@ class MRuangMaster extends Model
                 ->orderBy('rm.Nama_RuangM')
                 ->get();
         } catch (\Exception $e) {
-            // Fallback: return collection kosong daripada crash
-            \Illuminate\Support\Facades\Log::error('[MRuangMaster::bedIcuDenganStatus] ' . $e->getMessage());
+            Log::error('[MRuangMaster::bedIcuDenganStatus] ' . $e->getMessage());
             return collect();
         }
     }

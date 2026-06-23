@@ -192,26 +192,25 @@ class MenuAdmisiController extends Controller
 
         $kunjungans = collect();
         try {
-            if (RegistrasiPasien::rsusAvailable()) {
-                $rows = \Illuminate\Support\Facades\DB::connection('sqlsrv_rsus')
-                    ->table('PENDAFTARAN as p')
-                    ->leftJoin('M_RUANG_MASTER as rm', 'p.Kode_Ruang', '=', 'rm.Kode_RuangM')
-                    ->where('p.No_MR', $noMr)->orderByDesc('p.Tanggal')->limit(10)
-                    ->select([
-                        'p.No_Reg', 'p.Kode_Masuk',
-                        \Illuminate\Support\Facades\DB::raw("ISNULL(rm.Nama_RuangM, p.Kode_Ruang) as nama_ruang"),
-                    ])->get();
-            } else {
-                $rows = \Illuminate\Support\Facades\DB::connection('mysql')
-                    ->table('pendaftaran as p')
-                    ->leftJoin('m_ruang_master as rm', 'p.Kode_Asal', '=', 'rm.Kode_RuangM')
-                    ->where('p.No_MR', $noMr)->orderByDesc('p.created_at')->limit(10)
-                    ->select([
-                        'p.No_Reg', 'p.Kode_Masuk',
-                        \Illuminate\Support\Facades\DB::raw("COALESCE(rm.Nama_RuangM, p.Kode_Asal, '') as nama_ruang"),
-                    ])->get();
-            }
-            $kunjungans = $rows->map(fn($r) => [
+            $conn   = RegistrasiPasien::activeConnection();
+            $isRsus = RegistrasiPasien::rsusAvailable();
+            $pTable = $isRsus ? 'PENDAFTARAN'    : 'pendaftaran';
+            $rmTable= $isRsus ? 'M_RUANG_MASTER' : 'm_ruang_master';
+            $nullFn = $isRsus ? 'ISNULL'         : 'COALESCE';
+            $tglCol = $isRsus ? 'p.Tanggal'      : 'p.created_at';
+
+            $rows = \Illuminate\Support\Facades\DB::connection($conn)
+                ->table("{$pTable} as p")
+                ->leftJoin("{$rmTable} as rm", 'p.Kode_Ruang', '=', 'rm.Kode_RuangM')
+                ->where('p.No_MR', $noMr)
+                ->orderByDesc($tglCol)
+                ->limit(10)
+                ->select([
+                    'p.No_Reg', 'p.Kode_Masuk',
+                    \Illuminate\Support\Facades\DB::raw("{$nullFn}(rm.Nama_RuangM, p.Kode_Ruang) as nama_ruang"),
+                ])->get();
+
+            $kunjungans = $rows->map(fn ($r) => [
                 'No_Reg'     => $r->No_Reg,
                 'Kode_Masuk' => $r->Kode_Masuk ?? '',
                 'nama_ruang' => $r->nama_ruang  ?? '',

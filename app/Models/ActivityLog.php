@@ -8,8 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ActivityLog extends Model
 {
-    protected $connection = 'mysql';
-    protected $table      = 'activity_logs';
+    protected $table = 'activity_logs';
 
     protected $fillable = [
         'user_id',
