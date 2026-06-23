@@ -78,8 +78,7 @@ const features = [
 
             <!-- Headline -->
             <h1 class="font-extrabold leading-[1.15] mb-4" style="font-size:clamp(30px,3.5vw,44px); letter-spacing:-0.03em">
-                Monitoring ICU<br>yang Lebih<br>
-                <span class="login-headline-accent">Cerdas &amp; Efisien</span>
+                Monitoring ICU
             </h1>
             <p class="text-white/60 leading-relaxed mb-10 max-w-sm" style="font-size:15px">
                 Pantau status bed, kelola antrian pasien, dan koordinasi tim medis dalam satu platform terintegrasi.

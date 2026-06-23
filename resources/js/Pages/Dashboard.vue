@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
 import { Doughnut, Bar } from 'vue-chartjs';
@@ -10,7 +10,8 @@ import { useTheme } from '@/composables/useTheme.js';
 const { theme } = useTheme();
 const page     = usePage();
 const authUser = computed(() => page.props.auth?.user ?? null);
-const logoUrl  = `${import.meta.env.BASE_URL}images/logo-urip.png`;
+const logoUrl     = `${import.meta.env.BASE_URL}images/logo-urip.png`;
+const doctorImgUrl = `${import.meta.env.BASE_URL}images/welcome-doctors.svg`;
 
 const props = defineProps({
     semuaKamar:    { type: Array,  default: () => [] },
@@ -176,33 +177,10 @@ const kpiCards = computed(() => [
       </div>
     </div>
 
-    <!-- Animated doctor character -->
+    <!-- Doctor illustration -->
     <div class="db-hero-vis" aria-hidden="true">
-      <div class="db-ocard db-oa"><span>Monitoring</span><strong>Realtime</strong></div>
-      <div class="db-ocard db-ob"><span>Verifikasi</span><strong>Aktif</strong></div>
       <div class="db-char">
-        <svg viewBox="0 0 260 260" style="width:100%;height:100%;filter:drop-shadow(0 16px 20px rgba(0,45,34,.18))">
-          <defs>
-            <linearGradient id="cG" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#fff"/><stop offset="100%" stop-color="#dff7f1"/></linearGradient>
-            <linearGradient id="sG" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d7fff5"/><stop offset="100%" stop-color="#8ee8d1"/></linearGradient>
-          </defs>
-          <circle cx="132" cy="132" r="108" fill="rgba(255,255,255,.34)"/>
-          <path d="M62 190c22-34 119-38 144-1 9 13-2 32-20 32H83c-21 0-31-16-21-31Z" fill="url(#cG)"/>
-          <path d="M108 141c-15 8-25 30-30 77h33l13-65-16-12Z" fill="#fff"/>
-          <path d="M158 141c16 8 26 30 31 77h-35l-12-65 16-12Z" fill="#fff"/>
-          <path d="M112 151l20 22 22-22-8 67h-30l-4-67Z" fill="#0f766e"/>
-          <path d="M116 153l16 16 16-16" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M91 97c-2-32 17-55 43-55 29 0 48 23 45 56-2 29-19 52-43 52-25 0-43-23-45-53Z" fill="#F2B18C"/>
-          <path d="M86 92c10-30 24-48 52-50 24-2 43 16 45 44-13-6-27-16-34-30-8 19-37 25-63 36Z" fill="#102A43"/>
-          <circle cx="117" cy="111" r="4" fill="#102A43"/><circle cx="154" cy="111" r="4" fill="#102A43"/>
-          <path d="M127 126c7 5 15 5 22 0" fill="none" stroke="#8A4B38" stroke-width="4" stroke-linecap="round"/>
-          <rect x="29" y="117" width="62" height="44" rx="12" fill="url(#sG)" opacity=".92"/>
-          <path d="M43 141h12l6-13 8 23 6-10h11" fill="none" stroke="#007A61" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-          <rect x="174" y="83" width="56" height="38" rx="12" fill="#fff" opacity=".9"/>
-          <path d="M188 101h29M188 110h19" stroke="#00A884" stroke-width="5" stroke-linecap="round"/>
-          <circle cx="203" cy="178" r="22" fill="#fff" opacity=".9"/>
-          <path d="M203 164v28M189 178h28" stroke="#00A884" stroke-width="7" stroke-linecap="round"/>
-        </svg>
+        <img :src="doctorImgUrl" alt="Dokter ICU" style="width:100%;height:100%;object-fit:contain"/>
       </div>
     </div>
   </div>
@@ -391,23 +369,11 @@ const kpiCards = computed(() => [
 .db-hbtn.outline { background:rgba(255,255,255,.14); color:#fff; border:1px solid rgba(255,255,255,.2); }
 
 /* Animated character */
-.db-hero-vis { position:relative; min-height:190px; min-width:240px; align-self:flex-end; display:none; }
+.db-hero-vis { position:relative; min-height:190px; min-width:280px; align-self:center; display:none; }
 @media(min-width:860px){ .db-hero-vis { display:block; } }
 .db-char {
-  position:absolute; right:8px; bottom:-16px; width:min(230px,100%); aspect-ratio:1;
-  border:1px solid rgba(255,255,255,.2); border-radius:28px;
-  background:linear-gradient(145deg,rgba(255,255,255,.28),rgba(255,255,255,.08));
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.22), 0 18px 44px rgba(0,0,0,.13);
-  backdrop-filter:blur(14px); animation:hFloat 5.5s ease-in-out infinite;
+  position:absolute; right:0; bottom:-16px; width:min(260px,100%); aspect-ratio:1;
 }
-.db-ocard { position:absolute; z-index:3; min-width:110px; padding:9px 12px; border:1px solid rgba(255,255,255,.2); border-radius:13px; background:rgba(255,255,255,.88); box-shadow:0 10px 24px rgba(0,55,42,.15); backdrop-filter:blur(14px); }
-.db-ocard span  { display:block; color:#64748B; font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:.07em; }
-.db-ocard strong{ display:block; margin-top:2px; color:#007A61; font-size:13px; font-weight:900; }
-.db-oa { right:220px; top:18px; animation:oA 4.6s ease-in-out infinite; }
-.db-ob { right:10px;  top:28px; animation:oB 5.2s ease-in-out infinite; }
-@keyframes hFloat { 0%,100%{transform:translateY(0)}  50%{transform:translateY(-8px)} }
-@keyframes oA     { 0%,100%{transform:translate(0,0)} 50%{transform:translate(6px,-8px)} }
-@keyframes oB     { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-5px,7px)} }
 
 /* ── KPI ───────────────────────────────────────────────────────────────────── */
 .db-kgrid { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; }
