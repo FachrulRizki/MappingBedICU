@@ -74,7 +74,7 @@ const rLabel = (r) => ROLE_LABEL[r] ?? r ?? '—';
 const MODULE_LABEL = {
     auth:             'Autentikasi',
     booking_external: 'Booking External',
-    spri_internal:    'SPRI Internal',
+    spri_internal:    'Booking Internal',
 };
 const mLabel = (m) => MODULE_LABEL[m] ?? m ?? '—';
 

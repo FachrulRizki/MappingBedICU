@@ -89,7 +89,7 @@ const CARDS = computed(() => [
 const statusOptions = [
     { value: '',              label: 'Semua Status' },
     { value: 'pending_icu',   label: 'Menunggu ICU' },
-    { value: 'waiting_list',  label: '⏳ Waiting List' },
+    { value: 'waiting_list',  label: 'Waiting List' },
     { value: 'bed_verified',  label: 'Bed Verified' },
     { value: 'ditolak',       label: 'Ditolak' },
 ]
@@ -310,7 +310,7 @@ const canSubmit  = computed(() =>
   </div>
 
   <!-- ══ KPI CARDS ════════════════════════════════════════════ -->
-  <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-5">
+  <div class="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-5">
     <button v-for="c in CARDS" :key="c.key" @click="fStatus = c.key; applyFilters()"
       class="group relative flex items-center gap-4 p-4 rounded-2xl text-left transition-all duration-200 hover:-translate-y-1 hover:shadow-lg"
       style="background:var(--bg-card); border:1px solid var(--border-default); box-shadow:var(--shadow-card); min-height:88px; width:100%"
@@ -568,7 +568,7 @@ const canSubmit  = computed(() =>
                     <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="#D97706" stroke-width="2.5">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
                     </svg>
-                    <p class="text-xs font-bold" style="color:#D97706">⏳ Masuk Waiting List ICU</p>
+                    <p class="text-xs font-bold" style="color:#D97706">Masuk Waiting List ICU</p>
                   </div>
                   <div class="px-3 py-2 space-y-1" style="background:#FFFBEB">
                     <p v-if="item.waiting_alasan" class="text-xs" style="color:#78350F">{{ item.waiting_alasan }}</p>

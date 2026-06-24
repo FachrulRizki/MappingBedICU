@@ -106,8 +106,8 @@ const actionsOf = (item) => {
     if (!canAct.value) return [];
     const acts = [];
     if (item.sumber === 'internal' && item.status === 'pending_admisi') {
-        acts.push({ id:'approve', label:'Setujui SPRI', color:'#00A884', bg:'rgba(0,168,132,.12)', border:'rgba(0,168,132,.3)' });
-        acts.push({ id:'tolak',   label:'Tolak SPRI',   color:'#E74C3C', bg:'rgba(231,76,60,.08)', border:'rgba(231,76,60,.25)' });
+        acts.push({ id:'approve', label:'Setujui Booking ICU', color:'#00A884', bg:'rgba(0,168,132,.12)', border:'rgba(0,168,132,.3)' });
+        acts.push({ id:'tolak',   label:'Tolak Booking ICU',   color:'#E74C3C', bg:'rgba(231,76,60,.08)', border:'rgba(231,76,60,.25)' });
     }
     if (item.sumber === 'external' && item.status === 'bed_confirmed') {
         acts.push({ id:'verifikasi', label:'Verifikasi Pasien', color:'#00A884', bg:'rgba(0,168,132,.12)', border:'rgba(0,168,132,.3)' });
@@ -220,7 +220,7 @@ const statusOptions = [
     { value:'', label:'Semua Status' },
     { value:'pending_admisi',  label:'Menunggu Admisi' },
     { value:'pending_icu',     label:'Menunggu ICU' },
-    { value:'waiting_list',    label:'⏳ Waiting List' },
+    { value:'waiting_list',    label:'Waiting List' },
     { value:'bed_confirmed',   label:'Bed Dikonfirmasi' },
     { value:'bed_verified',    label:'Bed Terverifikasi' },
     { value:'admisi_verified', label:'Terverifikasi' },
@@ -681,7 +681,7 @@ const jenisOptions = [
                                     </svg>
                                 </div>
                                 <div>
-                                    <p class="text-xs font-black uppercase tracking-wide" style="color:#D97706">⏳ Waiting List ICU</p>
+                                    <p class="text-xs font-black uppercase tracking-wide" style="color:#D97706">Waiting List ICU</p>
                                     <p class="text-xs" style="color:#92400E">Pasien dalam antrian — bed belum tersedia saat ini</p>
                                 </div>
                             </div>
@@ -822,7 +822,7 @@ const jenisOptions = [
                                     class="flex items-center gap-2 font-bold px-6 py-3 rounded-xl transition-all duration-150 disabled:opacity-50 hover:-translate-y-px"
                                     style="background:#00A884; color:var(--text-on-accent); font-size:14px">
                                     <svg v-if="fmBooking.processing" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                                    {{ fmBooking.processing ? 'Menyimpan...' : 'Kirim ke ICU' }}
+                                    {{ fmBooking.processing ? 'Menyimpan...' : 'Request ke ICU' }}
                                 </button>
                                 <button type="button" @click="closeModal" class="px-6 py-3 rounded-xl font-medium"
                                     style="background:var(--bg-input); color:var(--text-secondary); border:1.5px solid var(--border-default); font-size:14px">Batal</button>
@@ -839,7 +839,7 @@ const jenisOptions = [
                                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
                             </button>
                             <div>
-                                <h2 class="text-base font-bold" style="color:var(--text-primary)">Setujui SPRI</h2>
+                                <h2 class="text-base font-bold" style="color:var(--text-primary)">Setujui Booking ICU</h2>
                                 <p class="text-xs mt-0.5" style="color:var(--text-secondary)">{{ modal.item.nama_pasien }}</p>
                             </div>
                         </div>
@@ -873,7 +873,7 @@ const jenisOptions = [
                             <button type="submit" :disabled="fmApprove.processing"
                                 class="flex-1 font-bold py-3 rounded-xl transition-all duration-150 disabled:opacity-50 hover:-translate-y-px"
                                 style="background:#00A884; color:var(--text-on-accent); font-size:14px">
-                                {{ fmApprove.processing ? 'Menyimpan...' : '✓ Setujui SPRI' }}
+                                {{ fmApprove.processing ? 'Menyimpan...' : '✓ Setujui Booking ICU' }}
                             </button>
                             <button type="button" @click="closeModal" class="px-5 py-3 rounded-xl font-medium"
                                 style="background:var(--bg-input); color:var(--text-secondary); border:1.5px solid var(--border-default); font-size:14px">Batal</button>

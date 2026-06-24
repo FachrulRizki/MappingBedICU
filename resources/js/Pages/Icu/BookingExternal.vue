@@ -119,12 +119,10 @@ const doTolakIcu = (b) => {
     });
 };
 
-// ── Actions Admisi: verifikasi No_MR setelah pasien tiba ──
-// Lookup dari DB RS (PENDAFTARAN) — sama seperti SPRI Internal
 const noMrVerifikasi   = ref({});
 const noRegVerifikasi  = ref({});
 const lookupExtLoading = ref({});
-const lookupExtResult  = ref({});   // { found, nama_pasien, kunjungans }
+const lookupExtResult  = ref({});
 const lookupExtError   = ref({});
 
 const doLookupExt = async (bookingId, noMr) => {
@@ -451,7 +449,7 @@ const statusBadge = (status) => ({
                             <!-- pending_icu: ICU tentukan jenis + bed -->
                             <template v-if="b.status === 'pending_icu'">
                                 <template v-if="canKonfirmasiIcu">
-                                    <p class="text-xs font-semibold" style="color:#E0923A">⏳ Menunggu Petugas ICU</p>
+                                    <p class="text-xs font-semibold" style="color:#E0923A">Menunggu Petugas ICU</p>
                                     <div>
                                         <p class="text-xs font-semibold mb-1" style="color:var(--text-primary)">1. Jenis ICU:</p>
                                         <select v-model="kondisiPilihan[b.id]"
