@@ -104,6 +104,7 @@ class MenuPetugasController extends Controller
         $summary = [
             'total'        => $allData->count(),
             'pending_icu'  => $allData->where('status', 'pending_icu')->count(),
+            'waiting_list' => $allData->where('status', 'waiting_list')->count(),
             'bed_verified' => $allData->where('status', 'bed_verified')->count(),
             'ditolak'      => $allData->where('status', 'ditolak')->count(),
         ];
@@ -449,6 +450,11 @@ class MenuPetugasController extends Controller
             'verified_by'    => $s->verified_by,
             'jaminan_kode'   => $jaminan['kode'] ?? null,
             'jaminan_nama'   => $jaminan['nama'] ?? null,
+            // waiting list
+            'waiting_alasan'       => $s->waiting_alasan,
+            'waiting_estimasi'     => $s->waiting_estimasi?->format('Y-m-d H:i'),
+            'waiting_estimasi_fmt' => $s->waiting_estimasi?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
+            'waiting_by'           => $s->waiting_by,
             'created_at'     => $s->created_at?->format('Y-m-d H:i'),
             'created_at_fmt' => $s->created_at?->format('d/m/Y H:i'),
         ];

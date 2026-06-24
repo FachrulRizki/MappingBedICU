@@ -38,6 +38,7 @@ return new class extends Migration
                 'pending_icu',    
                 'bed_verified',   
                 'ditolak',
+                'waiting_list',
             ])->default('pending_admisi');
 
             $table->string('alasan_tolak', 200)->nullable();

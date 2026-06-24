@@ -69,10 +69,11 @@ const setPreset = (dari, sampai) => { fTglDari.value=dari; fTglAkh.value=sampai;
 const SS = {
     pending_icu:     { bg: 'rgba(230,126,34,.15)',  color: '#E67E22', dot: '#E67E22' },
     pending_admisi:  { bg: 'rgba(245,166,35,.15)',  color: '#E67E22', dot: '#E67E22' },
-    bed_confirmed:   { bg: 'rgba(0,168,132,.15)',  color: '#00A884', dot: '#00A884' },
-    bed_verified:    { bg: 'rgba(0,168,132,.15)',  color: '#00A884', dot: '#00A884' },
-    admisi_verified: { bg: 'rgba(0,168,132,.15)',  color: '#00A884', dot: '#00A884' },
-    ditolak:         { bg: 'rgba(231,76,60,.15)',  color: '#E74C3C', dot: '#E74C3C' },
+    waiting_list:    { bg: 'rgba(217,119,6,.15)',   color: '#D97706', dot: '#D97706' },
+    bed_confirmed:   { bg: 'rgba(0,168,132,.15)',   color: '#00A884', dot: '#00A884' },
+    bed_verified:    { bg: 'rgba(0,168,132,.15)',   color: '#00A884', dot: '#00A884' },
+    admisi_verified: { bg: 'rgba(0,168,132,.15)',   color: '#00A884', dot: '#00A884' },
+    ditolak:         { bg: 'rgba(231,76,60,.15)',   color: '#E74C3C', dot: '#E74C3C' },
 };
 const ss = (s) => SS[s] ?? { bg: 'var(--bg-input)', color: 'var(--text-secondary)', dot: '#888' };
 
@@ -91,11 +92,11 @@ const gColor = (g) => g === 'L' ? '#00A884' : g === 'P' ? '#8E44AD' : 'var(--tex
 
 // ── Summary cards ──────────────────────────────────────────
 const CARDS = computed(() => [
-    { key:'',               label:'Total',           val: props.summary.total        ?? 0, color:'#5A6B7C', icon:'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
+    { key:'',               label:'Total',           val: props.summary.total          ?? 0, color:'#5A6B7C', icon:'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
     { key:'pending_admisi', label:'Menunggu Admisi',  val: props.antrian.filter(a=>a.status==='pending_admisi').length, color:'#E67E22', icon:'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
+    { key:'waiting_list',   label:'Waiting List',    val: props.summary.waiting_list   ?? 0, color:'#D97706', icon:'M12 8v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z' },
     { key:'bed_confirmed',  label:'Perlu Verifikasi', val: props.antrian.filter(a=>a.status==='bed_confirmed').length,  color:'#00A884', icon:'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
-    { key:'admisi_verified',label:'Selesai',          val: props.summary.verified      ?? 0, color:'#059669', icon:'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' },
-    { key:'ditolak',        label:'Ditolak',          val: props.summary.ditolak       ?? 0, color:'#E74C3C', icon:'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z' },
+    { key:'ditolak',        label:'Ditolak',          val: props.summary.ditolak        ?? 0, color:'#E74C3C', icon:'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z' },
 ]);
 
 // ── Aksi yang tersedia per item ────────────────────────────
@@ -219,6 +220,7 @@ const statusOptions = [
     { value:'', label:'Semua Status' },
     { value:'pending_admisi',  label:'Menunggu Admisi' },
     { value:'pending_icu',     label:'Menunggu ICU' },
+    { value:'waiting_list',    label:'⏳ Waiting List' },
     { value:'bed_confirmed',   label:'Bed Dikonfirmasi' },
     { value:'bed_verified',    label:'Bed Terverifikasi' },
     { value:'admisi_verified', label:'Terverifikasi' },
@@ -476,6 +478,14 @@ const jenisOptions = [
                                     <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" :style="`background:${ss(item.status).color}`"></span>
                                     {{ item.status_label }}
                                 </span>
+                                <!-- Estimasi waiting list -->
+                                <p v-if="item.status === 'waiting_list' && item.waiting_estimasi_fmt"
+                                    class="text-xs mt-1 font-mono flex items-center gap-1" style="color:#D97706">
+                                    <svg class="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                    </svg>
+                                    Est. {{ item.waiting_estimasi_fmt }}
+                                </p>
                             </td>
                             <!-- Waktu -->
                             <td class="px-4 py-4">
@@ -659,6 +669,42 @@ const jenisOptions = [
                                 Alasan Penolakan
                             </p>
                             <p class="text-sm" style="color:var(--text-primary)">{{ modal.item.alasan_tolak }}</p>
+                        </div>
+
+                        <!-- ── Waiting List Banner (Admisi view) ──────── -->
+                        <div v-if="modal.item.status === 'waiting_list'"
+                            class="rounded-xl overflow-hidden" style="border:2px solid #FCD34D">
+                            <div class="flex items-center gap-3 px-4 py-3" style="background:#FEF3C7">
+                                <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background:#FDE68A">
+                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="#D97706" stroke-width="2.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <p class="text-xs font-black uppercase tracking-wide" style="color:#D97706">⏳ Waiting List ICU</p>
+                                    <p class="text-xs" style="color:#92400E">Pasien dalam antrian — bed belum tersedia saat ini</p>
+                                </div>
+                            </div>
+                            <div class="px-4 py-3 space-y-2" style="background:#FFFBEB">
+                                <div v-if="modal.item.waiting_alasan">
+                                    <p class="text-xs font-semibold mb-0.5" style="color:#92400E">Keterangan dari ICU</p>
+                                    <p class="text-sm" style="color:#78350F">{{ modal.item.waiting_alasan }}</p>
+                                </div>
+                                <div v-if="modal.item.waiting_estimasi_fmt"
+                                    class="rounded-lg px-3 py-2.5 flex items-center gap-3"
+                                    style="background:#FDE68A; border:1px solid #FCD34D">
+                                    <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="#D97706" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                    </svg>
+                                    <div>
+                                        <p class="text-xs font-semibold" style="color:#92400E">Estimasi Bed Siap</p>
+                                        <p class="text-base font-black font-mono" style="color:#D97706">{{ modal.item.waiting_estimasi_fmt }}</p>
+                                    </div>
+                                </div>
+                                <p v-if="modal.item.waiting_by" class="text-xs" style="color:#A16207">
+                                    Diproses oleh ICU: <strong>{{ modal.item.waiting_by }}</strong>
+                                </p>
+                            </div>
                         </div>
                         <div v-if="modal.item.catatan_admisi" class="rounded-xl p-4 space-y-1" style="background:var(--bg-surface-2); border:1px solid var(--border-default)">
                             <p class="text-xs font-medium" style="color:var(--text-muted)">Catatan Admisi</p>

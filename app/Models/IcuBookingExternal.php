@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
  * Booking ICU jalur EXTERNAL.
  *
  * Alur: pending_icu → bed_confirmed → admisi_verified | ditolak
+ *                  ↘ waiting_list → bed_confirmed (saat bed tersedia)
  */
 class IcuBookingExternal extends Model
 {
@@ -20,7 +21,12 @@ class IcuBookingExternal extends Model
         'No_MR', 'No_Reg',
         'allocated_bed_id', 'nama_bed',
         'status', 'alasan_tolak',
+        'waiting_alasan', 'waiting_estimasi', 'waiting_by',
         'created_by', 'confirmed_by', 'verified_by',
+    ];
+
+    protected $casts = [
+        'waiting_estimasi' => 'datetime',
     ];
 
     public function pasien()
@@ -33,10 +39,16 @@ class IcuBookingExternal extends Model
         return $this->belongsTo(Pendaftaran::class, 'No_Reg', 'No_Reg');
     }
 
+    public function isWaiting(): bool
+    {
+        return $this->status === 'waiting_list';
+    }
+
     public function statusLabel(): string
     {
         return match ($this->status) {
             'pending_icu'     => 'Menunggu ICU',
+            'waiting_list'    => 'Waiting List',
             'bed_confirmed'   => 'Bed Dikonfirmasi',
             'admisi_verified' => 'Terverifikasi',
             'ditolak'         => 'Ditolak',
@@ -48,6 +60,7 @@ class IcuBookingExternal extends Model
     {
         return match ($this->status) {
             'pending_icu'     => 'amber',
+            'waiting_list'    => 'orange',
             'bed_confirmed'   => 'blue',
             'admisi_verified' => 'teal',
             'ditolak'         => 'red',

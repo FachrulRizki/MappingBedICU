@@ -69,6 +69,7 @@ const sortIcon = (col) => sortBy.value !== col ? '↕' : sortDir.value === 'asc'
 const SS = {
     pending_admisi: { bg: 'rgba(245,166,35,.15)',  color: '#E67E22', dot: '#E67E22' },
     pending_icu:    { bg: 'rgba(224,146,58,.15)',  color: '#E0923A', dot: '#E0923A' },
+    waiting_list:   { bg: 'rgba(217,119,6,.15)',   color: '#D97706', dot: '#D97706' },
     bed_verified:   { bg: 'rgba(0,168,132,.15)',   color: '#00A884', dot: '#00A884' },
     ditolak:        { bg: 'rgba(231,76,60,.15)',   color: '#E74C3C', dot: '#E74C3C' },
 }
@@ -78,15 +79,17 @@ const gColor = (g) => g === 'L' ? '#00A884' : g === 'P' ? '#8E44AD' : 'var(--tex
 
 // ── Summary cards ─────────────────────────────────────────────────────────────
 const CARDS = computed(() => [
-    { key: '',              label: 'Total',      val: props.summary.total        ?? 0, color: '#5A6B7C', icon:'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
-    { key: 'pending_icu',   label: 'Menunggu ICU', val: props.summary.pending_icu  ?? 0, color: '#E0923A', icon:'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
-    { key: 'bed_verified',  label: 'Bed Verified', val: props.summary.bed_verified  ?? 0, color: '#059669', icon:'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' },
-    { key: 'ditolak',       label: 'Ditolak',      val: props.summary.ditolak       ?? 0, color: '#E74C3C', icon:'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z' },
+    { key: '',             label: 'Total',        val: props.summary.total        ?? 0, color: '#5A6B7C', icon:'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
+    { key: 'pending_icu',  label: 'Menunggu ICU', val: props.summary.pending_icu  ?? 0, color: '#E0923A', icon:'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
+    { key: 'waiting_list', label: 'Waiting List', val: props.spriList.filter(s=>s.status==='waiting_list').length ?? 0, color: '#D97706', icon:'M12 8v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z' },
+    { key: 'bed_verified', label: 'Bed Verified', val: props.summary.bed_verified ?? 0, color: '#059669', icon:'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' },
+    { key: 'ditolak',      label: 'Ditolak',      val: props.summary.ditolak      ?? 0, color: '#E74C3C', icon:'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z' },
 ])
 
 const statusOptions = [
     { value: '',              label: 'Semua Status' },
     { value: 'pending_icu',   label: 'Menunggu ICU' },
+    { value: 'waiting_list',  label: '⏳ Waiting List' },
     { value: 'bed_verified',  label: 'Bed Verified' },
     { value: 'ditolak',       label: 'Ditolak' },
 ]
@@ -496,10 +499,20 @@ const canSubmit  = computed(() =>
             :style="`border-left-color:${ss(item.status).dot}`">
             <!-- Top row -->
             <div class="flex justify-between items-start mb-2 gap-2">
-              <span class="mp-status-pill" :style="`background:${ss(item.status).bg};color:${ss(item.status).color}`">
-                <span class="w-1.5 h-1.5 rounded-full" :style="`background:${ss(item.status).color}`"></span>
-                {{ item.status_label }}
-              </span>
+              <div>
+                <span class="mp-status-pill" :style="`background:${ss(item.status).bg};color:${ss(item.status).color}`">
+                  <span class="w-1.5 h-1.5 rounded-full" :style="`background:${ss(item.status).color}`"></span>
+                  {{ item.status_label }}
+                </span>
+                <!-- Waiting list estimasi -->
+                <p v-if="item.status === 'waiting_list' && item.waiting_estimasi_fmt"
+                  class="text-xs mt-1 font-mono flex items-center gap-1" style="color:#D97706">
+                  <svg class="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  </svg>
+                  Est. {{ item.waiting_estimasi_fmt }}
+                </p>
+              </div>
               <span class="text-xs font-mono" style="color:var(--text-muted)">{{ item.created_at_fmt }}</span>
             </div>
             <!-- Patient row -->
@@ -539,7 +552,7 @@ const canSubmit  = computed(() =>
                   <p class="mp-detail-sub truncate">{{ item.Dokter ?? '—' }}</p>
                 </div>
               </div>
-              <div v-if="item.nama_bed || item.catatan_admisi || item.alasan_tolak" class="mt-2 pt-2 border-t" style="border-color:var(--border-default)">
+              <div v-if="item.nama_bed || item.catatan_admisi || item.alasan_tolak || item.status === 'waiting_list'" class="mt-2 pt-2 border-t" style="border-color:var(--border-default)">
                 <span v-if="item.nama_bed" class="mp-bed-badge">
                   🏥 {{ item.nama_bed }}{{ item.kebutuhan_bed ? ' · '+item.kebutuhan_bed : '' }}
                 </span>
@@ -549,6 +562,24 @@ const canSubmit  = computed(() =>
                 <p v-if="item.alasan_tolak" class="text-xs mt-1 font-semibold" style="color:#E74C3C">
                   <span style="color:#ef4444">Tolak:</span> {{ item.alasan_tolak }}
                 </p>
+                <!-- Waiting List Banner di kartu item -->
+                <div v-if="item.status === 'waiting_list'" class="mt-2 rounded-lg overflow-hidden" style="border:1.5px solid #FCD34D">
+                  <div class="flex items-center gap-2 px-3 py-2" style="background:#FEF3C7">
+                    <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="#D97706" stroke-width="2.5">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                    </svg>
+                    <p class="text-xs font-bold" style="color:#D97706">⏳ Masuk Waiting List ICU</p>
+                  </div>
+                  <div class="px-3 py-2 space-y-1" style="background:#FFFBEB">
+                    <p v-if="item.waiting_alasan" class="text-xs" style="color:#78350F">{{ item.waiting_alasan }}</p>
+                    <div v-if="item.waiting_estimasi_fmt" class="flex items-center gap-1.5">
+                      <svg class="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="#D97706" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                      </svg>
+                      <p class="text-xs font-bold font-mono" style="color:#D97706">Est. {{ item.waiting_estimasi_fmt }}</p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

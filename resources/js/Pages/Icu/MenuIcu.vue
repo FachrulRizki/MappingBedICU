@@ -67,6 +67,7 @@ const setPreset = (dari, sampai) => { fTglDari.value=dari; fTglAkh.value=sampai;
 const SS = {
     pending_icu:     { bg:'#FDF3E9', color:'#E67E22', dot:'#E67E22' },
     pending_admisi:  { bg:'rgba(245,166,35,.15)', color:'#E67E22', dot:'#E67E22' },
+    waiting_list:    { bg:'#FEF3C7', color:'#D97706', dot:'#D97706' },
     bed_confirmed:   { bg:'#D1FAF0', color:'#00A884', dot:'#00A884' },
     bed_verified:    { bg:'#EBF9F1', color:'#27AE60', dot:'#27AE60' },
     admisi_verified: { bg:'#EBF9F1', color:'#27AE60', dot:'#27AE60' },
@@ -90,9 +91,15 @@ const gColor = (g) => g==='L'?'#00A884':g==='P'?'#8E44AD':'var(--text-secondary)
 const actionsOf = (item) => {
     if (!canKonfirmasiIcu.value && !isAdmin.value) return [];
     const acts = [];
-    if (item.status === 'pending_icu') {
-        const labelKonfirm = item.sumber === 'external' ? 'Konfirmasi Bed' : 'Verifikasi Bed';
+    if (['pending_icu', 'waiting_list'].includes(item.status)) {
+        const isWaiting    = item.status === 'waiting_list';
+        const labelKonfirm = item.sumber === 'external'
+            ? (isWaiting ? '✅ Bed Tersedia — Konfirmasi Sekarang' : 'Konfirmasi Bed')
+            : (isWaiting ? '✅ Bed Tersedia — Verifikasi Sekarang'  : 'Verifikasi Bed');
         acts.push({ id:'konfirmasi', label: labelKonfirm, bg:'rgba(0,168,132,.12)', color:'#00A884', border:'rgba(0,168,132,.3)' });
+        if (!isWaiting) {
+            acts.push({ id:'waiting', label:'Masukkan ke Waiting List', bg:'rgba(217,119,6,.1)', color:'#D97706', border:'rgba(217,119,6,.3)' });
+        }
         acts.push({ id:'tolak', label:'Tolak Permintaan', bg:'rgba(231,76,60,.08)', color:'#E74C3C', border:'rgba(231,76,60,.25)' });
     }
     return acts;
@@ -100,11 +107,11 @@ const actionsOf = (item) => {
 
 // ── Summary ────────────────────────────────────────────────
 const CARDS = computed(() => [
-    { key:'',           label:'Total',        val: props.summary.total         ?? 0, color:'#5A6B7C', icon:'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
-    { key:'pending_icu',label:'Menunggu ICU', val: props.antrian.filter(a=>a.status==='pending_icu').length, color:'#E67E22', icon:'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
-    { key:'bed_confirmed',label:'Dikonfirmasi',val: props.summary.bed_confirmed ?? 0, color:'#00A884', icon:'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
-    { key:'bed_verified,admisi_verified',label:'Terverifikasi',val: props.summary.verified ?? 0, color:'#059669', icon:'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' },
-    { key:'ditolak',    label:'Ditolak',      val: props.summary.ditolak       ?? 0, color:'#E74C3C', icon:'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z' },
+    { key:'',              label:'Total',         val: props.summary.total          ?? 0, color:'#5A6B7C', icon:'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
+    { key:'pending_icu',   label:'Menunggu ICU',  val: props.antrian.filter(a=>a.status==='pending_icu').length, color:'#E67E22', icon:'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
+    { key:'waiting_list',  label:'Waiting List',  val: props.summary.waiting_list   ?? 0, color:'#D97706', icon:'M12 8v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z' },
+    { key:'bed_confirmed', label:'Dikonfirmasi',  val: props.summary.bed_confirmed  ?? 0, color:'#00A884', icon:'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
+    { key:'ditolak',       label:'Ditolak',       val: props.summary.ditolak        ?? 0, color:'#E74C3C', icon:'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z' },
 ]);
 
 const clickCard = (key) => {
@@ -115,7 +122,7 @@ const clickCard = (key) => {
 // ── Modal ──────────────────────────────────────────────────
 const modal = ref({ open: false, type:'', item: null });
 const openModal = (type, item) => {
-    fmKonfirmasi.reset(); fmTolak.reset();
+    fmKonfirmasi.reset(); fmTolak.reset(); fmWaiting.reset();
     modal.value = { open:true, type, item };
 };
 const closeModal = () => { modal.value.open = false; setTimeout(() => modal.value = {open:false,type:'',item:null}, 300); };
@@ -147,9 +154,26 @@ const submitTolak = () => {
     });
 };
 
+// ── Form: Waiting List ─────────────────────────────────────
+const fmWaiting = useForm({ waiting_alasan:'', waiting_estimasi:'' });
+const submitWaiting = () => {
+    const route_name = modal.value.item?.sumber === 'external'
+        ? 'icu.menu_icu.ext.waiting_list'
+        : 'icu.menu_icu.int.waiting_list';
+    fmWaiting.post(route(route_name, modal.value.item.id), {
+        onSuccess: closeModal,
+    });
+};
+// Min datetime untuk estimasi: 1 jam dari sekarang
+const minEstimasi = computed(() => {
+    const d = new Date(); d.setHours(d.getHours() + 1);
+    return d.toISOString().slice(0, 16);
+});
+
 const statusOptions = [
     { value:'', label:'Semua Status' },
     { value:'pending_icu',     label:'Menunggu ICU' },
+    { value:'waiting_list',    label:'⏳ Waiting List' },
     { value:'pending_admisi',  label:'Menunggu Admisi' },
     { value:'bed_confirmed',   label:'Bed Dikonfirmasi' },
     { value:'bed_verified',    label:'Bed Terverifikasi' },
@@ -402,6 +426,14 @@ const jenisOptions = [
                   <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" :style="`background:${ss(item.status).dot}`"></span>
                   {{ item.status_label }}
                 </span>
+                <!-- Sub-info estimasi jika waiting -->
+                <p v-if="item.status === 'waiting_list' && item.waiting_estimasi_fmt"
+                  class="text-xs mt-1 font-mono flex items-center gap-1" style="color:#D97706">
+                  <svg class="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  </svg>
+                  Est. {{ item.waiting_estimasi_fmt }}
+                </p>
               </td>
               <td class="px-5 py-4 font-mono text-xs whitespace-nowrap" style="color:var(--text-secondary)">{{ item.created_at_fmt }}</td>
               <td class="px-5 py-4 text-center">
@@ -606,6 +638,45 @@ const jenisOptions = [
                 </p>
                 <p class="text-sm" style="color:var(--text-primary)">{{ modal.item.alasan_tolak }}</p>
               </div>
+
+              <!-- ── Waiting List Info Banner ─────────────────────────── -->
+              <div v-if="modal.item.status === 'waiting_list'"
+                class="rounded-xl overflow-hidden"
+                style="border:2px solid #FCD34D">
+                <!-- Header banner -->
+                <div class="flex items-center gap-3 px-4 py-3" style="background:#FEF3C7">
+                  <div class="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+                    style="background:#FDE68A">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="#D97706" stroke-width="2.5">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <p class="text-xs font-black uppercase tracking-wide" style="color:#D97706">⏳ Waiting List ICU</p>
+                    <p class="text-xs" style="color:#92400E">Pasien dalam antrian — menunggu bed tersedia</p>
+                  </div>
+                </div>
+                <!-- Body info -->
+                <div class="px-4 py-3 space-y-2.5" style="background:#FFFBEB">
+                  <div v-if="modal.item.waiting_alasan">
+                    <p class="text-xs font-semibold mb-1" style="color:#92400E">Keterangan ICU</p>
+                    <p class="text-sm" style="color:#78350F">{{ modal.item.waiting_alasan }}</p>
+                  </div>
+                  <div v-if="modal.item.waiting_estimasi_fmt" class="rounded-lg px-3 py-2.5 flex items-center gap-3"
+                    style="background:#FDE68A; border:1px solid #FCD34D">
+                    <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="#D97706" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <div>
+                      <p class="text-xs font-semibold" style="color:#92400E">Estimasi Bed Siap</p>
+                      <p class="text-base font-black font-mono" style="color:#D97706">{{ modal.item.waiting_estimasi_fmt }}</p>
+                    </div>
+                  </div>
+                  <p v-if="modal.item.waiting_by" class="text-xs" style="color:#A16207">
+                    Diproses oleh: <strong>{{ modal.item.waiting_by }}</strong>
+                  </p>
+                </div>
+              </div>
             </div>
 
             <!-- Footer Actions -->
@@ -623,6 +694,85 @@ const jenisOptions = [
                   Tidak ada aksi yang tersedia untuk status ini.
                 </p>
               </div>
+            </div>
+          </div>
+
+          <!-- ── VIEW 4: WAITING LIST ───────────────────────────────────── -->
+          <div v-else-if="modal.type==='waiting' && modal.item" key="waiting" class="flex flex-col w-full" style="max-height:92vh">
+            <!-- Header -->
+            <div class="flex items-center justify-between px-6 py-5 flex-shrink-0" style="border-bottom:1px solid var(--border-default)">
+              <div class="flex items-center gap-3">
+                <button type="button" @click="openModal('detail', modal.item)"
+                  class="w-8 h-8 rounded-xl flex items-center justify-center transition-all hover:scale-110"
+                  style="background:var(--bg-input); color:var(--text-secondary)">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+                  </svg>
+                </button>
+                <div>
+                  <h2 class="text-base font-bold" style="color:#D97706">Tambah ke Waiting List</h2>
+                  <p class="text-xs mt-0.5" style="color:var(--text-secondary)">{{ modal.item?.nama_pasien }}</p>
+                </div>
+              </div>
+              <button @click="closeModal"
+                class="w-8 h-8 rounded-xl flex items-center justify-center transition-all hover:scale-110"
+                style="background:var(--bg-input); color:var(--text-secondary)">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+
+            <!-- Info banner -->
+            <div class="px-6 py-4 flex-shrink-0" style="border-bottom:1px solid var(--border-default); background:var(--bg-surface-2)">
+              <div class="rounded-xl p-3.5 flex items-start gap-3"
+                style="background:#FFFBEB; border:1.5px solid #FCD34D">
+                <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="#D97706" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <div>
+                  <p class="text-xs font-bold" style="color:#D97706">Apa itu Waiting List?</p>
+                  <p class="text-xs mt-0.5 leading-relaxed" style="color:#92400E">
+                    Pasien akan masuk antrian waiting list karena bed ICU sedang penuh atau belum tersedia.
+                    Informasi estimasi waktu akan dikirimkan ke Admisi dan Petugas Ruang sebagai pemberitahuan.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Form -->
+            <div class="overflow-y-auto flex-1">
+              <form @submit.prevent="submitWaiting" class="px-6 py-5 space-y-5">
+                <div class="space-y-2">
+                  <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">
+                    Keterangan / Alasan Waiting List <span style="color:#E74C3C">*</span>
+                  </label>
+                  <textarea v-model="fmWaiting.waiting_alasan" required rows="4"
+                    placeholder="Contoh: Semua bed ICU terisi penuh. Pasien masuk antrian dan akan diprioritaskan saat bed tersedia..."
+                    class="w-full rounded-xl outline-none resize-none transition-all"
+                    style="padding:11px 14px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary); font-size:13px; line-height:1.6"/>
+                  <p class="text-xs" style="color:var(--text-muted)">Informasi ini akan terlihat oleh Admisi dan Petugas Ruang.</p>
+                </div>
+                <div class="space-y-2">
+                  <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">
+                    Estimasi Bed Siap <span style="color:#E74C3C">*</span>
+                  </label>
+                  <input v-model="fmWaiting.waiting_estimasi" required type="datetime-local"
+                    :min="minEstimasi"
+                    class="w-full rounded-xl outline-none transition-all"
+                    style="padding:11px 14px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary); font-size:13px"/>
+                  <p class="text-xs" style="color:var(--text-muted)">Perkiraan kapan bed ICU akan tersedia untuk pasien ini.</p>
+                </div>
+                <button type="submit"
+                  :disabled="fmWaiting.processing || !fmWaiting.waiting_alasan.trim() || !fmWaiting.waiting_estimasi"
+                  class="w-full text-sm font-bold py-3.5 rounded-xl transition-all duration-150 hover:-translate-y-px disabled:opacity-40 disabled:hover:translate-y-0 flex items-center justify-center gap-2"
+                  style="background:rgba(217,119,6,.15); color:#D97706; border:1.5px solid rgba(217,119,6,.4)">
+                  <svg v-if="!fmWaiting.processing" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                  </svg>
+                  {{ fmWaiting.processing ? 'Menyimpan...' : 'Masukkan ke Waiting List' }}
+                </button>
+              </form>
             </div>
           </div>
 
@@ -669,6 +819,23 @@ const jenisOptions = [
             <!-- Form Body -->
             <div class="overflow-y-auto flex-1">
               <form @submit.prevent="submitKonfirmasi" class="px-6 py-5 space-y-5">
+
+                <!-- Banner konteks: dari waiting list -->
+                <div v-if="modal.item?.status === 'waiting_list'"
+                  class="rounded-xl p-3.5 flex items-start gap-3"
+                  style="background:#FFFBEB; border:1.5px solid #FCD34D">
+                  <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="#D97706" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  </svg>
+                  <div>
+                    <p class="text-xs font-bold" style="color:#D97706">Bed Tersedia untuk Pasien Waiting List</p>
+                    <p class="text-xs mt-0.5 leading-relaxed" style="color:#92400E">
+                      Pasien ini sebelumnya masuk waiting list karena bed penuh.
+                      Pilih bed yang tersedia sekarang untuk melanjutkan proses.
+                    </p>
+                  </div>
+                </div>
+
                 <div class="space-y-2">
                   <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">
                     Jenis ICU <span style="color:#E74C3C">*</span>
@@ -750,6 +917,11 @@ const jenisOptions = [
                     Perhatian
                   </p>
                   <p class="text-xs" style="color:var(--text-secondary)">Tindakan ini tidak dapat dibatalkan. Pastikan alasan penolakan sudah jelas dan lengkap.</p>
+                  <!-- Banner tambahan jika dari waiting list -->
+                  <p v-if="modal.item?.status === 'waiting_list'"
+                    class="text-xs mt-1 font-semibold" style="color:#D97706">
+                    ⏳ Pasien ini berasal dari Waiting List. Penolakan akan menghapus status waiting list.
+                  </p>
                 </div>
                 <div class="space-y-2">
                   <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">

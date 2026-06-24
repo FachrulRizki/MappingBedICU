@@ -18,6 +18,7 @@ class AntrianService
      */
     public function build(Request $request): array
     {
+        // Default sort: oldest first (created_at ASC) — siapa duluan, prioritas duluan
         $sortBy  = in_array($request->query('sort', 'created_at'), self::SORT_ALLOWED)
                    ? $request->query('sort') : 'created_at';
         $sortDir = $request->query('dir', 'asc') === 'desc' ? 'desc' : 'asc';
@@ -40,6 +41,7 @@ class AntrianService
 
         $merged = collect($externals)->concat($internals)->values();
 
+        // Sorting: default oldest first (terlama = prioritas tertinggi)
         $merged = $merged->sortBy(
             fn ($item) => strtolower((string) ($item[$sortBy] ?? '')),
             SORT_REGULAR,
@@ -64,9 +66,15 @@ class AntrianService
 
     private function queryExternal(string $fStatus, string $fNama, string $fTglDari, string $fTglAkh): Collection
     {
+        $activeStatuses = ['pending_icu', 'waiting_list', 'bed_confirmed'];
         $q = IcuBookingExternal::with('pasien');
 
-        if ($fStatus) $q->where('status', $fStatus);
+        // Filter status: jika ada filter spesifik, pakai itu; jika tidak, tampilkan semua aktif
+        if ($fStatus) {
+            $q->where('status', $fStatus);
+        } else {
+            $q->whereIn('status', $activeStatuses);
+        }
 
         if ($fNama) {
             $q->where(function ($qq) use ($fNama) {
@@ -79,14 +87,20 @@ class AntrianService
             $q->whereBetween('created_at', [$fTglDari . ' 00:00:00', $fTglAkh . ' 23:59:59']);
         }
 
-        return $q->latest()->get()->map(fn ($b) => $this->fmtExt($b));
+        // Oldest first — siapa booking duluan, prioritas duluan
+        return $q->oldest()->get()->map(fn ($b) => $this->fmtExt($b));
     }
 
     private function queryInternal(string $fStatus, string $fNama, string $fTglDari, string $fTglAkh): Collection
     {
+        $activeStatuses = ['pending_admisi', 'pending_icu', 'waiting_list', 'bed_verified'];
         $q = IcuSpriInternal::query();
 
-        if ($fStatus) $q->where('status', $fStatus);
+        if ($fStatus) {
+            $q->where('status', $fStatus);
+        } else {
+            $q->whereIn('status', $activeStatuses);
+        }
 
         if ($fNama) {
             $pasienIds = RegistrasiPasien::where('Nama_Pasien', 'like', "%{$fNama}%")
@@ -101,7 +115,8 @@ class AntrianService
             $q->whereBetween('created_at', [$fTglDari . ' 00:00:00', $fTglAkh . ' 23:59:59']);
         }
 
-        $results    = $q->latest()->get();
+        // Oldest first
+        $results    = $q->oldest()->get();
         $jaminanMap = $this->buildJaminanMap($results->pluck('No_Reg')->filter()->unique()->values()->toArray());
 
         return $results->map(fn ($s) => $this->fmtInt($s, $jaminanMap[$s->No_Reg] ?? null));
@@ -141,6 +156,7 @@ class AntrianService
         return [
             'total'         => $data->count(),
             'pending'       => $data->filter(fn ($i) => in_array($i['status'] ?? '', ['pending_icu', 'pending_admisi']))->count(),
+            'waiting_list'  => $data->filter(fn ($i) => ($i['status'] ?? '') === 'waiting_list')->count(),
             'bed_confirmed' => $data->filter(fn ($i) => in_array($i['status'] ?? '', ['bed_confirmed', 'bed_verified']))->count(),
             'verified'      => $data->filter(fn ($i) => in_array($i['status'] ?? '', ['admisi_verified', 'bed_verified']))->count(),
             'ditolak'       => $data->filter(fn ($i) => ($i['status'] ?? '') === 'ditolak')->count(),
@@ -176,6 +192,11 @@ class AntrianService
             'status'           => $b->status,
             'status_label'     => $b->statusLabel(),
             'alasan_tolak'     => $b->alasan_tolak,
+            // waiting list
+            'waiting_alasan'   => $b->waiting_alasan,
+            'waiting_estimasi' => $b->waiting_estimasi?->format('Y-m-d H:i'),
+            'waiting_estimasi_fmt' => $b->waiting_estimasi?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
+            'waiting_by'       => $b->waiting_by,
             'created_at'       => $b->created_at?->format('Y-m-d H:i'),
             'created_at_fmt'   => $b->created_at?->format('d/m/Y H:i'),
             'created_by'       => $b->created_by,
@@ -210,6 +231,11 @@ class AntrianService
             'status'         => $s->status,
             'status_label'   => $s->statusLabel(),
             'alasan_tolak'   => $s->alasan_tolak,
+            // waiting list
+            'waiting_alasan'   => $s->waiting_alasan,
+            'waiting_estimasi' => $s->waiting_estimasi?->format('Y-m-d H:i'),
+            'waiting_estimasi_fmt' => $s->waiting_estimasi?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
+            'waiting_by'       => $s->waiting_by,
             'created_at'     => $s->created_at?->format('Y-m-d H:i'),
             'created_at_fmt' => $s->created_at?->format('d/m/Y H:i'),
             'created_by'     => $s->NameUser ?? '-',

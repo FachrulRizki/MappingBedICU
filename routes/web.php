@@ -45,10 +45,12 @@ Route::middleware('auth')->group(function () {
     Route::get('/icu/menu-icu', [MenuIcuController::class, 'index'])->name('icu.menu_icu');
 
     Route::middleware('role:petugas_icu')->group(function () {
-        Route::post('/icu/menu-icu/ext/{id}/konfirmasi', [MenuIcuController::class, 'konfirmasiExt'])->name('icu.menu_icu.ext.konfirmasi');
-        Route::post('/icu/menu-icu/ext/{id}/tolak',      [MenuIcuController::class, 'tolakExt'])->name('icu.menu_icu.ext.tolak');
-        Route::post('/icu/menu-icu/int/{id}/verifikasi', [MenuIcuController::class, 'verifikasiInt'])->name('icu.menu_icu.int.verifikasi');
-        Route::post('/icu/menu-icu/int/{id}/tolak',      [MenuIcuController::class, 'tolakInt'])->name('icu.menu_icu.int.tolak');
+        Route::post('/icu/menu-icu/ext/{id}/konfirmasi',    [MenuIcuController::class, 'konfirmasiExt'])->name('icu.menu_icu.ext.konfirmasi');
+        Route::post('/icu/menu-icu/ext/{id}/tolak',         [MenuIcuController::class, 'tolakExt'])->name('icu.menu_icu.ext.tolak');
+        Route::post('/icu/menu-icu/ext/{id}/waiting-list',  [MenuIcuController::class, 'waitingListExt'])->name('icu.menu_icu.ext.waiting_list');
+        Route::post('/icu/menu-icu/int/{id}/verifikasi',    [MenuIcuController::class, 'verifikasiInt'])->name('icu.menu_icu.int.verifikasi');
+        Route::post('/icu/menu-icu/int/{id}/tolak',         [MenuIcuController::class, 'tolakInt'])->name('icu.menu_icu.int.tolak');
+        Route::post('/icu/menu-icu/int/{id}/waiting-list',  [MenuIcuController::class, 'waitingListInt'])->name('icu.menu_icu.int.waiting_list');
     });
 
     // ── MENU ADMISI ───────────────────────────────────────────────────────

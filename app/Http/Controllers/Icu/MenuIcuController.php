@@ -58,8 +58,8 @@ class MenuIcuController extends Controller
 
         $booking = IcuBookingExternal::findOrFail($id);
 
-        if ($booking->status !== 'pending_icu') {
-            return back()->with('error', 'Booking sudah tidak berstatus Menunggu ICU.');
+        if (! in_array($booking->status, ['pending_icu', 'waiting_list'])) {
+            return back()->with('error', 'Booking tidak bisa dikonfirmasi dari status ini.');
         }
 
         $bed     = StatusKamar::with('ruang')->where('Kode_Ruang', $v['Kode_Ruang'])->first();
@@ -87,8 +87,8 @@ class MenuIcuController extends Controller
 
         $booking = IcuBookingExternal::findOrFail($id);
 
-        if ($booking->status !== 'pending_icu') {
-            return back()->with('error', 'Booking sudah tidak berstatus Menunggu ICU.');
+        if (! in_array($booking->status, ['pending_icu', 'waiting_list'])) {
+            return back()->with('error', 'Booking tidak bisa ditolak dari status ini.');
         }
 
         $booking->update([
@@ -112,8 +112,8 @@ class MenuIcuController extends Controller
 
         $bu = IcuSpriInternal::findOrFail($id);
 
-        if ($bu->status !== 'pending_icu') {
-            return back()->with('error', 'BU sudah tidak berstatus Menunggu ICU.');
+        if (! in_array($bu->status, ['pending_icu', 'waiting_list'])) {
+            return back()->with('error', 'BU tidak bisa diverifikasi dari status ini.');
         }
 
         $bed     = StatusKamar::with('ruang')->where('Kode_Ruang', $v['Kode_Ruang'])->first();
@@ -141,8 +141,8 @@ class MenuIcuController extends Controller
 
         $bu = IcuSpriInternal::findOrFail($id);
 
-        if ($bu->status !== 'pending_icu') {
-            return back()->with('error', 'BU sudah tidak berstatus Menunggu ICU.');
+        if (! in_array($bu->status, ['pending_icu', 'waiting_list'])) {
+            return back()->with('error', 'BU tidak bisa ditolak dari status ini.');
         }
 
         $bu->update([
@@ -154,5 +154,74 @@ class MenuIcuController extends Controller
         $this->activityLog->tolakSpriIcu($bu->id, (string) ($bu->pasien?->Nama_Pasien ?? $bu->No_MR), $v['alasan_tolak']);
 
         return back()->with('success', "BU {$bu->pasien?->Nama_Pasien} ditolak oleh ICU.");
+    }
+
+    // ACTION — Booking External: masuk waiting list (pending_icu -> waiting_list)
+    public function waitingListExt(Request $request, int $id): RedirectResponse
+    {
+        $v = $request->validate([
+            'waiting_alasan'    => 'required|string|max:500',
+            'waiting_estimasi'  => 'required|date|after:now',
+        ]);
+
+        $booking = IcuBookingExternal::findOrFail($id);
+
+        // if ($booking->status !== 'pending_icu') {
+        if (!in_array($booking->status, ['pending_icu', 'waiting_list'])) {
+            return back()->with('error', 'Booking sudah tidak berstatus Menunggu ICU.');
+        }
+
+        $booking->update([
+            'status'           => 'waiting_list',
+            'waiting_alasan'   => $v['waiting_alasan'],
+            'waiting_estimasi' => $v['waiting_estimasi'],
+            'waiting_by'       => $this->actor(),
+        ]);
+
+        $this->activityLog->log(
+            'Waiting List',
+            "Masukkan {$booking->nama_pasien} ke waiting list — estimasi: " .
+                \Carbon\Carbon::parse($v['waiting_estimasi'])->format('d/m/Y H:i'),
+            'booking_external',
+            $booking->id,
+            'IcuBookingExternal'
+        );
+
+        return back()->with('success', "{$booking->nama_pasien} masuk Waiting List ICU.");
+    }
+
+    // ACTION — BU Internal: masuk waiting list (pending_icu -> waiting_list)
+    public function waitingListInt(Request $request, int $id): RedirectResponse
+    {
+        $v = $request->validate([
+            'waiting_alasan'    => 'required|string|max:500',
+            'waiting_estimasi'  => 'required|date|after:now',
+        ]);
+
+        $bu = IcuSpriInternal::findOrFail($id);
+
+        if ($bu->status !== 'pending_icu') {
+            return back()->with('error', 'BU sudah tidak berstatus Menunggu ICU.');
+        }
+
+        $bu->update([
+            'status'           => 'waiting_list',
+            'waiting_alasan'   => $v['waiting_alasan'],
+            'waiting_estimasi' => $v['waiting_estimasi'],
+            'waiting_by'       => $this->actor(),
+        ]);
+
+        $namaPasien = (string) ($bu->pasien?->Nama_Pasien ?? $bu->No_MR);
+
+        $this->activityLog->log(
+            'Waiting List',
+            "Masukkan {$namaPasien} ke waiting list — estimasi: " .
+                \Carbon\Carbon::parse($v['waiting_estimasi'])->format('d/m/Y H:i'),
+            'spri_internal',
+            $bu->id,
+            'IcuSpriInternal'
+        );
+
+        return back()->with('success', "{$namaPasien} masuk Waiting List ICU.");
     }
 }

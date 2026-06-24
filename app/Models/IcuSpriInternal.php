@@ -7,8 +7,8 @@ use Illuminate\Database\Eloquent\Model;
 /**
  * BU (Booking ICU) jalur INTERNAL.
  *
- * Alur: pending_icu → bed_verified | ditolak
- * (bypass admisi — langsung ke ICU untuk konfirmasi bed)
+ * Alur: pending_admisi → pending_icu → bed_verified | ditolak
+ *                                   ↘ waiting_list → bed_verified (saat bed tersedia)
  */
 class IcuSpriInternal extends Model
 {
@@ -22,7 +22,12 @@ class IcuSpriInternal extends Model
         'catatan_admisi',
         'allocated_bed_id', 'nama_bed',
         'status', 'alasan_tolak',
+        'waiting_alasan', 'waiting_estimasi', 'waiting_by',
         'approved_by', 'verified_by',
+    ];
+
+    protected $casts = [
+        'waiting_estimasi' => 'datetime',
     ];
 
     public function pasien()
@@ -35,11 +40,17 @@ class IcuSpriInternal extends Model
         return $this->belongsTo(Pendaftaran::class, 'No_Reg', 'No_Reg');
     }
 
+    public function isWaiting(): bool
+    {
+        return $this->status === 'waiting_list';
+    }
+
     public function statusLabel(): string
     {
         return match ($this->status) {
-            'pending_admisi' => 'Menunggu Admisi',  // legacy
+            'pending_admisi' => 'Menunggu Admisi',
             'pending_icu'    => 'Menunggu ICU',
+            'waiting_list'   => 'Waiting List',
             'bed_verified'   => 'Bed Terverifikasi',
             'ditolak'        => 'Ditolak',
             default          => $this->status,
@@ -51,6 +62,7 @@ class IcuSpriInternal extends Model
         return match ($this->status) {
             'pending_admisi' => 'yellow',
             'pending_icu'    => 'amber',
+            'waiting_list'   => 'orange',
             'bed_verified'   => 'teal',
             'ditolak'        => 'red',
             default          => 'gray',

@@ -78,6 +78,7 @@ class ActivityLog extends Model
             'Konfirmasi Bed',
             'Verifikasi Bed',
             'Verifikasi Pasien',
+            'Waiting List',
             'Tolak Data',
         ];
     }
@@ -92,6 +93,7 @@ class ActivityLog extends Model
             'Konfirmasi Bed'     => ['bg' => 'rgba(14,165,233,.12)',  'color' => '#0EA5E9'],
             'Verifikasi Bed'     => ['bg' => 'rgba(99,102,241,.12)',  'color' => '#6366F1'],
             'Verifikasi Pasien'  => ['bg' => 'rgba(245,158,11,.12)',  'color' => '#D97706'],
+            'Waiting List'       => ['bg' => 'rgba(249,115,22,.12)',  'color' => '#EA580C'],
             'Tolak Data'         => ['bg' => 'rgba(239,68,68,.12)',   'color' => '#DC2626'],
         ];
     }
