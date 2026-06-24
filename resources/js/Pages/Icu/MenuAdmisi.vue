@@ -400,6 +400,7 @@ const jenisOptions = [
                             <th class="px-4 py-3.5 text-left" style="color:var(--table-th-color); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; border-bottom:2px solid var(--border-table); min-width:120px">Jenis</th>
                             <th class="px-4 py-3.5 text-left" style="color:var(--table-th-color); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; border-bottom:2px solid var(--border-table); min-width:180px">Diagnosa / Indikasi</th>
                             <th class="px-4 py-3.5 text-left" style="color:var(--table-th-color); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; border-bottom:2px solid var(--border-table); min-width:130px">Asal / DPJP</th>
+                            <th class="px-4 py-3.5 text-left" style="color:var(--table-th-color); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; border-bottom:2px solid var(--border-table); min-width:130px">Dokter Kolab</th>
                             <th class="px-4 py-3.5 text-left" style="color:var(--table-th-color); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; border-bottom:2px solid var(--border-table); min-width:110px">Jaminan</th>
                             <th class="px-4 py-3.5 text-left" style="color:var(--table-th-color); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; border-bottom:2px solid var(--border-table); min-width:150px">Bed</th>
                             <th class="px-4 py-3.5 text-left cursor-pointer select-none" style="color:var(--table-th-color); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; border-bottom:2px solid var(--border-table); min-width:140px" @click="toggleSort('status')">
@@ -449,12 +450,19 @@ const jenisOptions = [
                             </td>
                             <!-- Diagnosa -->
                             <td class="px-4 py-4">
-                                <p class="font-medium truncate" style="color:var(--text-primary); font-size:12px; max-width:180px" :title="item.diagnosa">{{ item.diagnosa ?? '—' }}</p>
+                                <p class="text-sm break-words whitespace-normal" style="color:var(--text-primary); font-size:12px; max-width:180px" :title="item.diagnosa">{{ item.diagnosa ?? '—' }}</p>
                             </td>
                             <!-- Asal Ruang + DPJP -->
                             <td class="px-4 py-4" style="max-width:130px">
-                                <p class="font-medium truncate text-xs" style="color:var(--text-secondary)">{{ item.asal_ruang ?? item.asal_rujukan ?? '—' }}</p>
-                                <p v-if="item.Dokter" class="truncate text-xs mt-0.5" style="color:var(--text-muted)">{{ item.Dokter }}</p>
+                                <p class="text-sm break-words whitespace-normal" style="color:var(--text-secondary)">{{ item.asal_ruang ?? item.asal_rujukan ?? '—' }}</p>
+                                <p v-if="item.Dokter" class="text-sm break-words whitespace-normal" style="color:var(--text-muted)">{{ item.Dokter }}</p>
+                            </td>
+                            <!-- Dokter Kolab -->
+                            <td class="px-5 py-4" style="max-width:160px">
+                                <p v-if="item.dokter_kolab && item.dokter_kolab.length > 0" class="text-sm break-words whitespace-normal" :title="item.dokter_kolab.join(', ')" style="color:var(--text-primary)">
+                                    {{ item.dokter_kolab.join(', ') }}
+                                </p>
+                                <span v-else style="color:var(--text-muted)">—</span>
                             </td>
                             <!-- Jaminan -->
                             <td class="px-4 py-4">
@@ -630,12 +638,15 @@ const jenisOptions = [
                                 <p class="text-xs font-medium" style="color:var(--text-muted)">Diagnosa / Indikasi</p>
                                 <p class="text-sm font-bold" style="color:var(--text-primary)">{{ modal.item.diagnosa ?? '—' }}</p>
                             </div>
-
+                            <div class="sm:col-span-2 space-y-0.5">
+                                <p class="text-xs font-medium" style="color:var(--text-muted)">Dokter Kolab</p>
+                                <p class="text-sm font-bold" style="color:var(--text-primary)"> {{ modal.item.dokter_kolab && modal.item.dokter_kolab.length > 0 ? modal.item.dokter_kolab.join(', ') : '—' }}
+                                </p>
+                            </div>
                             <div class="space-y-0.5">
                                 <p class="text-xs font-medium" style="color:var(--text-muted)">Indikasi Rawat ICU</p>
                                 <p class="text-sm font-bold" style="color:var(--text-primary)">{{ modal.item.IndikasiRI ?? '—' }}</p>
                             </div>
-
                             <div class="space-y-0.5">
                                 <p class="text-xs font-medium" style="color:var(--text-muted)">DPJP</p>
                                 <p class="text-sm font-bold" style="color:var(--text-primary)">{{ modal.item.Dokter ?? '—' }}</p>

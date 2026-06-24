@@ -357,6 +357,7 @@ const jenisOptions = [
               <th class="py-3.5 px-5 text-left font-semibold text-xs uppercase tracking-wider" style="color:var(--table-th-color)">Jenis</th>
               <th class="py-3.5 px-5 text-left font-semibold text-xs uppercase tracking-wider" style="color:var(--table-th-color)">Diagnosa</th>
               <th class="py-3.5 px-5 text-left font-semibold text-xs uppercase tracking-wider" style="color:var(--table-th-color)">Asal / DPJP</th>
+              <th class="py-3.5 px-5 text-left font-semibold text-xs uppercase tracking-wider" style="color:var(--table-th-color)">Dokter Kolab</th>
               <th class="py-3.5 px-5 text-left font-semibold text-xs uppercase tracking-wider" style="color:var(--table-th-color)">Jaminan</th>
               <th class="py-3.5 px-5 text-left font-semibold text-xs uppercase tracking-wider" style="color:var(--table-th-color)">Bed</th>
               <th class="py-3.5 px-5 text-left font-semibold text-xs uppercase tracking-wider cursor-pointer select-none" style="color:var(--table-th-color)" @click="toggleSort('status')">
@@ -399,11 +400,17 @@ const jenisOptions = [
                 </span>
               </td>
               <td class="px-5 py-4" style="max-width:160px">
-                <p class="truncate text-sm" :title="item.diagnosa" style="color:var(--text-primary)">{{ item.diagnosa ?? '—' }}</p>
+                <p class="text-sm break-words whitespace-normal" :title="item.diagnosa" style="color:var(--text-primary)">{{ item.diagnosa ?? '—' }}</p>
               </td>
               <td class="px-5 py-4" style="max-width:110px">
-                <p class="truncate text-sm font-medium" style="color:var(--text-secondary)">{{ item.asal_ruang ?? item.asal_rujukan ?? '—' }}</p>
-                <p v-if="item.Dokter" class="truncate text-xs mt-0.5" style="color:var(--text-muted)">{{ item.Dokter }}</p>
+                <p class="text-sm break-words whitespace-normal" style="color:var(--text-secondary)">{{ item.asal_ruang ?? item.asal_rujukan ?? '—' }}</p>
+                <p v-if="item.Dokter" class="text-sm break-words whitespace-normal" style="color:var(--text-muted)">{{ item.Dokter }}</p>
+              </td>
+              <td class="px-5 py-4" style="max-width:160px">
+                  <p v-if="item.dokter_kolab && item.dokter_kolab.length > 0" class="text-sm break-words whitespace-normal" :title="item.dokter_kolab.join(', ')" style="color:var(--text-primary)">
+                      {{ item.dokter_kolab.join(', ') }}
+                  </p>
+                  <span v-else style="color:var(--text-muted)">—</span>
               </td>
               <td class="px-5 py-4">
                 <span v-if="item.jaminan" class="text-xs font-semibold px-2.5 py-1 rounded-lg"
@@ -608,6 +615,15 @@ const jenisOptions = [
                 <div class="sm:col-span-2 space-y-0.5">
                   <p class="text-xs font-medium" style="color:var(--text-muted)">Catatan Admisi</p>
                   <p class="text-sm font-bold" style="color:var(--text-primary)">{{ modal.item.catatan_admisi ?? '—' }}</p>
+                </div>
+                <div class="sm:col-span-2 space-y-0.5">
+                    <p class="text-xs font-medium" style="color:var(--text-muted)">Dokter Kolab</p>
+                    <p class="text-sm font-bold" style="color:var(--text-primary)"> {{ modal.item.dokter_kolab && modal.item.dokter_kolab.length > 0 ? modal.item.dokter_kolab.join(', ') : '—' }}
+                    </p>
+                </div>
+                <div class="space-y-0.5">
+                  <p class="text-xs font-medium" style="color:var(--text-muted)">DPJP</p>
+                  <p class="text-sm font-bold" style="color:var(--text-primary)">{{ modal.item.Dokter ?? '—' }}</p>
                 </div>
                 <div class="space-y-0.5">
                   <p class="text-xs font-medium" style="color:var(--text-muted)">Asal Rujukan</p>

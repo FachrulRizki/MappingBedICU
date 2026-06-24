@@ -41,6 +41,16 @@ class AntrianService
 
         $merged = collect($externals)->concat($internals)->values();
 
+        // ── Inject dokter kolab ──────────────────────────────────
+        $noRegs = $merged->pluck('No_Reg')->filter()->unique()->values()->toArray();
+        $dokterKolabMap = $this->fetchDokterKolab($noRegs);
+
+        $merged = $merged->map(function ($item) use ($dokterKolabMap) {
+            $noReg = $item['No_Reg'] ?? null;
+            $item['dokter_kolab'] = $noReg ? ($dokterKolabMap[$noReg] ?? []) : [];
+            return $item;
+        })->values();
+
         // Sorting: default oldest first (terlama = prioritas tertinggi)
         $merged = $merged->sortBy(
             fn ($item) => strtolower((string) ($item[$sortBy] ?? '')),
@@ -147,6 +157,38 @@ class AntrianService
 
             return $rows->pluck('ket_bayar', 'No_Reg')->toArray();
         } catch (\Exception) {
+            return [];
+        }
+    }
+
+    private function fetchDokterKolab(array $noRegs): array
+    {
+        if (empty($noRegs)) return [];
+
+        try {
+            $isRsus  = \App\Models\RegistrasiPasien::rsusAvailable();
+            $conn    = $isRsus ? 'sqlsrv_rsus' : 'mysql';
+            $adkTbl  = $isRsus ? 'ASESMEN_DOKTER_KOLABORASI' : 'asesmen_dokter_kolaborasi';
+            $dTbl    = $isRsus ? 'DOKTER' : 'dokter';
+
+            $rows = \Illuminate\Support\Facades\DB::connection($conn)
+                ->table("{$adkTbl} as adk")
+                ->leftJoin("{$dTbl} as d", 'adk.Dokter', '=', 'd.Kode_Dokter')
+                ->whereIn('adk.No_Reg', $noRegs)
+                ->select(['adk.No_Reg', 'd.Nama_Dokter', 'adk.Dokter as Kode_Dokter'])
+                ->get();
+
+            // Group by No_Reg → array of dokter names
+            $map = [];
+            foreach ($rows as $row) {
+                if ($row->No_Reg) {
+                    $map[$row->No_Reg][] = $row->Nama_Dokter ?? $row->Kode_Dokter;
+                }
+            }
+            return $map;
+
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::warning('[fetchDokterKolab] ' . $e->getMessage());
             return [];
         }
     }
