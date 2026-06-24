@@ -183,7 +183,7 @@ const statusOptions = [
 const jenisOptions = [
     { value:'', label:'Semua Jenis' },
     { value:'external', label:'Booking Eksternal' },
-    { value:'internal', label:'SPRI Internal' },
+    { value:'internal', label:'Booking Internal' },
 ];
 </script>
 
@@ -251,7 +251,7 @@ const jenisOptions = [
       <span class="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium"
         style="background:rgba(90,107,124,.1); border:1px solid rgba(90,107,124,.2)">
         <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background:#5A6B7C"></span>
-        <span style="color:var(--text-secondary)">SPRI Internal</span>
+        <span style="color:var(--text-secondary)">Booking Internal</span>
         <strong class="font-bold" style="color:#5A6B7C">{{ summary.by_sumber?.internal ?? 0 }}</strong>
       </span>
     </div>
@@ -400,7 +400,6 @@ const jenisOptions = [
               </td>
               <td class="px-5 py-4" style="max-width:160px">
                 <p class="truncate text-sm" :title="item.diagnosa" style="color:var(--text-primary)">{{ item.diagnosa ?? '—' }}</p>
-                <p v-if="item.kebutuhan_bed" class="text-xs mt-0.5 font-medium" style="color:#00A884">{{ item.kebutuhan_bed }}</p>
               </td>
               <td class="px-5 py-4" style="max-width:110px">
                 <p class="truncate text-sm font-medium" style="color:var(--text-secondary)">{{ item.asal_ruang ?? item.asal_rujukan ?? '—' }}</p>
@@ -417,6 +416,12 @@ const jenisOptions = [
                     <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                   </svg>
                   {{ item.nama_bed }}
+                </span>
+                <!-- kebutuhan_bed sebagai sub-info jika belum ada bed teralokasi -->
+                <span v-else-if="item.kebutuhan_bed"
+                  class="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg"
+                  style="background:rgba(0,168,132,.1); color:#00A884">
+                  {{ item.kebutuhan_bed }}
                 </span>
                 <span v-else class="text-sm" style="color:var(--text-muted)">—</span>
               </td>
@@ -498,7 +503,10 @@ const jenisOptions = [
                 <svg v-if="item.nama_bed" class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                 </svg>
-                {{ item.nama_bed ?? '—' }}
+                {{ item.nama_bed ?? (item.kebutuhan_bed ? item.kebutuhan_bed : '—') }}
+              </p>
+              <p v-if="item.nama_bed && item.kebutuhan_bed" class="text-xs mt-0.5" style="color:var(--text-muted)">
+                {{ item.kebutuhan_bed }}
               </p>
             </div>
           </div>

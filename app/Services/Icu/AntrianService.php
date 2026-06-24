@@ -210,7 +210,7 @@ class AntrianService
         return [
             'id'             => $s->id,
             'sumber'         => 'internal',
-            'sumber_label'   => 'BU Internal',
+            'sumber_label'   => 'Booking Internal',
             'nama_pasien'    => $s->pasien?->Nama_Pasien ?? $s->No_MR,
             'No_MR'          => $s->No_MR,
             'No_Reg'         => $s->No_Reg,

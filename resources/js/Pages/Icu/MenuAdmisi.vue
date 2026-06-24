@@ -229,7 +229,7 @@ const statusOptions = [
 const jenisOptions = [
     { value:'', label:'Semua Jenis' },
     { value:'external', label:'Booking Eksternal' },
-    { value:'internal', label:'SPRI Internal' },
+    { value:'internal', label:'Booking Internal' },
 ];
 </script>
 
@@ -246,7 +246,7 @@ const jenisOptions = [
                     <div style="min-width:0">
                         <p style="color:rgba(255,255,255,.6);font-size:11px;font-weight:500">ICU Command Center</p>
                         <h1 style="color:#fff;font-size:clamp(18px,4vw,30px);font-weight:900;letter-spacing:-.02em;line-height:1.1">Menu Admisi ICU</h1>
-                        <p style="color:rgba(255,255,255,.45);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:280px">Verifikasi Booking Eksternal &amp; Persetujuan SPRI Internal</p>
+                        <p style="color:rgba(255,255,255,.45);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:280px">Verifikasi Booking Eksternal &amp; Persetujuan Booking Internal</p>
                     </div>
                 </div>
                 <!-- Action Button inside Hero -->
@@ -304,7 +304,7 @@ const jenisOptions = [
             <span class="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium"
                 style="background:rgba(90,107,124,.1); border:1px solid rgba(90,107,124,.2)">
                 <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background:#5A6B7C"></span>
-                <span style="color:var(--text-secondary)">SPRI Internal</span>
+                <span style="color:var(--text-secondary)">Booking Internal</span>
                 <strong class="font-bold" style="color:#5A6B7C">{{ summary.by_sumber?.internal ?? 0 }}</strong>
             </span>
         </div>
