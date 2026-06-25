@@ -269,324 +269,387 @@ const canSubmit  = computed(() =>
     fmSpri.No_MR.trim() && fmSpri.No_Reg.trim() &&
     fmSpri.Diagnosis.trim() && fmSpri.IndikasiRI.trim() &&
     lookupResult.value?.found)
-</script>
 
+// ── UI-only: tab & detail panel ──────────────────────────────────────────────
+const activeTab     = ref('aktif')   // 'aktif' | 'riwayat' | 'waiting_list'
+const selectedItem  = ref(null)      // item spriList yang sedang dibuka di panel detail
+const showFilter    = ref(false)     // toggle panel filter di mobile
+
+const spriAktif       = computed(() => props.spriList.filter(s => !['bed_verified_done'].includes(s.status) && s.status !== 'selesai'))
+const spriRiwayat     = computed(() => props.spriList.filter(s => s.status === 'bed_verified' || s.status === 'selesai' || s.status === 'ditolak'))
+const spriWaitingList = computed(() => props.spriList.filter(s => s.status === 'waiting_list'))
+
+const tabList = computed(() => {
+    if (activeTab.value === 'riwayat')      return spriRiwayat.value
+    if (activeTab.value === 'waiting_list') return spriWaitingList.value
+    return props.spriList
+})
+
+const selectDetail = (item) => {
+    selectedItem.value = selectedItem.value?.id === item.id ? null : item
+}
+
+const tabCounts = computed(() => ({
+    aktif:        props.spriList.length,
+    riwayat:      spriRiwayat.value.length,
+    waiting_list: spriWaitingList.value.length,
+}))
+
+const hasActiveFilter = computed(() => fStatus.value || fNama.value || fJaminan.value)
+</script>
 
 <template>
 <AppLayout :flash="flash" page-title="Menu Rawat Inap">
 <div class="mp-wrap">
 
-  <!-- ══ PAGE HEADER (HERO) ════════════════════════════════════ -->
-  <div class="db-hero mb-6">
-    <div class="db-hero-copy">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
-        <div class="db-hero-logo"><img :src="logoUrl" alt="Logo" style="width:36px;height:36px;object-fit:contain" @error="$event.target.style.display='none'"/></div>
-        <div style="min-width:0">
-          <p style="color:rgba(255,255,255,.6);font-size:11px;font-weight:500">ICU Command Center</p>
-          <h1 style="color:#fff;font-size:clamp(18px,4vw,30px);font-weight:900;letter-spacing:-.02em;line-height:1.1">Permintaan Rawat ICU</h1>
-          <p style="color:rgba(255,255,255,.45);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:280px;margin-top:2px">
-            <span v-if="isSSO">SSO · Bangsal: <strong>{{ wardIds.join(', ') || '-' }}</strong></span>
-            <span v-else>Login Lokal · Data MySQL</span>
-          </p>
-        </div>
+  <!-- ══ PAGE HEADER ══════════════════════════════════════════════ -->
+  <div class="bk-hero mb-5">
+    <div class="bk-hero-left">
+      <div class="bk-hero-logo">
+        <img :src="logoUrl" alt="Logo" style="width:36px;height:36px;object-fit:contain" @error="$event.target.style.display='none'"/>
       </div>
-      <!-- Action button inside Hero -->
-      <button v-if="!isSSO && (canBuatSpriInternal || isAdmin)" @click="openModal('spri')"
-        class="flex items-center gap-2 font-bold px-5 py-2.5 rounded-xl transition-all duration-150 hover:-translate-y-px mt-2"
-        style="background:#fff; color:#00A884; font-size:13px; box-shadow:0 4px 14px rgba(0,0,0,0.12); border:none; cursor:pointer">
-        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
-        </svg>
-        Buat Booking ICU Manual
-      </button>
-    </div>
-
-    <!-- Doctor illustration -->
-    <div class="db-hero-vis" aria-hidden="true">
-      <div class="db-char">
-        <img :src="doctorImgUrl" alt="Dokter ICU" style="width:100%;height:100%;object-fit:contain"/>
+      <div>
+        <p class="bk-hero-sub">ICU Command Center · {{ isSSO ? 'SSO' : 'Lokal' }}
+          <span v-if="isSSO"> · Bangsal: <strong>{{ wardIds.join(', ') || '-' }}</strong></span>
+        </p>
+        <h1 class="bk-hero-title">Booking ICU</h1>
       </div>
     </div>
-  </div>
-
-  <!-- ══ KPI CARDS ════════════════════════════════════════════ -->
-  <div class="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-5">
-    <button v-for="c in CARDS" :key="c.key" @click="fStatus = c.key; applyFilters()"
-      class="group relative flex items-center gap-4 p-4 rounded-2xl text-left transition-all duration-200 hover:-translate-y-1 hover:shadow-lg"
-      style="background:var(--bg-card); border:1px solid var(--border-default); box-shadow:var(--shadow-card); min-height:88px; width:100%"
-      :style="fStatus === c.key ? `border:2px solid ${c.color}; box-shadow:0 0 0 3px ${c.color}15; background:var(--bg-surface)` : ''">
-      <div class="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110"
-        :style="`background:${c.color}12`">
-        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" :style="`color:${c.color}`">
-          <path stroke-linecap="round" stroke-linejoin="round" :d="c.icon" />
-        </svg>
-      </div>
-      <div class="min-w-0 flex-1">
-        <p class="text-2xl font-black tracking-tight" :style="`color:${c.color}`" style="font-family:'DM Mono',monospace; line-height:1.1">{{ c.val }}</p>
-        <p class="text-xs font-semibold mt-1" style="color:var(--text-secondary); line-height:1.2">{{ c.label }}</p>
-      </div>
-      <span class="opacity-0 group-hover:opacity-100 transition-opacity absolute right-3 top-3">
-        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" :style="`color:${c.color}`">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
-        </svg>
-      </span>
+    <button v-if="!isSSO && (canBuatSpriInternal || isAdmin)" @click="openModal('spri')" class="bk-btn-new">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+      </svg>
+      + Booking Baru ↗
     </button>
   </div>
 
-  <!-- ══ MAIN 2-COLUMN GRID ══════════════════════════════════ -->
-  <div class="mp-main-grid">
+  <!-- ══ KPI CARDS ════════════════════════════════════════════════ -->
+  <div class="bk-summary-row mb-5">
+    <button v-for="c in CARDS" :key="c.key" @click="fStatus = c.key; applyFilters()"
+      class="bk-card" :class="fStatus === c.key ? 'bk-card--active' : ''"
+      :style="fStatus === c.key ? `--card-color:${c.color}` : `--card-color:${c.color}`">
+      <p class="bk-card-num" :style="`color:${fStatus===c.key ? c.color : 'var(--text-primary)'}`">{{ c.val }}</p>
+      <p class="bk-card-label">{{ c.label }}</p>
+    </button>
+  </div>
 
-    <!-- LEFT: Daftar Pasien (SSO) -->
-    <div>
-      <div v-if="isSSO" class="mp-panel mp-pasien-panel">
-        <!-- Panel header -->
-        <div class="mp-panel-header">
-          <div class="flex items-center gap-3">
-            <div class="mp-panel-icon">
-              <svg class="w-4 h-4" style="color:#00A884" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
-              </svg>
-            </div>
-            <div>
-              <p class="text-sm font-bold" style="color:var(--text-primary)">
-                {{ isIgdUser ? 'Pasien Aktif — IGD' : 'Pasien Bangsal' }}
-                <strong style="color:#00A884">{{ wardIds.join(', ') || '-' }}</strong>
-              </p>
-              <p class="text-xs" style="color:var(--text-muted)">Klik untuk request ICU</p>
-            </div>
-          </div>
-          <!-- Search -->
-          <div class="relative w-full mt-3">
-            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style="color:var(--text-muted)" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+  <!-- ══ MAIN LAYOUT ══════════════════════════════════════════════ -->
+  <div class="bk-main">
+
+    <!-- ── LEFT COLUMN: pasien bangsal (SSO) ── -->
+    <div v-if="isSSO" class="bk-panel bk-panel--left">
+      <div class="bk-panel-head">
+        <div class="flex items-center gap-2">
+          <div class="bk-panel-icon">
+            <svg class="w-4 h-4" style="color:#00A884" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
             </svg>
-            <input v-model="cariPasien" placeholder="Cari nama / No. MR..." class="mp-search-input"/>
+          </div>
+          <div>
+            <p class="text-sm font-bold" style="color:var(--text-primary)">{{ isIgdUser ? 'Pasien IGD' : 'Pasien Bangsal' }} <strong style="color:#00A884">{{ wardIds.join(', ') || '-' }}</strong></p>
+            <p class="text-xs" style="color:var(--text-muted)">Klik untuk request ICU</p>
           </div>
         </div>
-        <!-- Patient list -->
-        <div class="mp-pasien-list">
-          <div v-if="Object.keys(pasienPerRuang).length === 0" class="mp-empty">
-            <div class="mp-empty-icon"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></div>
-            <p class="text-sm font-semibold" style="color:var(--text-secondary)">Semua pasien sudah diproses</p>
-            <p class="text-xs mt-1" style="color:var(--text-muted)">Atau tidak ada data aktif</p>
-          </div>
-          <template v-for="(pasiens, ruang) in pasienPerRuang" :key="ruang">
-            <div v-if="pasiens.length > 0" class="mb-4">
-              <div class="mp-ruang-header">
-                <span>🏥</span>
-                <span class="text-xs font-bold uppercase tracking-widest" style="color:var(--text-accent)">{{ ruang }}</span>
-                <span class="mp-ruang-count">{{ pasiens.length }}</span>
-              </div>
-              <div class="flex flex-col gap-2">
-                <div v-for="p in pasiens" :key="p.No_MR + (p.No_Reg ?? '')"
-                  @click="pilihPasien(p)" class="mp-pasien-item group">
-                  <div class="mp-pasien-av" :style="`background:${gColor(p.jenis_kelamin)}18; color:${gColor(p.jenis_kelamin)}`">
-                    {{ gIcon(p.jenis_kelamin) }}
-                  </div>
-                  <div class="flex-1 min-w-0">
-                    <p class="text-sm font-bold truncate" style="color:var(--text-primary)">{{ p.Nama_Pasien }}</p>
-                    <p class="text-xs mt-0.5" style="color:var(--text-muted);font-family:'DM Mono',monospace">
-                      {{ p.No_MR }}
-                      <span v-if="p.No_Reg" class="ml-1 px-1.5 py-0.5 rounded text-xs" style="color:#00A884;background:#ECFDF5">· {{ p.No_Reg }}</span>
-                    </p>
-                  </div>
-                  <div class="text-right flex-shrink-0 hidden sm:block">
-                    <p class="text-xs font-semibold truncate max-w-[100px]" style="color:var(--text-primary)">{{ p.Dokter || '—' }}</p>
-                    <p class="text-xs truncate max-w-[100px] mt-0.5" style="color:var(--text-muted)">{{ p.Nama_RuangM || '—' }}</p>
-                  </div>
-                  <div class="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                    <div class="mp-arrow-btn">
-                      <svg class="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
-                      </svg>
-                    </div>
-                  </div>
+        <div class="bk-search-wrap mt-3">
+          <svg class="bk-search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+          </svg>
+          <input v-model="cariPasien" placeholder="Cari nama / No. MR..." class="bk-search"/>
+        </div>
+      </div>
+      <div class="bk-panel-body">
+        <div v-if="Object.keys(pasienPerRuang).length === 0" class="bk-empty">
+          <svg class="w-8 h-8 mb-2" style="color:var(--text-muted)" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+          </svg>
+          <p class="text-sm font-semibold" style="color:var(--text-secondary)">Semua pasien sudah diproses</p>
+          <p class="text-xs mt-1" style="color:var(--text-muted)">Atau tidak ada data aktif</p>
+        </div>
+        <template v-for="(pasiens, ruang) in pasienPerRuang" :key="ruang">
+          <div v-if="pasiens.length > 0" class="mb-4">
+            <div class="bk-ruang-head">
+              <span>🏥</span>
+              <span class="text-xs font-bold uppercase tracking-widest" style="color:var(--text-accent)">{{ ruang }}</span>
+              <span class="bk-ruang-count">{{ pasiens.length }}</span>
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <div v-for="p in pasiens" :key="p.No_MR + (p.No_Reg ?? '')"
+                @click="pilihPasien(p)" class="bk-pasien-row group">
+                <div class="bk-av" :style="`background:${gColor(p.jenis_kelamin)}15;color:${gColor(p.jenis_kelamin)}`">{{ gIcon(p.jenis_kelamin) }}</div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-bold truncate" style="color:var(--text-primary)">{{ p.Nama_Pasien }}</p>
+                  <p class="text-xs mt-0.5 font-mono" style="color:var(--text-muted)">{{ p.No_MR }}<span v-if="p.No_Reg" class="ml-1 px-1.5 py-0.5 rounded" style="color:#00A884;background:rgba(0,168,132,.1)">· {{ p.No_Reg }}</span></p>
+                </div>
+                <div class="text-right hidden sm:block flex-shrink-0">
+                  <p class="text-xs font-semibold truncate max-w-[100px]" style="color:var(--text-primary)">{{ p.Dokter || '—' }}</p>
+                  <p class="text-xs truncate max-w-[100px] mt-0.5" style="color:var(--text-muted)">{{ p.Nama_RuangM || '—' }}</p>
+                </div>
+                <div class="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                  <div class="bk-arrow-btn"><svg class="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></div>
                 </div>
               </div>
             </div>
-          </template>
-        </div>
-      </div>
-      <div v-else class="mp-local-note">
-        <svg class="w-8 h-8 mb-3" style="color:var(--text-muted)" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-        </svg>
-        <p class="text-sm font-semibold" style="color:var(--text-secondary)">Mode Login Lokal</p>
-        <p class="text-xs mt-1" style="color:var(--text-muted)">Gunakan tombol "Buat Booking ICU Manual" di atas untuk mencari pasien.</p>
+          </div>
+        </template>
       </div>
     </div>
 
-    <!-- RIGHT: Filter + Riwayat BU -->
-    <div class="flex flex-col gap-4">
+    <!-- ── LOCAL mode note ── -->
+    <div v-else class="bk-local-note">
+      <svg class="w-8 h-8 mb-3" style="color:var(--text-muted)" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+      </svg>
+      <p class="text-sm font-semibold" style="color:var(--text-secondary)">Mode Login Lokal</p>
+      <p class="text-xs mt-1" style="color:var(--text-muted)">Gunakan tombol "Booking Baru" di atas untuk mencari pasien.</p>
+    </div>
 
-      <!-- Filter card -->
-      <div class="mp-filter-card">
-        <div class="flex items-center gap-2 mb-3">
-          <svg class="w-4 h-4" style="color:var(--text-accent)" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+    <!-- ── RIGHT COLUMN: tab list + detail ── -->
+    <div class="bk-panel bk-panel--right">
+
+      <!-- Tab bar + search + filter toggle -->
+      <div class="bk-tab-bar">
+        <div class="bk-tabs">
+          <button class="bk-tab" :class="activeTab==='aktif'?'bk-tab--active':''" @click="activeTab='aktif'; selectedItem=null">
+            Aktif
+            <span class="bk-tab-badge" :class="activeTab==='aktif'?'bk-tab-badge--active':''">{{ tabCounts.aktif }}</span>
+          </button>
+          <button class="bk-tab" :class="activeTab==='riwayat'?'bk-tab--active':''" @click="activeTab='riwayat'; selectedItem=null">
+            Riwayat
+            <span class="bk-tab-badge" :class="activeTab==='riwayat'?'bk-tab-badge--active':''">{{ tabCounts.riwayat }}</span>
+          </button>
+          <button class="bk-tab" :class="activeTab==='waiting_list'?'bk-tab--active':''" @click="activeTab='waiting_list'; selectedItem=null">
+            Waiting List
+            <span class="bk-tab-badge" :class="activeTab==='waiting_list'?'bk-tab-badge--active':''">{{ tabCounts.waiting_list }}</span>
+          </button>
+        </div>
+        <button class="bk-filter-toggle" :class="showFilter?'bk-filter-toggle--active':''" @click="showFilter=!showFilter" title="Filter">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/>
           </svg>
-          <p class="text-sm font-bold" style="color:var(--text-primary)">Filter Riwayat Booking ICU</p>
-        </div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-          <div>
-            <label class="mp-label">Status</label>
-            <select v-model="fStatus" @change="applyFilters" class="mp-select">
-              <option v-for="o in statusOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
-            </select>
-          </div>
-          <div>
-            <label class="mp-label">Cari Nama / No. MR</label>
-            <input v-model="fNama" @input="onNamaInput" placeholder="Nama / No. MR..." class="mp-input"/>
-          </div>
-          <!-- <div>
-            <label class="mp-label">Jaminan</label>
-            <select v-model="fJaminan" @change="applyFilters" class="mp-select">
-              <option value="">Semua Jaminan</option>
-              <option v-for="cb in masterCaraBayar" :key="cb.kode" :value="cb.kode">{{ cb.nama }}</option>
-            </select>
-          </div> -->
-          <div>
-            <label class="mp-label">Tgl Mulai</label>
-            <input v-model="fTglDari" @change="applyFilters" type="date" class="mp-input"/>
-          </div>
-          <div>
-            <label class="mp-label">Tgl Akhir</label>
-            <input v-model="fTglAkh" @change="applyFilters" type="date" :min="fTglDari" class="mp-input"/>
-          </div>
-        </div>
-        <!-- Preset + sort row -->
-        <div class="flex flex-wrap items-center gap-2">
-          <div class="flex gap-1 p-1 rounded-xl" style="background:var(--bg-input)">
-            <button v-for="p in [{l:'Hari ini',d:today,s:today},{l:'Kemarin',d:yesterday,s:yesterday},{l:'7 Hari',d:week7,s:today}]"
-              :key="p.l" @click="setPreset(p.d,p.s)"
-              class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all"
-              :style="fTglDari===p.d&&fTglAkh===p.s ? 'background:#fff;color:#00A884;box-shadow:0 1px 4px rgba(0,0,0,0.08)' : 'color:var(--text-muted)'">
-              {{ p.l }}
-            </button>
-          </div>
-          <div class="flex gap-2 flex-wrap">
-            <button v-for="col in [{key:'created_at',label:'Waktu'},{key:'status',label:'Status'}]" :key="col.key"
-              @click="toggleSort(col.key)" class="mp-sort-btn" :class="sortBy===col.key?'active':''">
-              {{ col.label }} {{ sortIcon(col.key) }}
-            </button>
-            <button v-if="fStatus||fNama||fTgl||fTglDari||fTglAkh||fJaminan" @click="resetFilter" class="mp-reset-btn">✕</button>
-          </div>
-        </div>
+          Filter
+          <span v-if="hasActiveFilter" class="bk-filter-dot"></span>
+        </button>
       </div>
-      <!-- Riwayat BU list -->
-      <div class="mp-panel mp-riwayat-panel">
-        <div class="mp-panel-header" style="padding-bottom:12px">
-          <div class="flex items-center justify-between">
-            <p class="text-sm font-bold" style="color:var(--text-primary)">Riwayat Booking ICU</p>
-            <span v-if="spriList.length" class="mp-count-badge">{{ spriList.length }}</span>
+
+      <!-- Search bar (always visible) -->
+      <div class="bk-search-wrap" style="padding:10px 14px 0">
+        <svg class="bk-search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
+        <input v-model="fNama" @input="onNamaInput" placeholder="Cari nama pasien atau No. MR..." class="bk-search"/>
+      </div>
+
+      <!-- Filter panel (collapsible) -->
+      <Transition name="slide-down">
+        <div v-if="showFilter" class="bk-filter-panel">
+          <div class="bk-filter-grid">
+            <div>
+              <label class="bk-label">Status</label>
+              <select v-model="fStatus" @change="applyFilters" class="bk-select">
+                <option v-for="o in statusOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="bk-label">Tgl Mulai</label>
+              <input v-model="fTglDari" @change="applyFilters" type="date" class="bk-input"/>
+            </div>
+            <div>
+              <label class="bk-label">Tgl Akhir</label>
+              <input v-model="fTglAkh" @change="applyFilters" type="date" :min="fTglDari" class="bk-input"/>
+            </div>
+          </div>
+          <!-- Preset buttons & sort -->
+          <div class="bk-filter-actions">
+            <div class="bk-preset-group">
+              <button v-for="p in [{l:'Hari ini',d:today,s:today},{l:'Kemarin',d:yesterday,s:yesterday},{l:'7 Hari',d:week7,s:today}]"
+                :key="p.l" @click="setPreset(p.d,p.s)" class="bk-preset-btn"
+                :class="fTglDari===p.d&&fTglAkh===p.s?'bk-preset-btn--active':''">
+                {{ p.l }}
+              </button>
+            </div>
+            <div class="flex items-center gap-2">
+              <button v-for="col in [{key:'created_at',label:'Waktu'},{key:'status',label:'Status'}]" :key="col.key"
+                @click="toggleSort(col.key)" class="bk-sort-btn" :class="sortBy===col.key?'bk-sort-btn--active':''">
+                {{ col.label }} {{ sortIcon(col.key) }}
+              </button>
+              <button v-if="hasActiveFilter" @click="resetFilter" class="bk-reset-btn">
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                Reset
+              </button>
+            </div>
           </div>
         </div>
+      </Transition>
 
-        <!-- Empty -->
-        <div v-if="!spriList.length" class="mp-empty" style="padding:48px 16px">
-          <div class="mp-empty-icon">
-            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+      <!-- List + detail panel side-by-side -->
+      <div class="bk-content">
+
+        <!-- Booking list -->
+        <div class="bk-list" :class="selectedItem ? 'bk-list--narrow' : ''">
+
+          <!-- Table header -->
+          <div class="bk-list-header">
+            <span>PASIEN</span>
+            <span>CHECK IN / CHECK OUT</span>
+            <span>JAMINAN</span>
+            <span>STATUS</span>
+            <span></span>
+          </div>
+
+          <!-- Empty state -->
+          <div v-if="!tabList.length" class="bk-empty" style="padding:48px 16px">
+            <svg class="w-8 h-8 mb-2" style="color:var(--text-muted)" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
             </svg>
+            <p class="text-sm font-semibold" style="color:var(--text-secondary)">Belum ada data</p>
+            <p class="text-xs mt-1" style="color:var(--text-muted)">
+              {{ activeTab==='aktif' ? (isSSO ? 'Pilih pasien dari daftar kiri.' : 'Klik Booking Baru untuk memulai.') : 'Tidak ada data untuk tab ini.' }}
+            </p>
           </div>
-          <p class="text-sm font-semibold" style="color:var(--text-secondary)">Belum ada Booking ICU</p>
-          <p class="text-xs mt-1" style="color:var(--text-muted)">{{ isSSO ? 'Pilih pasien di daftar kiri untuk request.' : 'Klik Buat Booking ICU Manual untuk membuat.' }}</p>
+
+          <!-- Rows -->
+          <div v-for="item in tabList" :key="`row-${item.id}`"
+            class="bk-row" :class="selectedItem?.id===item.id ? 'bk-row--active' : ''"
+            @click="selectDetail(item)">
+            <div>
+              <p class="bk-row-name">{{ item.nama_pasien }}</p>
+              <p class="bk-row-mr">{{ item.No_MR }}</p>
+            </div>
+            <div>
+              <p class="bk-row-date">{{ item.checkin_fmt ?? item.created_at_fmt }}</p>
+              <p class="bk-row-date-sub">{{ item.checkout_fmt ?? '—' }}</p>
+            </div>
+            <div class="bk-row-jaminan">{{ item.cara_bayar ?? item.jaminan ?? '—' }}</div>
+            <div>
+              <span class="bk-pill" :style="`background:${ss(item.status).bg};color:${ss(item.status).color}`">
+                <span class="bk-pill-dot" :style="`background:${ss(item.status).dot}`"></span>
+                {{ item.status_label }}
+              </span>
+            </div>
+            <div class="bk-row-chevron" :style="selectedItem?.id===item.id?'color:#00A884':''">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+              </svg>
+            </div>
+          </div>
         </div>
 
-        <!-- List -->
-        <div v-else class="mp-riwayat-list">
-          <div v-for="item in spriList" :key="`hist-${item.id}`" class="mp-riwayat-item"
-            :style="`border-left-color:${ss(item.status).dot}`">
-            <!-- Top row -->
-            <div class="flex justify-between items-start mb-2 gap-2">
+        <!-- Detail panel (inline, slide in) -->
+        <Transition name="slide-left">
+          <div v-if="selectedItem" class="bk-detail">
+            <div class="bk-detail-head">
+              <span class="text-xs font-bold uppercase tracking-wider" style="color:var(--text-muted)">Detail Booking</span>
+              <button class="bk-detail-close" @click="selectedItem=null">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+
+            <!-- Patient -->
+            <div class="bk-detail-patient">
+              <div class="bk-detail-av" :style="`background:${gColor(selectedItem.jenis_kelamin)}15;color:${gColor(selectedItem.jenis_kelamin)}`">
+                {{ gIcon(selectedItem.jenis_kelamin) }}{{ (selectedItem.nama_pasien||'').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() }}
+              </div>
               <div>
-                <span class="mp-status-pill" :style="`background:${ss(item.status).bg};color:${ss(item.status).color}`">
-                  <span class="w-1.5 h-1.5 rounded-full" :style="`background:${ss(item.status).color}`"></span>
-                  {{ item.status_label }}
+                <p class="bk-detail-name">{{ selectedItem.nama_pasien }}</p>
+                <p class="bk-detail-mr">{{ selectedItem.No_MR }}</p>
+                <span class="bk-pill mt-1 inline-flex" :style="`background:${ss(selectedItem.status).bg};color:${ss(selectedItem.status).color}`">
+                  <span class="bk-pill-dot" :style="`background:${ss(selectedItem.status).dot}`"></span>
+                  {{ selectedItem.status_label }}
                 </span>
-                <!-- Waiting list estimasi -->
-                <p v-if="item.status === 'waiting_list' && item.waiting_estimasi_fmt"
-                  class="text-xs mt-1 font-mono flex items-center gap-1" style="color:#D97706">
-                  <svg class="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                  </svg>
-                  Est. {{ item.waiting_estimasi_fmt }}
-                </p>
-              </div>
-              <span class="text-xs font-mono" style="color:var(--text-muted)">{{ item.created_at_fmt }}</span>
-            </div>
-            <!-- Patient row -->
-            <div class="flex items-center gap-2.5 mb-3">
-              <div class="mp-riwayat-av" :style="`background:${gColor(item.jenis_kelamin)}18;color:${gColor(item.jenis_kelamin)}`">
-                {{ gIcon(item.jenis_kelamin) }}
-              </div>
-              <div class="min-w-0 flex-1">
-                <p class="text-sm font-bold truncate" style="color:var(--text-primary)">{{ item.nama_pasien }}</p>
-                <p class="text-xs font-mono mt-0.5" style="color:var(--text-muted)">{{ item.No_MR }} · {{ item.No_Reg }}</p>
               </div>
             </div>
-            <!-- Progress steps -->
-            <div class="flex items-center justify-between px-2 mb-3">
-              <div v-for="(step, idx) in [{id:'pending_icu',label:'ICU'},{id:'bed_verified',label:'Selesai'}]"
-                :key="step.id" class="flex flex-col items-center flex-1 relative">
-                <div v-if="idx < 1" class="absolute top-2.5 left-1/2 w-full h-0.5"
-                  :style="`background:${item.status==='bed_verified'?'#00A884':'#e2e8f0'}`"></div>
-                <div class="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold z-10 relative"
-                  :style="`background:${item.status===step.id?ss(item.status).color:item.status==='bed_verified'?'#00A884':'#cbd5e1'};color:white`">
-                  {{ idx+1 }}
-                </div>
-                <span class="text-xs mt-1 font-semibold" :style="`color:${item.status===step.id?ss(item.status).color:'#94a3b8'}`">{{ step.label }}</span>
-              </div>
-            </div>
-            <!-- Detail card -->
-            <div class="mp-riwayat-detail">
-              <div class="grid grid-cols-2 gap-3">
+
+            <div class="bk-divider"></div>
+
+            <!-- Jadwal -->
+            <div class="bk-detail-section">
+              <p class="bk-section-title">Jadwal</p>
+              <div class="bk-detail-grid">
                 <div>
-                  <p class="mp-detail-label">Diagnosa</p>
-                  <p class="mp-detail-val truncate" :title="item.Diagnosis">{{ item.Diagnosis ?? '—' }}</p>
-                  <p class="mp-detail-sub truncate" :title="item.IndikasiRI">{{ item.IndikasiRI ?? '—' }}</p>
+                  <p class="bk-field-label">Check In</p>
+                  <p class="bk-field-val">{{ selectedItem.checkin_fmt ?? selectedItem.created_at_fmt ?? '—' }}</p>
                 </div>
                 <div>
-                  <p class="mp-detail-label">Asal / DPJP</p>
-                  <p class="mp-detail-val truncate">{{ item.asal_ruang ?? '—' }}</p>
-                  <p class="mp-detail-sub truncate">{{ item.Dokter ?? '—' }}</p>
+                  <p class="bk-field-label">Check Out</p>
+                  <p class="bk-field-val">{{ selectedItem.checkout_fmt ?? '—' }}</p>
                 </div>
               </div>
-              <div v-if="item.nama_bed || item.catatan_admisi || item.alasan_tolak || item.status === 'waiting_list'" class="mt-2 pt-2 border-t" style="border-color:var(--border-default)">
-                <span v-if="item.nama_bed" class="mp-bed-badge">
-                  🏥 {{ item.nama_bed }}{{ item.kebutuhan_bed ? ' · '+item.kebutuhan_bed : '' }}
-                </span>
-                <p v-if="item.catatan_admisi" class="text-xs mt-1" style="color:var(--text-secondary)">
-                  <span class="font-semibold">Catatan:</span> {{ item.catatan_admisi }}
-                </p>
-                <p v-if="item.alasan_tolak" class="text-xs mt-1 font-semibold" style="color:#E74C3C">
-                  <span style="color:#ef4444">Tolak:</span> {{ item.alasan_tolak }}
-                </p>
-                <!-- Waiting List Banner di kartu item -->
-                <div v-if="item.status === 'waiting_list'" class="mt-2 rounded-lg overflow-hidden" style="border:1.5px solid #FCD34D">
-                  <div class="flex items-center gap-2 px-3 py-2" style="background:#FEF3C7">
+            </div>
+
+            <div class="bk-divider"></div>
+
+            <!-- Klinis -->
+            <div class="bk-detail-section">
+              <p class="bk-section-title">Klinis</p>
+              <div class="mb-2">
+                <p class="bk-field-label">Diagnosis</p>
+                <p class="bk-field-val">{{ selectedItem.Diagnosis ?? '—' }}</p>
+                <p class="bk-field-sub">{{ selectedItem.IndikasiRI ?? '' }}</p>
+              </div>
+              <div>
+                <p class="bk-field-label">DPJP / Spesialis</p>
+                <p class="bk-field-val">{{ selectedItem.Dokter ?? '—' }}</p>
+                <p class="bk-field-sub">{{ selectedItem.asal_ruang ?? '' }}</p>
+              </div>
+            </div>
+
+            <!-- Bed ICU (if assigned) -->
+            <template v-if="selectedItem.nama_bed">
+              <div class="bk-divider"></div>
+              <div class="bk-detail-section">
+                <p class="bk-section-title">Bed ICU</p>
+                <div>
+                  <p class="bk-field-label">Kamar</p>
+                  <p class="bk-field-val" style="color:#00A884;font-weight:700">{{ selectedItem.nama_bed }}</p>
+                  <p v-if="selectedItem.kebutuhan_bed" class="bk-field-sub">{{ selectedItem.kebutuhan_bed }}</p>
+                </div>
+              </div>
+            </template>
+
+            <!-- Waiting list info -->
+            <template v-if="selectedItem.status==='waiting_list' && (selectedItem.waiting_alasan || selectedItem.waiting_estimasi_fmt)">
+              <div class="bk-divider"></div>
+              <div class="bk-detail-section">
+                <div class="bk-waiting-banner">
+                  <div class="bk-waiting-banner-head">
                     <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="#D97706" stroke-width="2.5">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                     </svg>
-                    <p class="text-xs font-bold" style="color:#D97706">Masuk Waiting List ICU</p>
+                    <span class="text-xs font-bold" style="color:#D97706">Masuk Waiting List</span>
                   </div>
-                  <div class="px-3 py-2 space-y-1" style="background:#FFFBEB">
-                    <p v-if="item.waiting_alasan" class="text-xs" style="color:#78350F">{{ item.waiting_alasan }}</p>
-                    <div v-if="item.waiting_estimasi_fmt" class="flex items-center gap-1.5">
-                      <svg class="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="#D97706" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                      </svg>
-                      <p class="text-xs font-bold font-mono" style="color:#D97706">Est. {{ item.waiting_estimasi_fmt }}</p>
-                    </div>
-                  </div>
+                  <p v-if="selectedItem.waiting_alasan" class="text-xs mt-1" style="color:#78350F">{{ selectedItem.waiting_alasan }}</p>
+                  <p v-if="selectedItem.waiting_estimasi_fmt" class="text-xs font-bold font-mono mt-1" style="color:#D97706">Est. {{ selectedItem.waiting_estimasi_fmt }}</p>
                 </div>
               </div>
-            </div>
+            </template>
+
+            <!-- Alasan tolak -->
+            <template v-if="selectedItem.alasan_tolak">
+              <div class="bk-divider"></div>
+              <div class="bk-detail-section">
+                <p class="bk-section-title">Alasan Ditolak</p>
+                <p class="text-xs font-semibold" style="color:#E74C3C">{{ selectedItem.alasan_tolak }}</p>
+              </div>
+            </template>
+
+            <!-- Catatan -->
+            <template v-if="selectedItem.catatan_admisi">
+              <div class="bk-divider"></div>
+              <div class="bk-detail-section">
+                <p class="bk-section-title">Catatan Admisi</p>
+                <p class="text-xs" style="color:var(--text-secondary)">{{ selectedItem.catatan_admisi }}</p>
+              </div>
+            </template>
+
           </div>
-        </div>
-      </div>
-    </div>
-  </div>
+        </Transition>
+
+      </div><!-- /bk-content -->
+    </div><!-- /bk-panel--right -->
+
+  </div><!-- /bk-main -->
 </div>
 
 <!-- ══ MODAL BU ══════════════════════════════════════════════ -->
@@ -725,88 +788,195 @@ const canSubmit  = computed(() =>
 </template>
 
 <style scoped>
+/* ══ BASE ══════════════════════════════════════════════════════════════════ */
 .mp-wrap { min-height:100%; background:var(--bg-main); font-family:'Inter','Plus Jakarta Sans',sans-serif; padding:20px 16px; }
 @media (min-width:640px) { .mp-wrap { padding:20px 24px; } }
 
-/* ── Hero ────────────────────────────────────────────────────────────────── */
-.db-hero {
-  background:#00A884;
-  border-radius:16px; padding:22px 28px 18px; position:relative; overflow:hidden;
-  border:1px solid rgba(255,255,255,.1); box-shadow:0 12px 32px rgba(0,168,132,.15);
-  display:grid; grid-template-columns:1fr; gap:18px; align-items:center;
-}
-@media(min-width:860px){ .db-hero { grid-template-columns:1fr auto; } }
-.db-hero::before { content:''; position:absolute; width:260px; height:260px; border-radius:50%; right:-80px; top:-100px; background:radial-gradient(circle,rgba(255,255,255,.1),transparent); pointer-events:none; }
-.db-hero-copy { position:relative; z-index:2; }
-.db-hero-logo { width:44px; height:44px; border-radius:13px; background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.22); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-.db-hero-vis { position:relative; min-height:140px; min-width:200px; align-self:center; display:none; }
-@media(min-width:860px){ .db-hero-vis { display:block; } }
-.db-char {
-  position:absolute; right:0; bottom:-16px; width:min(200px,100%); aspect-ratio:1;
-}
+/* ══ HERO HEADER ═══════════════════════════════════════════════════════════ */
+.bk-hero { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
+  background:#00A884; border-radius:14px; padding:16px 20px;
+  box-shadow:0 4px 20px rgba(0,168,132,.2); }
+.bk-hero-left { display:flex; align-items:center; gap:14px; }
+.bk-hero-logo { width:44px; height:44px; border-radius:12px; background:rgba(255,255,255,.18);
+  border:1px solid rgba(255,255,255,.22); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.bk-hero-sub { font-size:11px; color:rgba(255,255,255,.65); font-weight:500; margin-bottom:2px; }
+.bk-hero-title { font-size:clamp(18px,3vw,24px); font-weight:900; color:#fff; letter-spacing:-.02em; line-height:1.1; }
+.bk-btn-new { display:flex; align-items:center; gap:7px; padding:9px 16px; border-radius:10px;
+  background:#fff; color:#00A884; font-size:13px; font-weight:700; border:none; cursor:pointer;
+  box-shadow:0 2px 10px rgba(0,0,0,.12); transition:all .15s; white-space:nowrap; flex-shrink:0; }
+.bk-btn-new:hover { transform:translateY(-1px); box-shadow:0 4px 16px rgba(0,0,0,.15); }
 
-/* Main grid */
-.mp-main-grid { display:grid; grid-template-columns:1fr; gap:20px; }
-@media (min-width:1024px) { .mp-main-grid { grid-template-columns:1fr 1fr; } }
+/* ══ SUMMARY CARDS ═════════════════════════════════════════════════════════ */
+.bk-summary-row { display:flex; gap:10px; flex-wrap:wrap; }
+.bk-card { flex:1; min-width:100px; background:var(--bg-card); border:1px solid var(--border-default);
+  border-radius:12px; padding:12px 14px; text-align:left; cursor:pointer;
+  transition:all .2s; box-shadow:var(--shadow-card); }
+.bk-card:hover { transform:translateY(-2px); box-shadow:0 6px 20px rgba(0,0,0,.08); }
+.bk-card--active { border-color:var(--card-color) !important; box-shadow:0 0 0 3px color-mix(in srgb, var(--card-color) 12%, transparent) !important; }
+.bk-card-num { font-size:24px; font-weight:900; color:var(--text-primary); font-family:'DM Mono',monospace; line-height:1.1; }
+.bk-card-label { font-size:10px; font-weight:600; color:var(--text-secondary); margin-top:3px; }
 
-/* Panel */
-.mp-panel { background:var(--bg-card); border-radius:16px; border:1px solid var(--border-default); box-shadow:var(--shadow-card); overflow:hidden; display:flex; flex-direction:column; }
-.mp-pasien-panel { height:620px; }
-.mp-riwayat-panel { flex:1; min-height:400px; }
-.mp-panel-header { padding:14px 16px; border-bottom:1px solid var(--border-default); background:var(--bg-surface); flex-shrink:0; }
-.mp-panel-icon { width:34px; height:34px; border-radius:10px; background:rgba(0,168,132,.1); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+/* ══ MAIN LAYOUT ═══════════════════════════════════════════════════════════ */
+.bk-main { display:grid; grid-template-columns:1fr; gap:16px; }
+@media(min-width:1024px) { .bk-main { grid-template-columns:300px 1fr; } }
 
-/* Search */
-.mp-search-input { width:100%; padding:9px 12px 9px 36px; border:1.5px solid var(--border-default); border-radius:11px; font-size:13px; color:var(--text-primary); background:var(--bg-input); outline:none; transition:border-color .2s; }
-.mp-search-input:focus { border-color:#00A884; box-shadow:0 0 0 3px rgba(0,168,132,.1); }
+/* ══ PANELS ════════════════════════════════════════════════════════════════ */
+.bk-panel { background:var(--bg-card); border:1px solid var(--border-default);
+  border-radius:14px; box-shadow:var(--shadow-card); overflow:hidden; display:flex; flex-direction:column; }
+.bk-panel--left { height:600px; }
+.bk-panel--right { min-height:500px; }
+.bk-panel-head { padding:14px 14px 10px; border-bottom:1px solid var(--border-default); background:var(--bg-surface); flex-shrink:0; }
+.bk-panel-icon { width:32px; height:32px; border-radius:9px; background:rgba(0,168,132,.1);
+  display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.bk-panel-body { flex:1; overflow-y:auto; padding:10px; }
 
-/* Pasien list */
-.mp-pasien-list { overflow-y:auto; flex:1; padding:12px; background:rgba(248,250,252,0.5); }
-.mp-ruang-header { padding:6px 12px; border-radius:9px; display:flex; align-items:center; gap:6px; margin-bottom:8px; background:rgba(255,255,255,0.9); border:1px solid var(--border-default); backdrop-filter:blur(8px); position:sticky; top:0; z-index:5; }
-.mp-ruang-count { font-size:9px; font-weight:700; padding:2px 6px; border-radius:20px; background:rgba(0,168,132,.1); color:#00A884; }
-.mp-pasien-item { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:12px; cursor:pointer; border:1px solid var(--border-default); background:var(--bg-surface); transition:all .15s; }
-.mp-pasien-item:hover { transform:translateY(-1px); border-color:rgba(0,168,132,.35); box-shadow:0 4px 12px rgba(0,0,0,.05); }
-.mp-pasien-av { width:38px; height:38px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:700; flex-shrink:0; }
-.mp-arrow-btn { width:26px; height:26px; border-radius:8px; background:#00A884; display:flex; align-items:center; justify-content:center; }
+/* ══ SEARCH ════════════════════════════════════════════════════════════════ */
+.bk-search-wrap { position:relative; }
+.bk-search-icon { position:absolute; left:10px; top:50%; transform:translateY(-50%);
+  width:15px; height:15px; color:var(--text-muted); }
+.bk-search { width:100%; padding:9px 12px 9px 34px; border:1.5px solid var(--border-default);
+  border-radius:10px; font-size:13px; color:var(--text-primary); background:var(--bg-input);
+  outline:none; transition:border-color .2s; }
+.bk-search:focus { border-color:#00A884; box-shadow:0 0 0 3px rgba(0,168,132,.1); }
 
-/* Local note */
-.mp-local-note { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:48px 24px; background:var(--bg-card); border-radius:16px; border:1px solid var(--border-default); text-align:center; }
+/* ══ PASIEN BANGSAL LIST ═══════════════════════════════════════════════════ */
+.bk-ruang-head { display:flex; align-items:center; gap:6px; padding:5px 10px; border-radius:8px;
+  background:rgba(255,255,255,.9); border:1px solid var(--border-default);
+  position:sticky; top:0; z-index:5; margin-bottom:6px; }
+.bk-ruang-count { font-size:9px; font-weight:700; padding:2px 6px; border-radius:20px;
+  background:rgba(0,168,132,.1); color:#00A884; }
+.bk-pasien-row { display:flex; align-items:center; gap:9px; padding:9px 10px; border-radius:10px;
+  cursor:pointer; border:1px solid var(--border-default); background:var(--bg-surface);
+  transition:all .15s; margin-bottom:4px; }
+.bk-pasien-row:hover { border-color:rgba(0,168,132,.3); box-shadow:0 3px 10px rgba(0,0,0,.05); transform:translateY(-1px); }
+.bk-av { width:36px; height:36px; border-radius:10px; display:flex; align-items:center; justify-content:center;
+  font-size:14px; font-weight:700; flex-shrink:0; }
+.bk-arrow-btn { width:24px; height:24px; border-radius:7px; background:#00A884;
+  display:flex; align-items:center; justify-content:center; }
 
-/* Filter */
-.mp-filter-card { background:var(--bg-card); border-radius:14px; border:1px solid var(--border-default); padding:16px; box-shadow:var(--shadow-card); }
-.mp-label { display:block; font-size:11px; font-weight:600; color:var(--text-muted); margin-bottom:6px; text-transform:uppercase; letter-spacing:.05em; }
-.mp-input { width:100%; padding:9px 12px; border:1.5px solid var(--border-default); border-radius:11px; font-size:13px; color:var(--text-primary); background:var(--bg-input); outline:none; transition:border-color .2s; }
-.mp-input:focus { border-color:#00A884; }
-.mp-select { width:100%; padding:9px 12px; border:1.5px solid var(--border-default); border-radius:11px; font-size:13px; color:var(--text-primary); background:var(--bg-input); outline:none; }
-.mp-textarea { width:100%; padding:9px 12px; border:1.5px solid var(--border-default); border-radius:11px; font-size:13px; color:var(--text-primary); background:var(--bg-input); outline:none; resize:none; }
-.mp-sort-btn { flex:1; font-size:11px; font-weight:600; padding:8px 6px; border-radius:9px; border:1.5px solid var(--border-default); cursor:pointer; transition:all .15s; background:var(--bg-input); color:var(--text-secondary); }
-.mp-sort-btn.active { background:rgba(0,168,132,.12); color:#00A884; border-color:rgba(0,168,132,.3); }
-.mp-reset-btn { padding:8px 10px; border-radius:9px; background:#FEF2F2; color:#DC2626; border:1.5px solid rgba(220,38,38,.15); cursor:pointer; font-weight:700; font-size:12px; }
+/* ══ LOCAL NOTE ════════════════════════════════════════════════════════════ */
+.bk-local-note { display:flex; flex-direction:column; align-items:center; justify-content:center;
+  padding:48px 24px; background:var(--bg-card); border-radius:14px; border:1px solid var(--border-default);
+  text-align:center; }
 
-/* Count badge */
-.mp-count-badge { background:#ECFDF5; color:#00A884; font-size:11px; font-weight:700; padding:2px 8px; border-radius:20px; }
+/* ══ TABS ══════════════════════════════════════════════════════════════════ */
+.bk-tab-bar { display:flex; align-items:center; justify-content:space-between; padding:0 14px;
+  border-bottom:1px solid var(--border-default); background:var(--bg-surface); flex-shrink:0; }
+.bk-tabs { display:flex; gap:0; }
+.bk-tab { padding:12px 14px; font-size:13px; font-weight:500; color:var(--text-secondary);
+  border:none; background:transparent; cursor:pointer; border-bottom:2px solid transparent;
+  margin-bottom:-1px; display:flex; align-items:center; gap:6px; transition:all .15s; }
+.bk-tab:hover:not(.bk-tab--active) { color:var(--text-primary); }
+.bk-tab--active { color:#00A884; border-bottom-color:#00A884; font-weight:700; }
+.bk-tab-badge { font-size:10px; font-weight:700; padding:2px 7px; border-radius:20px;
+  background:var(--bg-input); color:var(--text-secondary); }
+.bk-tab-badge--active { background:rgba(0,168,132,.12); color:#00A884; }
+.bk-filter-toggle { display:flex; align-items:center; gap:5px; padding:7px 11px; border-radius:8px;
+  border:1.5px solid var(--border-default); background:var(--bg-input); cursor:pointer;
+  font-size:12px; font-weight:600; color:var(--text-secondary); transition:all .15s; position:relative; }
+.bk-filter-toggle:hover { border-color:#00A884; color:#00A884; }
+.bk-filter-toggle--active { border-color:#00A884; color:#00A884; background:rgba(0,168,132,.07); }
+.bk-filter-dot { position:absolute; top:5px; right:5px; width:7px; height:7px;
+  border-radius:50%; background:#E74C3C; border:1.5px solid white; }
 
-/* Riwayat */
-.mp-riwayat-list { overflow-y:auto; flex:1; }
-.mp-riwayat-item { padding:14px 16px; border-left:4px solid transparent; border-bottom:1px solid var(--border-default); transition:background .12s; }
-.mp-riwayat-item:hover { background:var(--bg-row-hover); }
-.mp-status-pill { display:inline-flex; align-items:center; gap:5px; font-size:10px; font-weight:700; padding:4px 10px; border-radius:20px; }
-.mp-riwayat-av { width:34px; height:34px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; flex-shrink:0; }
-.mp-riwayat-detail { background:var(--bg-surface); border:1px solid var(--border-default); border-radius:10px; padding:10px 12px; }
-.mp-detail-label { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted); margin-bottom:3px; }
-.mp-detail-val { font-size:12px; font-weight:600; color:var(--text-primary); }
-.mp-detail-sub { font-size:11px; color:var(--text-secondary); margin-top:2px; }
-.mp-bed-badge { display:inline-block; font-size:10px; font-weight:700; color:#059669; background:#ECFDF5; padding:3px 8px; border-radius:8px; border:1px solid rgba(16,185,129,.2); }
+/* ══ FILTER PANEL ══════════════════════════════════════════════════════════ */
+.bk-filter-panel { padding:12px 14px; border-bottom:1px solid var(--border-default);
+  background:rgba(0,168,132,.03); flex-shrink:0; }
+.bk-filter-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:10px; }
+@media(max-width:640px) { .bk-filter-grid { grid-template-columns:1fr; } }
+.bk-label { display:block; font-size:10px; font-weight:700; color:var(--text-muted);
+  margin-bottom:5px; text-transform:uppercase; letter-spacing:.05em; }
+.bk-input { width:100%; padding:8px 11px; border:1.5px solid var(--border-default);
+  border-radius:9px; font-size:13px; color:var(--text-primary); background:var(--bg-input);
+  outline:none; transition:border-color .2s; }
+.bk-input:focus { border-color:#00A884; }
+.bk-select { width:100%; padding:8px 11px; border:1.5px solid var(--border-default);
+  border-radius:9px; font-size:13px; color:var(--text-primary); background:var(--bg-input); outline:none; }
+.bk-filter-actions { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; }
+.bk-preset-group { display:flex; gap:2px; padding:3px; border-radius:9px; background:var(--bg-input); }
+.bk-preset-btn { padding:5px 10px; border-radius:7px; border:none; font-size:11px; font-weight:600;
+  cursor:pointer; background:transparent; color:var(--text-muted); transition:all .15s; }
+.bk-preset-btn--active { background:#fff; color:#00A884; box-shadow:0 1px 4px rgba(0,0,0,.08); }
+.bk-sort-btn { font-size:11px; font-weight:600; padding:6px 10px; border-radius:8px;
+  border:1.5px solid var(--border-default); cursor:pointer; background:var(--bg-input);
+  color:var(--text-secondary); transition:all .15s; }
+.bk-sort-btn--active { background:rgba(0,168,132,.1); color:#00A884; border-color:rgba(0,168,132,.3); }
+.bk-reset-btn { display:flex; align-items:center; gap:5px; padding:6px 10px; border-radius:8px;
+  background:#FEF2F2; color:#DC2626; border:1.5px solid rgba(220,38,38,.15);
+  cursor:pointer; font-size:11px; font-weight:700; }
 
-/* Empty */
-.mp-empty { display:flex; flex-direction:column; align-items:center; gap:8px; text-align:center; }
-.mp-empty-icon { width:44px; height:44px; border-radius:12px; background:var(--bg-input); display:flex; align-items:center; justify-content:center; color:var(--text-muted); }
-.mp-empty-icon svg { width:22px; height:22px; }
+/* ══ CONTENT (list + detail) ═══════════════════════════════════════════════ */
+.bk-content { display:flex; flex:1; overflow:hidden; min-height:0; }
+.bk-list { flex:1; overflow-y:auto; display:flex; flex-direction:column; transition:all .2s; min-width:0; }
+.bk-list--narrow { flex:0 0 55%; }
 
-/* Modal */
+/* ══ TABLE HEADER ══════════════════════════════════════════════════════════ */
+.bk-list-header { display:grid; grid-template-columns:1fr 130px 70px 100px 28px;
+  padding:8px 14px; font-size:10px; font-weight:700; color:var(--text-muted);
+  text-transform:uppercase; letter-spacing:.06em; border-bottom:1px solid var(--border-default);
+  background:var(--bg-surface); flex-shrink:0; }
+@media(max-width:768px) { .bk-list-header { grid-template-columns:1fr 90px 90px 28px; }
+  .bk-list-header span:nth-child(3) { display:none; } }
+
+/* ══ ROWS ══════════════════════════════════════════════════════════════════ */
+.bk-row { display:grid; grid-template-columns:1fr 130px 70px 100px 28px;
+  padding:11px 14px; border-bottom:1px solid var(--border-default); cursor:pointer;
+  align-items:center; transition:background .12s; }
+.bk-row:hover { background:var(--bg-row-hover); }
+.bk-row--active { background:rgba(0,168,132,.05) !important; border-left:3px solid #00A884; padding-left:11px; }
+@media(max-width:768px) { .bk-row { grid-template-columns:1fr 90px 90px 28px; }
+  .bk-row > div:nth-child(3) { display:none; } }
+.bk-row-name { font-size:13px; font-weight:700; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.bk-row-mr { font-size:10px; color:var(--text-muted); font-family:'DM Mono',monospace; margin-top:1px; }
+.bk-row-date { font-size:11px; color:var(--text-primary); }
+.bk-row-date-sub { font-size:10px; color:var(--text-muted); margin-top:1px; }
+.bk-row-jaminan { font-size:12px; color:var(--text-secondary); }
+.bk-row-chevron { display:flex; justify-content:flex-end; color:var(--text-muted); }
+
+/* ══ STATUS PILL ═══════════════════════════════════════════════════════════ */
+.bk-pill { display:inline-flex; align-items:center; gap:4px;
+  font-size:10px; font-weight:700; padding:4px 9px; border-radius:20px; }
+.bk-pill-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+
+/* ══ DETAIL PANEL ══════════════════════════════════════════════════════════ */
+.bk-detail { width:45%; border-left:1px solid var(--border-default); background:var(--bg-surface);
+  overflow-y:auto; flex-shrink:0; display:flex; flex-direction:column; }
+.bk-detail-head { display:flex; align-items:center; justify-content:space-between;
+  padding:11px 14px; border-bottom:1px solid var(--border-default); flex-shrink:0; }
+.bk-detail-close { background:var(--bg-input); border:1px solid var(--border-default);
+  border-radius:7px; color:var(--text-secondary); cursor:pointer; width:26px; height:26px;
+  display:flex; align-items:center; justify-content:center; transition:all .15s; }
+.bk-detail-close:hover { background:var(--bg-card); color:var(--text-primary); }
+.bk-detail-patient { display:flex; align-items:flex-start; gap:10px; padding:14px; }
+.bk-detail-av { width:40px; height:40px; border-radius:11px; display:flex; align-items:center;
+  justify-content:center; font-size:11px; font-weight:700; flex-shrink:0; letter-spacing:-.5px; }
+.bk-detail-name { font-size:14px; font-weight:700; color:var(--text-primary); }
+.bk-detail-mr { font-size:11px; color:var(--text-muted); font-family:'DM Mono',monospace; margin-top:1px; }
+.bk-divider { height:1px; background:var(--border-default); }
+.bk-detail-section { padding:12px 14px; }
+.bk-section-title { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.07em;
+  color:var(--text-muted); margin-bottom:8px; }
+.bk-detail-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.bk-field-label { font-size:9px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; margin-bottom:2px; }
+.bk-field-val { font-size:13px; font-weight:600; color:var(--text-primary); }
+.bk-field-sub { font-size:11px; color:var(--text-secondary); margin-top:1px; }
+.bk-waiting-banner { border-radius:9px; overflow:hidden; border:1.5px solid #FCD34D; }
+.bk-waiting-banner-head { display:flex; align-items:center; gap:6px; padding:7px 10px; background:#FEF3C7; }
+
+/* ══ EMPTY ═════════════════════════════════════════════════════════════════ */
+.bk-empty { display:flex; flex-direction:column; align-items:center; gap:8px; text-align:center;
+  padding:48px 16px; }
+
+/* ══ TRANSITIONS ═══════════════════════════════════════════════════════════ */
+.slide-down-enter-active, .slide-down-leave-active { transition:all .2s ease; }
+.slide-down-enter-from, .slide-down-leave-to { opacity:0; transform:translateY(-8px); }
+.slide-left-enter-active, .slide-left-leave-active { transition:all .2s ease; }
+.slide-left-enter-from, .slide-left-leave-to { opacity:0; transform:translateX(12px); }
+
+/* ══ MODAL (unchanged) ══════════════════════════════════════════════════════ */
 .mp-modal-overlay { position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center; padding:16px; background:rgba(0,0,0,.6); backdrop-filter:blur(4px); }
 .mp-modal { width:100%; max-width:680px; max-height:92vh; overflow-y:auto; border-radius:20px; background:var(--bg-sidebar,#fff); border:1px solid var(--border-default); box-shadow:0 24px 64px rgba(0,0,0,.3); position:sticky; top:0; }
-.mp-modal-header-banner { display:flex; align-items:center; gap:10px; padding:14px 20px; background:linear-gradient(90deg,#00A884,#00A884); border-radius:20px 20px 0 0; }
+.mp-modal-header-banner { display:flex; align-items:center; gap:10px; padding:14px 20px; background:#00A884; border-radius:20px 20px 0 0; }
 .mp-modal-sub-header { display:flex; align-items:center; justify-content:space-between; padding:10px 20px; border-bottom:1px solid var(--border-default); background:var(--bg-surface); }
 .mp-modal-close { padding:6px; border-radius:9px; background:var(--bg-input); border:1px solid var(--border-default); cursor:pointer; color:var(--text-secondary); transition:all .15s; }
 .mp-modal-close:hover { background:var(--bg-card-hover); }
@@ -824,4 +994,9 @@ const canSubmit  = computed(() =>
 .mp-btn-cancel { font-size:13px; font-weight:600; padding:10px 18px; border-radius:11px; background:var(--bg-input); color:var(--text-secondary); border:1px solid var(--border-default); cursor:pointer; }
 .mp-btn-submit { font-size:13px; font-weight:700; padding:10px 22px; border-radius:11px; color:#fff; border:none; cursor:pointer; transition:all .15s; }
 .mp-btn-submit:disabled { cursor:not-allowed; }
+.mp-label { display:block; font-size:11px; font-weight:600; color:var(--text-muted); margin-bottom:6px; text-transform:uppercase; letter-spacing:.05em; }
+.mp-input { width:100%; padding:9px 12px; border:1.5px solid var(--border-default); border-radius:11px; font-size:13px; color:var(--text-primary); background:var(--bg-input); outline:none; transition:border-color .2s; }
+.mp-input:focus { border-color:#00A884; }
+.mp-select { width:100%; padding:9px 12px; border:1.5px solid var(--border-default); border-radius:11px; font-size:13px; color:var(--text-primary); background:var(--bg-input); outline:none; }
+.mp-textarea { width:100%; padding:9px 12px; border:1.5px solid var(--border-default); border-radius:11px; font-size:13px; color:var(--text-primary); background:var(--bg-input); outline:none; resize:none; }
 </style>
