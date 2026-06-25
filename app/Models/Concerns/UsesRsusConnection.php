@@ -6,14 +6,6 @@ use App\Services\RsusConnectionService;
 
 /**
  * Trait untuk model yang membaca data dari DB RS.
- *
- * Mode dikontrol via DB_RSUS_ENABLED di .env:
- *   true / auto+reachable → sqlsrv_rsus  (SQL Server RS live)
- *   false / auto+offline  → mysql        (tabel lokal, data dari seeder)
- *
- * Setiap model wajib mendefinisikan:
- *   protected string $rsusTable  = 'NAMA_TABEL_SQLSERVER';  (prod)
- *   protected string $localTable = 'nama_tabel_mysql';      (dev lokal)
  */
 trait UsesRsusConnection
 {

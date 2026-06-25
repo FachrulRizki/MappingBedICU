@@ -4,14 +4,6 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-/**
- * Tambah kolom untuk SSO Keycloak ke tabel users.
- *
- * - keycloak_id       : nilai 'sub' dari JWT token (unique identifier Keycloak)
- * - keycloak_username : 'preferred_username' dari token
- * - auth_provider     : 'local' | 'keycloak' — untuk tahu jalur login user
- * - password          : dijadikan nullable karena user SSO tidak punya password lokal
- */
 return new class extends Migration
 {
     public function up(): void

@@ -5,16 +5,6 @@ namespace App\Services;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
-/**
- * Cek apakah koneksi ke SQL Server RS (sqlsrv_rsus) tersedia.
- *
- * Perilaku dikontrol via .env:
- *   DB_RSUS_ENABLED=true   → paksa aktif (tidak cek koneksi)
- *   DB_RSUS_ENABLED=false  → paksa nonaktif, semua query RS return kosong
- *   DB_RSUS_ENABLED=auto   → cek koneksi aktual (default)
- *
- * Hasil ping di-cache 30 detik agar tidak membebani setiap request.
- */
 class RsusConnectionService
 {
     public function isAvailable(): bool

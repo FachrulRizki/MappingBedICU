@@ -4,12 +4,6 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-/**
- * Tambah kolom waiting list ke tabel booking external dan spri internal.
- *
- * Waiting list: ICU tidak bisa alokasi bed sekarang, tapi memberikan estimasi
- * kapan bed akan siap, beserta alasan kenapa masuk waiting list.
- */
 return new class extends Migration
 {
     public function up(): void

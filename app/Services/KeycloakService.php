@@ -63,34 +63,25 @@ class KeycloakService
 
     public function mapRole(array $realmRoles): string
     {
-        // Mapping: nama role di Keycloak → role lokal
         // Sesuaikan kunci kiri dengan nama role yang ada di Keycloak realm
         $map = [
             // Role admin
             'admin'               => 'admin',
-            'icu-admin'           => 'admin',
 
             // Role admisi
             'admisi'              => 'admisi',
-            'icu-admisi'          => 'admisi',
-            'petugas-admisi'      => 'admisi',
 
             // Role petugas ICU
             'petugas_icu'         => 'petugas_icu',
-            'icu-petugas'         => 'petugas_icu',
-            'petugas-icu'         => 'petugas_icu',
-            'nurse-icu'           => 'petugas_icu',
 
             // Role petugas ruang
             'petugas_ruang'       => 'petugas_ruang',
-            'petugas-ruang'       => 'petugas_ruang',
-            'nurse'               => 'petugas_ruang',
         ];
 
         // Urutan prioritas (role tertinggi diambil lebih dulu)
         $priority = ['admin', 'petugas_icu', 'admisi', 'petugas_ruang'];
 
-        // Kumpulkan semua local role yang cocok
+        // Kumpulkan semua local role
         $matched = [];
         foreach ($realmRoles as $keycloakRole) {
             if (isset($map[$keycloakRole])) {
@@ -98,7 +89,7 @@ class KeycloakService
             }
         }
 
-        // Kembalikan role dengan prioritas tertinggi
+        // Kembalikan role
         foreach ($priority as $r) {
             if (in_array($r, $matched)) {
                 return $r;

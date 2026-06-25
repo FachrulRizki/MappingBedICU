@@ -13,15 +13,15 @@ return new class extends Migration
 
             // User yang melakukan aktivitas
             $table->unsignedBigInteger('user_id')->nullable()->index();
-            $table->string('user_name', 100)->nullable();  // snapshot nama (ikuti pola created_by)
+            $table->string('user_name', 100)->nullable(); 
             $table->string('user_role', 50)->nullable();
 
             // Jenis aktivitas (ikuti gambar: Autentikasi, Buat Data, Hapus Data, dll)
-            $table->string('jenis_aktivitas', 50);        // e.g. 'Autentikasi', 'Buat Data'
-            $table->string('aktivitas', 255);              // e.g. 'Melakukan login', 'Membuat booking ICU'
+            $table->string('jenis_aktivitas', 50);       
+            $table->string('aktivitas', 255);             
 
             // Modul & subject (untuk filter dan detail)
-            $table->string('module', 50)->nullable();      // 'auth', 'booking_external', 'spri_internal', dll
+            $table->string('module', 50)->nullable();   
             $table->unsignedBigInteger('subject_id')->nullable();
             $table->string('subject_type', 100)->nullable();
 

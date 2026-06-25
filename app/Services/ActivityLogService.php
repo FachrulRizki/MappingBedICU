@@ -7,24 +7,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Request;
 
-/**
- * ActivityLogService
- *
- * Mencatat aktivitas pengguna sesuai aksi nyata di project:
- *  - Login / Logout
- *  - Buat booking ICU eksternal (Admisi)
- *  - Buat BU SPRI internal (Petugas Ruang)
- *  - Setujui SPRI → ke ICU (Admisi)
- *  - Konfirmasi bed booking external (Petugas ICU)
- *  - Verifikasi bed SPRI internal (Petugas ICU)
- *  - Verifikasi pasien booking external (Admisi)
- *  - Tolak booking / SPRI (Admisi / Petugas ICU)
- */
 class ActivityLogService
 {
-    /**
-     * Method inti — semua shortcut memanggil ini.
-     */
     public function log(
         string  $jenisAktivitas,
         string  $aktivitas,
@@ -50,7 +34,6 @@ class ActivityLogService
                 'user_agent'      => substr(Request::userAgent() ?? '', 0, 300),
             ]);
         } catch (\Throwable $e) {
-            // Jangan biarkan kegagalan log menghentikan operasi utama
             Log::error('[ActivityLog] Gagal mencatat: ' . $e->getMessage());
         }
     }

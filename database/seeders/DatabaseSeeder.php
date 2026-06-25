@@ -16,17 +16,6 @@ use App\Models\IcuSpriInternal;
 
 class DatabaseSeeder extends Seeder
 {
-    /**
-     * Seed data untuk dua mode:
-     *
-     * Mode LOKAL (DB_RSUS_ENABLED=false):
-     *   - Data dummy bed, pasien, pendaftaran, cara bayar di-seed ke MySQL lokal
-     *   - Model RS (MRuangMaster, RegistrasiPasien, dll) akan pakai tabel MySQL
-     *
-     * Mode PROD (DB_RSUS_ENABLED=true):
-     *   - Data RS diambil live dari SQL Server — seed ini tidak menyentuh tabel RS
-     *   - Hanya UserSeeder + data transaksional dummy yang di-seed
-     */
     public function run(): void
     {
         $this->call(UserSeeder::class);
