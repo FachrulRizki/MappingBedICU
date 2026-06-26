@@ -864,7 +864,7 @@ const canSubmit  = computed(() => fmSpri.No_MR.trim() && fmSpri.No_Reg.trim() &&
 
 /* ── Main grid ────────────────────────────────────────────────────────────── */
 .mp-grid { display:grid; grid-template-columns:1fr; gap:16px; }
-@media(min-width:1024px) { .mp-grid { grid-template-columns:280px 1fr; align-items:start; } }
+@media(min-width:1024px) { .mp-grid { grid-template-columns:500px 1fr; align-items:start; } }
 
 /* ── Left panel (pasien bangsal) ─────────────────────────────────────────── */
 .mp-left-panel { background:var(--bg-card); border:1px solid var(--border-default); border-radius:14px;
