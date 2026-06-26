@@ -71,6 +71,7 @@ class MenuIcuController extends Controller
             'allocated_bed_id' => $v['Kode_Ruang'],
             'nama_bed'         => $namaBed,
             'confirmed_by'     => $this->actor(),
+            'confirmed_at'     => now(),
         ]);
 
         $this->activityLog->konfirmasibed($booking->id, $booking->nama_pasien, $namaBed);
@@ -125,6 +126,7 @@ class MenuIcuController extends Controller
             'allocated_bed_id' => $v['Kode_Ruang'],
             'nama_bed'         => $namaBed,
             'verified_by'      => $this->actor(),
+            'verified_at'      => now(),
         ]);
 
         $this->activityLog->verifikasibed($bu->id, (string) ($bu->pasien?->Nama_Pasien ?? $bu->No_MR), $namaBed);

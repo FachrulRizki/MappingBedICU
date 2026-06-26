@@ -105,6 +105,7 @@ class MenuAdmisiController extends Controller
             'status'         => 'pending_icu',
             'catatan_admisi' => $v['catatan_admisi'] ?? null,
             'approved_by'    => $this->actor(),
+            'approved_at'    => now(),
         ]);
 
         $this->activityLog->approveSpri($bu->id, (string) ($bu->pasien?->Nama_Pasien ?? $bu->No_MR));
@@ -157,6 +158,7 @@ class MenuAdmisiController extends Controller
             'No_MR'       => $v['No_MR'],
             'No_Reg'      => $v['No_Reg'] ?? null,
             'verified_by' => $this->actor(),
+            'verified_at' => now(),
         ]);
 
         $this->activityLog->verifikasiPasien($booking->id, $booking->nama_pasien, $v['No_MR']);

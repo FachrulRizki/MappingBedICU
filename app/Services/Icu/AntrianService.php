@@ -45,7 +45,7 @@ class AntrianService
         $noRegs = $merged->pluck('No_Reg')->filter()->unique()->values()->toArray();
         $dokterKolabMap = $this->fetchDokterKolab($noRegs);
 
-        $merged = $merged->map(function ($item) use ($dokterKolabMap) {
+        $merged = $merged->map(function (array $item) use ($dokterKolabMap) {
             $noReg = $item['No_Reg'] ?? null;
             $item['dokter_kolab'] = $noReg ? ($dokterKolabMap[$noReg] ?? []) : [];
             return $item;
@@ -247,7 +247,11 @@ class AntrianService
             'created_at_fmt'   => $b->created_at?->format('d/m/Y H:i'),
             'created_by'       => $b->created_by,
             'confirmed_by'     => $b->confirmed_by,
+            'confirmed_at'     => $b->confirmed_at?->format('Y-m-d H:i'),
+            'confirmed_at_fmt' => $b->confirmed_at?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
             'verified_by'      => $b->verified_by,
+            'verified_at'      => $b->verified_at?->format('Y-m-d H:i'),
+            'verified_at_fmt'  => $b->verified_at?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
         ];
     }
 
@@ -286,7 +290,11 @@ class AntrianService
             'created_at_fmt' => $s->created_at?->format('d/m/Y H:i'),
             'created_by'     => $s->NameUser ?? '-',
             'approved_by'    => $s->approved_by,
+            'approved_at'    => $s->approved_at?->format('Y-m-d H:i'),
+            'approved_at_fmt'=> $s->approved_at?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
             'verified_by'    => $s->verified_by,
+            'verified_at'    => $s->verified_at?->format('Y-m-d H:i'),
+            'verified_at_fmt'=> $s->verified_at?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
         ];
     }
 }

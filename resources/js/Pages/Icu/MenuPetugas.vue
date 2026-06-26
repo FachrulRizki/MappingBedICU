@@ -650,6 +650,43 @@ const canSubmit  = computed(() => fmSpri.No_MR.trim() && fmSpri.No_Reg.trim() &&
                 </div>
               </div>
             </div>
+
+            <!-- Timeline aksi -->
+            <template v-if="selectedItem.approved_at_fmt || selectedItem.approved_by || selectedItem.verified_at_fmt || selectedItem.verified_by">
+              <div class="mp-divider"></div>
+              <div class="p-4">
+                <p class="mp-detail-label mb-2">Timeline Proses</p>
+                <div class="space-y-2.5">
+                  <!-- Booking dibuat -->
+                  <div class="flex items-start gap-2">
+                    <div class="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style="background:#00A884"></div>
+                    <div>
+                      <p class="text-xs font-semibold" style="color:var(--text-primary)">Booking dibuat</p>
+                      <p class="text-xs font-mono" style="color:var(--text-muted)">{{ selectedItem.created_at_fmt ?? '—' }}</p>
+                      <p v-if="selectedItem.created_by" class="text-xs" style="color:var(--text-muted)">oleh {{ selectedItem.created_by }}</p>
+                    </div>
+                  </div>
+                  <!-- Approve Admisi -->
+                  <div v-if="selectedItem.approved_at_fmt || selectedItem.approved_by" class="flex items-start gap-2">
+                    <div class="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style="background:#0EA5E9"></div>
+                    <div>
+                      <p class="text-xs font-semibold" style="color:var(--text-primary)">Disetujui Admisi</p>
+                      <p class="text-xs font-mono" style="color:var(--text-muted)">{{ selectedItem.approved_at_fmt ?? '—' }}</p>
+                      <p v-if="selectedItem.approved_by" class="text-xs" style="color:var(--text-muted)">oleh {{ selectedItem.approved_by }}</p>
+                    </div>
+                  </div>
+                  <!-- Verifikasi bed ICU -->
+                  <div v-if="selectedItem.verified_at_fmt || selectedItem.verified_by" class="flex items-start gap-2">
+                    <div class="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style="background:#059669"></div>
+                    <div>
+                      <p class="text-xs font-semibold" style="color:var(--text-primary)">Bed terverifikasi ICU</p>
+                      <p class="text-xs font-mono" style="color:var(--text-muted)">{{ selectedItem.verified_at_fmt ?? '—' }}</p>
+                      <p v-if="selectedItem.verified_by" class="text-xs" style="color:var(--text-muted)">oleh {{ selectedItem.verified_by }}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </template>
             <!-- Bed -->
             <template v-if="selectedItem.nama_bed || selectedItem.kebutuhan_bed">
               <div class="mp-divider"></div>

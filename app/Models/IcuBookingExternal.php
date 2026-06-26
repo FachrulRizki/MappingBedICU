@@ -22,11 +22,14 @@ class IcuBookingExternal extends Model
         'allocated_bed_id', 'nama_bed',
         'status', 'alasan_tolak',
         'waiting_alasan', 'waiting_estimasi', 'waiting_by',
-        'created_by', 'confirmed_by', 'verified_by',
+        'created_by', 'confirmed_by', 'confirmed_at',
+        'verified_by', 'verified_at',
     ];
 
     protected $casts = [
         'waiting_estimasi' => 'datetime',
+        'confirmed_at'     => 'datetime',
+        'verified_at'      => 'datetime',
     ];
 
     public function pasien()

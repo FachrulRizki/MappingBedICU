@@ -446,8 +446,6 @@ class MenuPetugasController extends Controller
             'status'         => $s->status,
             'status_label'   => $s->statusLabel(),
             'alasan_tolak'   => $s->alasan_tolak,
-            'approved_by'    => $s->approved_by,
-            'verified_by'    => $s->verified_by,
             'jaminan_kode'   => $jaminan['kode'] ?? null,
             'jaminan_nama'   => $jaminan['nama'] ?? null,
             // waiting list
@@ -455,6 +453,14 @@ class MenuPetugasController extends Controller
             'waiting_estimasi'     => $s->waiting_estimasi?->format('Y-m-d H:i'),
             'waiting_estimasi_fmt' => $s->waiting_estimasi?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
             'waiting_by'           => $s->waiting_by,
+            // tracking aksi
+            'created_by'     => $s->NameUser ?? '-',
+            'approved_by'    => $s->approved_by,
+            'approved_at'    => $s->approved_at?->format('Y-m-d H:i'),
+            'approved_at_fmt'=> $s->approved_at?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
+            'verified_by'    => $s->verified_by,
+            'verified_at'    => $s->verified_at?->format('Y-m-d H:i'),
+            'verified_at_fmt'=> $s->verified_at?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
             'created_at'     => $s->created_at?->format('Y-m-d H:i'),
             'created_at_fmt' => $s->created_at?->format('d/m/Y H:i'),
         ];

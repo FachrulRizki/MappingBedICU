@@ -13,6 +13,8 @@ use App\Http\Controllers\Icu\MenuPetugasController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\RolePermissionController;
 
+use App\Http\Controllers\Icu\MonitorController;
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 Route::middleware('guest')->group(function () {
     Route::get('/login',                 [LoginController::class, 'showLogin'])->name('login');
@@ -22,6 +24,10 @@ Route::middleware('guest')->group(function () {
 });
 
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout')->middleware('auth');
+
+// ── Monitor TV (tanpa login — untuk layar TV di ruang ICU) ───────────────────
+Route::get('/monitor',      [MonitorController::class, 'index'])->name('icu.monitor');
+Route::get('/monitor/data', [MonitorController::class, 'data'])->name('icu.monitor.data');
 
 Route::get('/', fn() => redirect()->route('icu.dashboard'));
 

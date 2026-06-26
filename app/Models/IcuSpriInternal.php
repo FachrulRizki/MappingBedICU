@@ -23,11 +23,14 @@ class IcuSpriInternal extends Model
         'allocated_bed_id', 'nama_bed',
         'status', 'alasan_tolak',
         'waiting_alasan', 'waiting_estimasi', 'waiting_by',
-        'approved_by', 'verified_by',
+        'approved_by', 'approved_at',
+        'verified_by', 'verified_at',
     ];
 
     protected $casts = [
         'waiting_estimasi' => 'datetime',
+        'approved_at'      => 'datetime',
+        'verified_at'      => 'datetime',
     ];
 
     public function pasien()
