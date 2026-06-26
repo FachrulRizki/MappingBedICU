@@ -174,15 +174,19 @@ class AntrianService
             $rows = \Illuminate\Support\Facades\DB::connection($conn)
                 ->table("{$adkTbl} as adk")
                 ->leftJoin("{$dTbl} as d", 'adk.Dokter', '=', 'd.Kode_Dokter')
+                ->where('adk.Ket', '!=', 'Sayhello')
                 ->whereIn('adk.No_Reg', $noRegs)
-                ->select(['adk.No_Reg', 'd.Nama_Dokter', 'adk.Dokter as Kode_Dokter'])
+                ->select(['adk.No_Reg', 'd.Nama_Dokter', 'adk.Dokter as Kode_Dokter', 'adk.Ket'])
                 ->get();
 
             // Group by No_Reg → array of dokter names
-            $map = [];
+           $map = [];
             foreach ($rows as $row) {
                 if ($row->No_Reg) {
-                    $map[$row->No_Reg][] = $row->Nama_Dokter ?? $row->Kode_Dokter;
+                    $map[$row->No_Reg][] = [
+                        'nama' => $row->Nama_Dokter ?? $row->Kode_Dokter,
+                        'ket'  => $row->Ket,
+                    ];
                 }
             }
             return $map;

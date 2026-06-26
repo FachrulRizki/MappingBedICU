@@ -407,10 +407,10 @@ const jenisOptions = [
                 <p v-if="item.Dokter" class="text-sm break-words whitespace-normal" style="color:var(--text-muted)">{{ item.Dokter }}</p>
               </td>
               <td class="px-5 py-4" style="max-width:160px">
-                  <p v-if="item.dokter_kolab && item.dokter_kolab.length > 0" class="text-sm break-words whitespace-normal" :title="item.dokter_kolab.join(', ')" style="color:var(--text-primary)">
-                      {{ item.dokter_kolab.join(', ') }}
-                  </p>
-                  <span v-else style="color:var(--text-muted)">—</span>
+                <p v-if="item.dokter_kolab && item.dokter_kolab.length > 0" class="text-sm break-words whitespace-normal" :title="item.dokter_kolab.map(d => `${d.nama} (${d.ket})`).join(', ')" style="color:var(--text-primary)">
+                  {{ item.dokter_kolab.map(d => `${d.nama} (${d.ket})`).join(', ') }}
+                </p>
+                <span v-else style="color:var(--text-muted)">—</span>
               </td>
               <td class="px-5 py-4">
                 <span v-if="item.jaminan" class="text-xs font-semibold px-2.5 py-1 rounded-lg"
@@ -618,7 +618,7 @@ const jenisOptions = [
                 </div>
                 <div class="sm:col-span-2 space-y-0.5">
                     <p class="text-xs font-medium" style="color:var(--text-muted)">Dokter Kolab</p>
-                    <p class="text-sm font-bold" style="color:var(--text-primary)"> {{ modal.item.dokter_kolab && modal.item.dokter_kolab.length > 0 ? modal.item.dokter_kolab.join(', ') : '—' }}
+                    <p class="text-sm font-bold" style="color:var(--text-primary)"> {{ modal.item.dokter_kolab && modal.item.dokter_kolab.length > 0 ? modal.item.dokter_kolab.map(d => `${d.nama} (${d.ket})`).join(', ') : '—' }}
                     </p>
                 </div>
                 <div class="space-y-0.5">
