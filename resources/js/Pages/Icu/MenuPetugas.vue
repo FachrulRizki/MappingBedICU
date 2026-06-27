@@ -685,6 +685,15 @@ const canSubmit  = computed(() => fmSpri.No_MR.trim() && fmSpri.No_Reg.trim() &&
                     </div>
                   </div>
                 </div>
+                <!-- Durasi total -->
+                  <div class="pt-1 border-t" style="border-color:var(--border-default)">
+                    <p class="text-xs" style="color:var(--text-muted)">
+                      Lama proses:
+                      <strong style="color:var(--text-primary)">
+                        {{ selectedItem.lama_proses || '—' }}
+                      </strong>
+                    </p>
+                  </div>
               </div>
             </template>
             <!-- Bed -->

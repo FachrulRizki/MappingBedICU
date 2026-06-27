@@ -675,62 +675,64 @@ const jenisOptions = [
                             </div>
                         </div>
 
-                        <!-- ── Timeline Aksi ─────────────────────────── -->
+                        <!-- ── Timeline Aksi ──────────────────────────────────────── -->
                         <div class="rounded-xl overflow-hidden" style="border:1px solid var(--border-default)">
-                            <div class="px-4 py-2.5" style="background:var(--bg-surface-2);border-bottom:1px solid var(--border-default)">
-                                <p class="text-xs font-bold uppercase tracking-wider" style="color:var(--text-muted)">Timeline Proses</p>
+                            <div class="px-4 py-2.5" style="background:var(--bg-surface-2); border-bottom:1px solid var(--border-default)">
+                            <p class="text-xs font-bold uppercase tracking-wider" style="color:var(--text-muted)">Timeline Proses</p>
                             </div>
                             <div class="px-4 py-3 space-y-2.5">
-                                <div class="flex items-start gap-3">
-                                    <div class="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style="background:#00A884"></div>
-                                    <div>
-                                        <p class="text-xs font-semibold" style="color:var(--text-primary)">Booking dibuat</p>
-                                        <p class="text-xs font-mono" style="color:var(--text-muted)">{{ modal.item.created_at_fmt ?? '—' }}</p>
-                                        <p v-if="modal.item.created_by" class="text-xs" style="color:var(--text-muted)">oleh {{ modal.item.created_by }}</p>
-                                    </div>
-                                </div>
-                                <!-- Approve (internal) -->
-                                <div v-if="modal.item.sumber==='internal' && (modal.item.approved_at_fmt || modal.item.approved_by)"
-                                    class="flex items-start gap-3">
-                                    <div class="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style="background:#0EA5E9"></div>
-                                    <div>
-                                        <p class="text-xs font-semibold" style="color:var(--text-primary)">Disetujui Admisi → dikirim ke ICU</p>
-                                        <p class="text-xs font-mono" style="color:var(--text-muted)">{{ modal.item.approved_at_fmt ?? '—' }}</p>
-                                        <p v-if="modal.item.approved_by" class="text-xs" style="color:var(--text-muted)">oleh {{ modal.item.approved_by }}</p>
-                                    </div>
-                                </div>
-                                <!-- Konfirmasi bed (external) -->
-                                <div v-if="modal.item.sumber==='external' && (modal.item.confirmed_at_fmt || modal.item.confirmed_by)"
-                                    class="flex items-start gap-3">
-                                    <div class="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style="background:#0EA5E9"></div>
-                                    <div>
-                                        <p class="text-xs font-semibold" style="color:var(--text-primary)">Bed dikonfirmasi ICU</p>
-                                        <p class="text-xs font-mono" style="color:var(--text-muted)">{{ modal.item.confirmed_at_fmt ?? '—' }}</p>
-                                        <p v-if="modal.item.confirmed_by" class="text-xs" style="color:var(--text-muted)">oleh {{ modal.item.confirmed_by }}</p>
-                                    </div>
-                                </div>
-                                <!-- Verifikasi Admisi (external) -->
-                                <div v-if="modal.item.sumber==='external' && (modal.item.verified_at_fmt || modal.item.verified_by)"
-                                    class="flex items-start gap-3">
-                                    <div class="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style="background:#059669"></div>
-                                    <div>
-                                        <p class="text-xs font-semibold" style="color:var(--text-primary)">Pasien terverifikasi Admisi</p>
-                                        <p class="text-xs font-mono" style="color:var(--text-muted)">{{ modal.item.verified_at_fmt ?? '—' }}</p>
-                                        <p v-if="modal.item.verified_by" class="text-xs" style="color:var(--text-muted)">oleh {{ modal.item.verified_by }}</p>
-                                    </div>
-                                </div>
-                                <!-- Verifikasi bed ICU (internal) -->
-                                <div v-if="modal.item.sumber==='internal' && (modal.item.verified_at_fmt || modal.item.verified_by)"
-                                    class="flex items-start gap-3">
-                                    <div class="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style="background:#059669"></div>
-                                    <div>
-                                        <p class="text-xs font-semibold" style="color:var(--text-primary)">Bed terverifikasi ICU</p>
-                                        <p class="text-xs font-mono" style="color:var(--text-muted)">{{ modal.item.verified_at_fmt ?? '—' }}</p>
-                                        <p v-if="modal.item.verified_by" class="text-xs" style="color:var(--text-muted)">oleh {{ modal.item.verified_by }}</p>
-                                    </div>
+                            <!-- Booking dibuat -->
+                            <div class="flex items-start gap-3">
+                                <div class="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style="background:#00A884"></div>
+                                <div class="flex-1 min-w-0">
+                                <p class="text-xs font-semibold" style="color:var(--text-primary)">Booking dibuat</p>
+                                <p class="text-xs font-mono" style="color:var(--text-muted)">{{ modal.item.created_at_fmt ?? '—' }}</p>
+                                <p v-if="modal.item.created_by" class="text-xs" style="color:var(--text-muted)">oleh {{ modal.item.created_by }}</p>
                                 </div>
                             </div>
+                            <!-- Konfirmasi bed (external) / Approve admisi (internal) -->
+                            <div v-if="modal.item.sumber === 'external' && (modal.item.confirmed_at_fmt || modal.item.confirmed_by)"
+                                class="flex items-start gap-3">
+                                <div class="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style="background:#0EA5E9"></div>
+                                <div class="flex-1 min-w-0">
+                                <p class="text-xs font-semibold" style="color:var(--text-primary)">Bed dikonfirmasi ICU</p>
+                                <p class="text-xs font-mono" style="color:var(--text-muted)">{{ modal.item.confirmed_at_fmt ?? '—' }}</p>
+                                <p v-if="modal.item.confirmed_by" class="text-xs" style="color:var(--text-muted)">oleh {{ modal.item.confirmed_by }}</p>
+                                </div>
+                            </div>
+                            <div v-if="modal.item.sumber === 'internal' && (modal.item.approved_at_fmt || modal.item.approved_by)"
+                                class="flex items-start gap-3">
+                                <div class="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style="background:#0EA5E9"></div>
+                                <div class="flex-1 min-w-0">
+                                <p class="text-xs font-semibold" style="color:var(--text-primary)">Disetujui Admisi</p>
+                                <p class="text-xs font-mono" style="color:var(--text-muted)">{{ modal.item.approved_at_fmt ?? '—' }}</p>
+                                <p v-if="modal.item.approved_by" class="text-xs" style="color:var(--text-muted)">oleh {{ modal.item.approved_by }}</p>
+                                </div>
+                            </div>
+                            <!-- Verifikasi bed -->
+                            <div v-if="modal.item.verified_at_fmt || modal.item.verified_by"
+                                class="flex items-start gap-3">
+                                <div class="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style="background:#059669"></div>
+                                <div class="flex-1 min-w-0">
+                                <p class="text-xs font-semibold" style="color:var(--text-primary)">
+                                    {{ modal.item.sumber === 'external' ? 'Pasien terverifikasi Admisi' : 'Bed terverifikasi ICU' }}
+                                </p>
+                                <p class="text-xs font-mono" style="color:var(--text-muted)">{{ modal.item.verified_at_fmt ?? '—' }}</p>
+                                <p v-if="modal.item.verified_by" class="text-xs" style="color:var(--text-muted)">oleh {{ modal.item.verified_by }}</p>
+                                </div>
+                            </div>
+                            <!-- Durasi total -->
+                            <div class="pt-1 border-t" style="border-color:var(--border-default)">
+                                <p class="text-xs" style="color:var(--text-muted)">
+                                Lama proses:
+                                <strong style="color:var(--text-primary)">
+                                    {{ modal.item.lama_proses || '—' }}
+                                </strong>
+                                </p>
+                            </div>
+                            </div>
                         </div>
+                        
                         <div v-if="modal.item.alasan_tolak" class="rounded-xl p-4 space-y-1.5" style="background:rgba(231,76,60,.06); border:1.5px solid rgba(231,76,60,.2)">
                             <p class="text-xs font-bold flex items-center gap-1.5" style="color:#E74C3C">
                                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>

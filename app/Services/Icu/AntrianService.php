@@ -197,6 +197,31 @@ class AntrianService
         }
     }
 
+    private function hitungLamaProses($mulai, $selesai): ?string
+    {
+        if (!$mulai || !$selesai) {
+            return null;
+        }
+
+        $diff = $mulai->diff($selesai);
+
+        $hasil = [];
+
+        if ($diff->d > 0) {
+            $hasil[] = "{$diff->d} hari";
+        }
+
+        if ($diff->h > 0) {
+            $hasil[] = "{$diff->h} jam";
+        }
+
+        if ($diff->i > 0) {
+            $hasil[] = "{$diff->i} menit";
+        }
+
+        return empty($hasil) ? "0 menit" : implode(' ', $hasil);
+    }
+
     private function summary(Collection $data): array
     {
         return [
@@ -252,6 +277,7 @@ class AntrianService
             'verified_by'      => $b->verified_by,
             'verified_at'      => $b->verified_at?->format('Y-m-d H:i'),
             'verified_at_fmt'  => $b->verified_at?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
+            'lama_proses'      => $this->hitungLamaProses($b->created_at,$b->verified_at),
         ];
     }
 
@@ -295,6 +321,7 @@ class AntrianService
             'verified_by'    => $s->verified_by,
             'verified_at'    => $s->verified_at?->format('Y-m-d H:i'),
             'verified_at_fmt'=> $s->verified_at?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
+            'lama_proses'    => $this->hitungLamaProses($s->created_at, $s->verified_at),
         ];
     }
 }

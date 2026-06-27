@@ -702,7 +702,7 @@ const jenisOptions = [
                     <p class="text-xs" style="color:var(--text-muted)">
                       Lama proses:
                       <strong style="color:var(--text-primary)">
-                        {{ modal.item.created_at_fmt ? '—' : '—' }}
+                        {{ modal.item.lama_proses || '—' }}
                       </strong>
                     </p>
                   </div>
