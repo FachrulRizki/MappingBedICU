@@ -38,6 +38,15 @@ class SyncKeycloakRole
                 $user->update(['role' => $newRole]);
                 Auth::setUser($user->fresh());
             }
+
+            // Sync permissions dari token payload ke session.
+            // Permissions akan ada di JWT setelah Keycloak Authorization Services diaktifkan.
+            // Sebelum itu, array ini akan kosong [] — aman, tidak akan error.
+            if (!empty($tokenPayload)) {
+                $permissions = $this->keycloak->extractPermissionsFromToken($tokenPayload);
+                $request->session()->put('keycloak_permissions', $permissions);
+                Log::debug('[SyncKeycloakRole] Permissions di-sync: ' . (implode(', ', $permissions) ?: '(kosong)'));
+            }
         }
 
         return $next($request);

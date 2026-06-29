@@ -48,6 +48,9 @@ class HandleInertiaRequests extends Middleware
                     'unit_kerja'    => $request->user()->unit_kerja,
                     'auth_provider' => $request->user()->auth_provider ?? 'local',
                     'ward_ids'      => $request->user()->getWardIdsArray(),
+                    // Permissions dari Keycloak Authorization Services.
+                    // Kosong [] sebelum Keycloak Authorization diaktifkan — Vue handle gracefully.
+                    'permissions'   => $request->session()->get('keycloak_permissions', []),
                 ] : null,
             ],
             // Status koneksi SQL Server RS — dipakai Vue untuk show/hide fitur yang butuh data RS

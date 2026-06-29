@@ -115,6 +115,18 @@ class KeycloakService
         return $this->mapRole($realmRoles);
     }
 
+    /**
+     * Ekstrak permissions dari token payload.
+     * Delegate ke KeycloakPermissionService.
+     *
+     * Dipanggil dari SyncKeycloakRole setelah login.
+     */
+    public function extractPermissionsFromToken(array $tokenPayload): array
+    {
+        return app(\App\Services\KeycloakPermissionService::class)
+            ->extractPermissionsFromToken($tokenPayload);
+    }
+
     public function decodeJwtPayload(string $token): array
     {
         $parts = explode('.', $token);
