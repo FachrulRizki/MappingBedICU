@@ -29,9 +29,9 @@ class AuthController extends Controller
                 ->with('error', 'Server SSO tidak dapat dijangkau. Gunakan login lokal.');
         }
 
-        // prompt=login memaksa Keycloak selalu tampilkan halaman login
-        // meskipun SSO session masih aktif — ini lapisan keamanan tambahan
-        return Socialite::driver('keycloak')
+        /** @var \SocialiteProviders\Keycloak\Provider $provider */
+        $provider = Socialite::driver('keycloak');
+        return $provider
             ->with(['prompt' => 'login'])
             ->redirect();
     }
@@ -54,10 +54,11 @@ class AuthController extends Controller
                 ->with('error', 'Gagal menghubungi server SSO. Coba lagi atau gunakan login lokal.');
         }
 
-        // Decode JWT untuk ambil realm_access.roles
+        // sso
         $tokenPayload = $this->keycloak->decodeJwtPayload($socialUser->token);
         $realmRoles   = $tokenPayload['realm_access']['roles'] ?? [];
-        $localRole    = $this->keycloak->mapRole($realmRoles);
+        // lokal
+        $localRole    = $this->keycloak->resolveRoleFromToken($tokenPayload);
 
         // Ambil id_token dari response body (WAJIB untuk logout SSO yang benar)
         $idToken = $socialUser->accessTokenResponseBody['id_token'] ?? null;
@@ -77,7 +78,6 @@ class AuthController extends Controller
                 'auth_provider'     => 'keycloak',
                 'is_active'         => true,
                 'password'          => null,
-                // ward_ids: bangsal scope dari Keycloak token
                 'ward_ids'          => $tokenPayload['ward_ids'] ?? null,
             ]
         );
@@ -85,7 +85,6 @@ class AuthController extends Controller
         Auth::login($user, remember: false);
         $request->session()->regenerate();
 
-        // Hapus session lama milik user ini KECUALI session yang baru saja dibuat
         \Illuminate\Support\Facades\DB::table('sessions')
             ->where('user_id', $user->id)
             ->where('id', '!=', $request->session()->getId())
@@ -94,6 +93,10 @@ class AuthController extends Controller
         // Simpan id_token asli untuk keperluan logout SSO
         $request->session()->put('auth_via', 'keycloak');
         $request->session()->put('keycloak_id_token', $idToken);
+        // Simpan raw realm roles untuk keperluan re-sync tanpa login ulang
+        $request->session()->put('keycloak_realm_roles', $realmRoles);
+        // Simpan seluruh token payload agar SyncKeycloakRole bisa cek client roles juga
+        $request->session()->put('keycloak_token_payload', $tokenPayload);
 
         Log::info("[Keycloak] Login: {$user->name} role:{$localRole} id_token:" . ($idToken ? 'ada' : 'KOSONG'));
 
@@ -111,13 +114,11 @@ class AuthController extends Controller
         // Catat logout sebelum session di-invalidate
         $this->activityLog->logoutLog();
 
-        // 1. Logout dari Laravel session
         Auth::guard('web')->logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        // 2. Hapus SEMUA sessions aktif milik user ini dari database
-        //    Ini mencegah session lain yang mungkin tersisa di DB digunakan kembali
+        // cek kondisi db lokal dan sso
         if ($userId) {
             \Illuminate\Support\Facades\DB::table('sessions')
                 ->where('user_id', $userId)
@@ -141,8 +142,6 @@ class AuthController extends Controller
                 $logoutUrl .= "&id_token_hint=" . urlencode($idToken);
                 Log::info("[Keycloak] Logout dengan id_token_hint untuk user_id:{$userId}");
             } else {
-                // Fallback: tanpa id_token, tambah prompt=login agar Keycloak paksa auth ulang
-                // Ini tidak ideal tapi mencegah auto-login dengan SSO session lama
                 Log::warning("[Keycloak] Logout tanpa id_token_hint — user_id:{$userId}. Pakai fallback.");
             }
 

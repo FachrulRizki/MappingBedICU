@@ -63,7 +63,6 @@ class KeycloakService
 
     public function mapRole(array $realmRoles): string
     {
-        // Sesuaikan kunci kiri dengan nama role yang ada di Keycloak realm
         $map = [
             // Role admin
             'admin'               => 'admin',
@@ -78,10 +77,8 @@ class KeycloakService
             'petugas_ruang'       => 'petugas_ruang',
         ];
 
-        // Urutan prioritas (role tertinggi diambil lebih dulu)
         $priority = ['admin', 'petugas_icu', 'admisi', 'petugas_ruang'];
 
-        // Kumpulkan semua local role
         $matched = [];
         foreach ($realmRoles as $keycloakRole) {
             if (isset($map[$keycloakRole])) {
@@ -89,16 +86,33 @@ class KeycloakService
             }
         }
 
-        // Kembalikan role
         foreach ($priority as $r) {
             if (in_array($r, $matched)) {
                 return $r;
             }
         }
 
-        // Fallback jika tidak ada role yang cocok
         Log::warning('[Keycloak] Role tidak dikenali: ' . implode(', ', $realmRoles) . ' — fallback ke petugas_ruang');
         return 'petugas_ruang';
+    }
+
+    public function extractClientRoles(array $tokenPayload): array
+    {
+        $clientId = config('services.keycloak.client_id', 'icu-bed');
+        return $tokenPayload['resource_access'][$clientId]['roles'] ?? [];
+    }
+
+    public function resolveRoleFromToken(array $tokenPayload): string
+    {
+        // Prioritas 1: Client roles (icu-bed specific — lebih granular, 1 pintu)
+        $clientRoles = $this->extractClientRoles($tokenPayload);
+        if (!empty($clientRoles)) {
+            return $this->mapRole($clientRoles);
+        }
+
+        // Fallback: Realm roles (lintas aplikasi)
+        $realmRoles = $tokenPayload['realm_access']['roles'] ?? [];
+        return $this->mapRole($realmRoles);
     }
 
     public function decodeJwtPayload(string $token): array
