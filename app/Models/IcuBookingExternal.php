@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class IcuBookingExternal extends Model
 {
-    protected $table = 'icu_booking_external';
+    protected $table = 'IB_icu_booking_external';
 
     protected $fillable = [
         'nama_pasien', 'jenis_kelamin', 'no_identitas', 'asal_rujukan', 'no_telp_keluarga',

@@ -19,14 +19,14 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('icu_booking_external', function (Blueprint $table) {
+        Schema::table('IB_icu_booking_external', function (Blueprint $table) {
             $table->dateTime('confirmed_at')->nullable()->after('confirmed_by')
                 ->comment('Kapan ICU konfirmasi bed');
             $table->dateTime('verified_at')->nullable()->after('verified_by')
                 ->comment('Kapan Admisi verifikasi pasien tiba (link No_MR)');
         });
 
-        Schema::table('icu_spri_internal', function (Blueprint $table) {
+        Schema::table('IB_icu_spri_internal', function (Blueprint $table) {
             $table->dateTime('approved_at')->nullable()->after('approved_by')
                 ->comment('Kapan Admisi approve SPRI ke ICU');
             $table->dateTime('verified_at')->nullable()->after('verified_by')
@@ -36,10 +36,10 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::table('icu_booking_external', function (Blueprint $table) {
+        Schema::table('IB_icu_booking_external', function (Blueprint $table) {
             $table->dropColumn(['confirmed_at', 'verified_at']);
         });
-        Schema::table('icu_spri_internal', function (Blueprint $table) {
+        Schema::table('IB_icu_spri_internal', function (Blueprint $table) {
             $table->dropColumn(['approved_at', 'verified_at']);
         });
     }

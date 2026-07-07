@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class IcuSpriInternal extends Model
 {
-    protected $table = 'icu_spri_internal';
+    protected $table = 'IB_icu_spri_internal';
 
     protected $fillable = [
         'No_MR', 'No_Reg',

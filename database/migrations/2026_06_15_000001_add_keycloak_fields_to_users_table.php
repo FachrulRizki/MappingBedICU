@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('users', function (Blueprint $table) {
+        Schema::table('IB_users', function (Blueprint $table) {
             $table->string('keycloak_id', 100)->nullable()->unique()->after('username');
             $table->string('keycloak_username', 100)->nullable()->after('keycloak_id');
             $table->string('auth_provider', 20)->default('local')->after('keycloak_username'); // local | keycloak
@@ -18,7 +18,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::table('users', function (Blueprint $table) {
+        Schema::table('IB_users', function (Blueprint $table) {
             $table->dropColumn(['keycloak_id', 'keycloak_username', 'auth_provider']);
             $table->string('password')->nullable(false)->change();
         });

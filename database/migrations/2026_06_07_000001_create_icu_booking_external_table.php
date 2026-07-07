@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('icu_booking_external', function (Blueprint $table) {
+        Schema::create('IB_icu_booking_external', function (Blueprint $table) {
             $table->id();
 
             // ── Identitas pasien (sebelum punya No_MR)
@@ -58,6 +58,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('icu_booking_external');
+        Schema::dropIfExists('IB_icu_booking_external');
     }
 };

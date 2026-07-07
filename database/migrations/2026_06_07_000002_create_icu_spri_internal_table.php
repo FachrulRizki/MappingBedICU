@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('icu_spri_internal', function (Blueprint $table) {
+        Schema::create('IB_icu_spri_internal', function (Blueprint $table) {
             $table->id();
 
             // Referensi pasien (no FK — tabel ada di SQL Server RS)
@@ -53,6 +53,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('icu_spri_internal');
+        Schema::dropIfExists('IB_icu_spri_internal');
     }
 };

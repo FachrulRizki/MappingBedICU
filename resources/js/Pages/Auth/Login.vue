@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
 import { useForm } from '@inertiajs/vue3';
 
 const props = defineProps({
@@ -12,6 +12,15 @@ const form = useForm({ username: '', password: '', remember: false });
 const showPass   = ref(false);
 const errorMsg   = ref('');
 const ssoLoading = ref(false);
+
+// Mode login: 'local' | 'sso' | null (null = tampilkan pilihan metode)
+const mode = ref(props.keycloakAvailable ? null : 'local');
+
+const headerSubtitle = computed(() => {
+    if (mode.value === 'sso')   return 'Masuk menggunakan akun SSO rumah sakit';
+    if (mode.value === 'local') return 'Masuk ke sistem monitoring ICU Anda';
+    return 'Pilih metode login Anda';
+});
 
 watch(() => props.flash, (f) => {
     if (f?.error) errorMsg.value = f.error;
@@ -121,11 +130,30 @@ const features = [
                 <!-- Card header -->
                 <div class="mb-6">
                     <h2 class="text-2xl font-extrabold" style="color:#0F1D2E; letter-spacing:-0.02em">Selamat Datang 👋</h2>
-                    <p class="text-sm mt-1" style="color:#64748B">Masuk ke sistem monitoring ICU Anda</p>
+                    <p class="text-sm mt-1" style="color:#64748B">{{ headerSubtitle }}</p>
                 </div>
 
-                <!-- SSO button -->
-                <div v-if="keycloakAvailable" class="space-y-4 mb-4">
+                <!-- ── Pilihan metode login (tampil jika belum memilih) ── -->
+                <div v-if="mode === null" class="space-y-3">
+                    <button @click="mode = 'sso'"
+                        class="w-full flex items-center justify-center gap-2.5 py-3 rounded-xl text-sm font-bold transition-all login-sso-btn">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                        </svg>
+                        Login dengan SSO Rumah Sakit
+                    </button>
+
+                    <button @click="mode = 'local'"
+                        class="w-full flex items-center justify-center gap-2.5 py-3 rounded-xl text-sm font-bold transition-all login-local-btn">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                        </svg>
+                        Login Lokal (Username & Password)
+                    </button>
+                </div>
+
+                <!-- ── Mode: SSO ── -->
+                <div v-else-if="mode === 'sso'" class="space-y-4">
                     <button @click="loginSSO" :disabled="ssoLoading"
                         class="w-full flex items-center justify-center gap-2.5 py-3 rounded-xl text-sm font-bold transition-all disabled:opacity-60 login-sso-btn">
                         <svg v-if="!ssoLoading" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -137,12 +165,19 @@ const features = [
                         </svg>
                         {{ ssoLoading ? 'Menghubungkan...' : 'Login dengan SSO Rumah Sakit' }}
                     </button>
-                    <div class="flex items-center gap-3">
-                        <div class="flex-1 h-px" style="background:rgba(15,29,46,0.09)"></div>
-                        <span class="text-xs" style="color:#9AA5B1">atau login lokal</span>
-                        <div class="flex-1 h-px" style="background:rgba(15,29,46,0.09)"></div>
-                    </div>
+
+                    <button type="button" @click="mode = null" :disabled="ssoLoading"
+                        class="w-full flex items-center justify-center gap-1.5 text-xs font-semibold transition-opacity disabled:opacity-50"
+                        style="color:#64748B">
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+                        </svg>
+                        Pilih metode lain
+                    </button>
                 </div>
+
+                <!-- ── Mode: Login Lokal ── -->
+                <template v-else-if="mode === 'local'">
 
                 <!-- Error -->
                 <Transition enter-active-class="transition-all duration-200" enter-from-class="opacity-0 -translate-y-1">
@@ -224,10 +259,23 @@ const features = [
                     </button>
                 </form>
 
+                <!-- Tombol kembali ke pilihan metode (hanya jika SSO tersedia) -->
+                <button v-if="keycloakAvailable" type="button" @click="mode = null"
+                    class="w-full flex items-center justify-center gap-1.5 text-xs font-semibold mt-4 transition-opacity"
+                    style="color:#64748B">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+                    </svg>
+                    Pilih metode lain
+                </button>
+
                 <!-- Offline note -->
                 <p v-if="!keycloakAvailable" class="text-center text-xs mt-4" style="color:#9AA5B1">
                     🔒 Mode offline — SSO tidak tersedia
                 </p>
+
+                </template>
+                <!-- ── /Mode: Login Lokal ── -->
             </div>
 
             <p class="text-center text-xs mt-5 text-white/40">ICU Monitor v3.0 · Sistem Informasi Manajemen RS</p>
@@ -370,6 +418,18 @@ const features = [
 .login-sso-btn:hover:not(:disabled) {
     filter: brightness(1.08);
     box-shadow: 0 6px 20px rgba(0,168,132,0.4);
+    transform: translateY(-1px);
+}
+
+/* Login lokal button (di layar pilihan metode) */
+.login-local-btn {
+    background: #F7F9FC;
+    color: #0F1D2E;
+    border: 1.5px solid rgba(15,29,46,0.12);
+}
+.login-local-btn:hover {
+    background: #ECFDF5;
+    border-color: #00A884;
     transform: translateY(-1px);
 }
 

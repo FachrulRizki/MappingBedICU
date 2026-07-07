@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('icu_booking_external', function (Blueprint $table) {
+        Schema::table('IB_icu_booking_external', function (Blueprint $table) {
             $table->text('waiting_alasan')->nullable()->after('alasan_tolak')
                 ->comment('Alasan masuk waiting list (diisi ICU)');
             $table->dateTime('waiting_estimasi')->nullable()->after('waiting_alasan')
@@ -17,7 +17,7 @@ return new class extends Migration
                 ->comment('Nama petugas ICU yang memasukkan ke waiting list');
         });
 
-        Schema::table('icu_spri_internal', function (Blueprint $table) {
+        Schema::table('IB_icu_spri_internal', function (Blueprint $table) {
             $table->text('waiting_alasan')->nullable()->after('alasan_tolak')
                 ->comment('Alasan masuk waiting list (diisi ICU)');
             $table->dateTime('waiting_estimasi')->nullable()->after('waiting_alasan')
@@ -29,10 +29,10 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::table('icu_booking_external', function (Blueprint $table) {
+        Schema::table('IB_icu_booking_external', function (Blueprint $table) {
             $table->dropColumn(['waiting_alasan', 'waiting_estimasi', 'waiting_by']);
         });
-        Schema::table('icu_spri_internal', function (Blueprint $table) {
+        Schema::table('IB_icu_spri_internal', function (Blueprint $table) {
             $table->dropColumn(['waiting_alasan', 'waiting_estimasi', 'waiting_by']);
         });
     }

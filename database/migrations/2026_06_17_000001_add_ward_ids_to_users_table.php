@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('users', function (Blueprint $table) {
+        Schema::table('IB_users', function (Blueprint $table) {
             $table->json('ward_ids')->nullable()->after('auth_provider')
                 ->comment('Kode_Bangsal dari Keycloak token — scope akses ruang petugas');
         });
@@ -16,7 +16,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::table('users', function (Blueprint $table) {
+        Schema::table('IB_users', function (Blueprint $table) {
             $table->dropColumn('ward_ids');
         });
     }
