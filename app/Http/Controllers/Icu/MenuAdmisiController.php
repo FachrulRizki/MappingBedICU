@@ -32,10 +32,6 @@ class MenuAdmisiController extends Controller
         return $user?->name ?? 'admisi';
     }
 
-    // -------------------------------------------------------------------------
-    // READ
-    // -------------------------------------------------------------------------
-
     public function index(Request $request): Response
     {
         $data = $this->service->build($request);
@@ -53,10 +49,6 @@ class MenuAdmisiController extends Controller
             ],
         ]);
     }
-
-    // -------------------------------------------------------------------------
-    // ACTION — Tambah Booking External baru (dari Menu Admisi)
-    // -------------------------------------------------------------------------
 
     public function storeBooking(Request $request): RedirectResponse
     {
@@ -85,10 +77,6 @@ class MenuAdmisiController extends Controller
         return back()->with('success', "Booking untuk {$booking->nama_pasien} berhasil dikirim ke ICU.");
     }
 
-    // -------------------------------------------------------------------------
-    // ACTION — SPRI Internal: pending_admisi -> pending_icu (approve)
-    // -------------------------------------------------------------------------
-
     public function approveInt(Request $request, int $id): RedirectResponse
     {
         $v = $request->validate([
@@ -113,10 +101,6 @@ class MenuAdmisiController extends Controller
         return back()->with('success', "BU {$bu->pasien?->Nama_Pasien} disetujui dan diteruskan ke ICU.");
     }
 
-    // -------------------------------------------------------------------------
-    // ACTION — BU Internal: tolak oleh Admisi (any -> ditolak)
-    // -------------------------------------------------------------------------
-
     public function tolakInt(Request $request, int $id): RedirectResponse
     {
         $v = $request->validate([
@@ -135,10 +119,6 @@ class MenuAdmisiController extends Controller
 
         return back()->with('success', "BU {$bu->pasien?->Nama_Pasien} ditolak oleh Admisi.");
     }
-
-    // -------------------------------------------------------------------------
-    // ACTION — Booking External: bed_confirmed -> admisi_verified
-    // -------------------------------------------------------------------------
 
     public function verifikasiExt(Request $request, int $id): RedirectResponse
     {

@@ -14,17 +14,6 @@ class CheckPermission
         private readonly KeycloakPermissionService $permissionService,
     ) {}
 
-    /**
-     * Cek apakah user punya permission yang dibutuhkan.
-     *
-     * Cara pakai di route:
-     *   ->middleware('permission:booking_ext:create')
-     *   ->middleware('permission:booking_ext:create|booking_int:view')  ← OR logic
-     *
-     * Sumber permissions (prioritas berurutan):
-     *   1. Session 'keycloak_permissions' (dari Keycloak Authorization Services)
-     *   2. Fallback ke role-based permission (saat Keycloak Authorization belum diaktifkan)
-     */
     public function handle(Request $request, Closure $next, string ...$requiredPermissions): Response
     {
         if (! Auth::check()) {
@@ -58,17 +47,6 @@ class CheckPermission
         abort(403, 'Anda tidak memiliki akses ke halaman ini.');
     }
 
-    /**
-     * Fallback: mapping permission → role.
-     *
-     * Dipakai saat Keycloak Authorization Services belum diaktifkan,
-     * sehingga session 'keycloak_permissions' masih kosong.
-     *
-     * Setelah admin Keycloak aktifkan Authorization Services dan
-     * permissions mulai masuk ke JWT, fallback ini otomatis tidak terpakai.
-     *
-     * Mapping ini HARUS konsisten dengan permission yang akan dibuat di Keycloak.
-     */
     private function fallbackRoleCheck(Request $request, Closure $next, $user, array $requiredPermissions): Response
     {
         // Mapping: permission → role yang boleh akses

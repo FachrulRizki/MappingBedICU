@@ -6,25 +6,6 @@ use Illuminate\Support\Facades\Log;
 
 class KeycloakPermissionService
 {
-    /**
-     * Ekstrak permissions dari JWT token payload.
-     *
-     * Keycloak Authorization Services menyimpan permissions di dalam
-     * claim "authorization.permissions" pada RPT (Requesting Party Token).
-     *
-     * Struktur JWT dari Keycloak Authorization:
-     * {
-     *   "authorization": {
-     *     "permissions": [
-     *       { "rsname": "booking-external", "scopes": ["create", "view"] },
-     *       { "rsname": "booking-internal", "scopes": ["view"] }
-     *     ]
-     *   }
-     * }
-     *
-     * Output yang dihasilkan (flat array):
-     * ["booking_ext:create", "booking_ext:view", "booking_int:view", ...]
-     */
     public function extractPermissionsFromToken(array $tokenPayload): array
     {
         $permissions = $tokenPayload['authorization']['permissions'] ?? [];
@@ -44,8 +25,6 @@ class KeycloakPermissionService
                 continue;
             }
 
-            // Normalisasi nama resource → prefix permission
-            // Contoh: "booking-external" → "booking_ext"
             $prefix = $this->normalizeResourceName($resource);
 
             foreach ($scopes as $scope) {
@@ -85,21 +64,6 @@ class KeycloakPermissionService
         return false;
     }
 
-    /**
-     * Normalisasi nama resource dari Keycloak → prefix permission string.
-     *
-     * Mapping ini harus sesuai dengan nama Resources yang dibuat
-     * di Keycloak Authorization Services → Resources.
-     *
-     * Contoh nama resource di Keycloak → prefix di aplikasi:
-     *   "booking-external"  → "booking_ext"
-     *   "booking-internal"  → "booking_int"
-     *   "dashboard"         → "dashboard"
-     *   "denah-bed"         → "denah_bed"
-     *   "settings-users"    → "settings_users"
-     *   "settings-roles"    → "settings_roles"
-     *   "activity-log"      → "activity_log"
-     */
     private function normalizeResourceName(string $resource): string
     {
         $map = [

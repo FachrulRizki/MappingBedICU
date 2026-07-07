@@ -11,15 +11,6 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
-/**
- * MonitorController — halaman khusus layar monitor/TV di ruang ICU.
- *
- * Akses publik (tanpa login) agar bisa ditampilkan di TV tanpa sesi.
- * Data yang ditampilkan:
- *   - Status bed ICU realtime
- *   - Antrian booking aktif (pending, waiting list, confirmed)
- *   - Jam dan tanggal
- */
 class MonitorController extends Controller
 {
     public function index(): Response

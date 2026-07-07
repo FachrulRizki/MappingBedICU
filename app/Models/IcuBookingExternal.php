@@ -4,12 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-/**
- * Booking ICU jalur EXTERNAL.
- *
- * Alur: pending_icu → bed_confirmed → admisi_verified | ditolak
- *                  ↘ waiting_list → bed_confirmed (saat bed tersedia)
- */
 class IcuBookingExternal extends Model
 {
     protected $table = 'icu_booking_external';

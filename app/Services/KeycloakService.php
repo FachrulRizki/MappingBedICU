@@ -14,7 +14,7 @@ class KeycloakService
             return false;
         }
 
-        // Jika KEYCLOAK_ENABLED=true, paksa aktif (untuk testing di jaringan RS)
+        // Jika KEYCLOAK_ENABLED=true, aktif (untuk testing di jaringan RS)
         if (env('KEYCLOAK_ENABLED', 'auto') === 'true') {
             return true;
         }
@@ -104,23 +104,15 @@ class KeycloakService
 
     public function resolveRoleFromToken(array $tokenPayload): string
     {
-        // Prioritas 1: Client roles (icu-bed specific — lebih granular, 1 pintu)
         $clientRoles = $this->extractClientRoles($tokenPayload);
         if (!empty($clientRoles)) {
             return $this->mapRole($clientRoles);
         }
 
-        // Fallback: Realm roles (lintas aplikasi)
         $realmRoles = $tokenPayload['realm_access']['roles'] ?? [];
         return $this->mapRole($realmRoles);
     }
 
-    /**
-     * Ekstrak permissions dari token payload.
-     * Delegate ke KeycloakPermissionService.
-     *
-     * Dipanggil dari SyncKeycloakRole setelah login.
-     */
     public function extractPermissionsFromToken(array $tokenPayload): array
     {
         return app(\App\Services\KeycloakPermissionService::class)

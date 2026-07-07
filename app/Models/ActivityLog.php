@@ -29,14 +29,14 @@ class ActivityLog extends Model
         'created_at' => 'datetime',
     ];
 
-    // ── Relasi ─────────────────────────────────────────────────────────────
+    // Relasi
 
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-    // ── Scopes ─────────────────────────────────────────────────────────────
+    // Scopes
 
     public function scopeForUser(Builder $q, int $userId): Builder
     {
@@ -58,17 +58,6 @@ class ActivityLog extends Model
         return $q->whereBetween('created_at', [$from . ' 00:00:00', $to . ' 23:59:59']);
     }
 
-    /**
-     * Jenis aktivitas yang sesuai dengan aksi nyata di project ini:
-     *
-     * - Autentikasi     : login / logout
-     * - Buat Data       : membuat booking baru / membuat BU SPRI
-     * - Setujui Data    : admisi approve SPRI → diteruskan ke ICU
-     * - Konfirmasi Bed  : ICU konfirmasi/alokasi bed untuk booking external
-     * - Verifikasi Bed  : ICU verifikasi bed untuk SPRI internal
-     * - Verifikasi Pasien : admisi verifikasi data pasien booking external
-     * - Tolak Data      : menolak booking / BU SPRI
-     */
     public static function jenisOptions(): array
     {
         return [

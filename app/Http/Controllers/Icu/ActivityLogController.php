@@ -74,7 +74,6 @@ class ActivityLogController extends Controller
             'jenisOptions' => ActivityLog::jenisOptions(),
             'users'        => $users,
             'isAdmin'      => $isAdmin,
-            // key di Vue: props.filters.tglDari / tglAkh / jenis / userId / perPage
             'filters'      => [
                 'tglDari'  => $tglDari,
                 'tglAkh'   => $tglAkh,

@@ -4,12 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-/**
- * BU (Booking ICU) jalur INTERNAL.
- *
- * Alur: pending_admisi → pending_icu → bed_verified | ditolak
- *                                   ↘ waiting_list → bed_verified (saat bed tersedia)
- */
 class IcuSpriInternal extends Model
 {
     protected $table = 'icu_spri_internal';
