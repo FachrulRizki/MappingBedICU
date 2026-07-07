@@ -167,7 +167,7 @@ class AntrianService
 
         try {
             $isRsus  = \App\Models\RegistrasiPasien::rsusAvailable();
-            $conn    = $isRsus ? 'sqlsrv_rsus' : 'mysql';
+            $conn    = $isRsus ? 'sqlsrv_rsus' : config('database.default');
             $adkTbl  = $isRsus ? 'ASESMEN_DOKTER_KOLABORASI' : 'asesmen_dokter_kolaborasi';
             $dTbl    = $isRsus ? 'DOKTER' : 'dokter';
 
