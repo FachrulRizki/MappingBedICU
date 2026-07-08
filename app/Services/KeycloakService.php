@@ -9,17 +9,17 @@ class KeycloakService
 {
     public function isReachable(): bool
     {
-        // Jika KEYCLOAK_ENABLED=false di .env, nonaktifkan SSO tanpa cek jaringan
-        if (env('KEYCLOAK_ENABLED', 'auto') === 'false') {
+        $enabled = config('services.keycloak.enabled', 'auto');
+
+        if ($enabled === 'false' || $enabled === false) {
             return false;
         }
 
-        // Jika KEYCLOAK_ENABLED=true, aktif (untuk testing di jaringan RS)
-        if (env('KEYCLOAK_ENABLED', 'auto') === 'true') {
+        if ($enabled === 'true' || $enabled === true) {
             return true;
         }
 
-        // Mode auto (default): cek koneksi aktual ke Keycloak server
+        // Mode auto: cek koneksi aktual ke Keycloak server
         return Cache::remember('keycloak_reachable', 30, function () {
             return $this->pingKeycloak();
         });
@@ -111,6 +111,25 @@ class KeycloakService
 
         $realmRoles = $tokenPayload['realm_access']['roles'] ?? [];
         return $this->mapRole($realmRoles);
+    }
+
+    /**
+     * Cek apakah token mengandung minimal satu role yang dikenali aplikasi.
+     * Digunakan untuk menolak login user yang belum di-setup role-nya di Keycloak.
+     */
+    public function hasRecognizedRole(array $tokenPayload): bool
+    {
+        $knownRoles  = ['admin', 'admisi', 'petugas_icu', 'petugas_ruang'];
+        $clientRoles = $this->extractClientRoles($tokenPayload);
+        $realmRoles  = $tokenPayload['realm_access']['roles'] ?? [];
+
+        foreach (array_merge($clientRoles, $realmRoles) as $role) {
+            if (in_array($role, $knownRoles, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function extractPermissionsFromToken(array $tokenPayload): array

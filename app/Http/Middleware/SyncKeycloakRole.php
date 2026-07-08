@@ -20,31 +20,26 @@ class SyncKeycloakRole
         /** @var \App\Models\User|null $user */
         $user = Auth::user();
 
-        if (
-            $user &&
-            $user->auth_provider === 'keycloak' &&
-            $request->session()->has('keycloak_realm_roles')
-        ) {
-            $realmRoles = $request->session()->get('keycloak_realm_roles', []);
-            // Cek apakah ada token payload lengkap di session (termasuk client roles)
+        if 
+        (
+            $user && $user->auth_provider === 'keycloak' && $request->session()->has('keycloak_token_payload')
+        ) 
+        {
             $tokenPayload = $request->session()->get('keycloak_token_payload', []);
-            $newRole = !empty($tokenPayload)
-                ? $this->keycloak->resolveRoleFromToken($tokenPayload)
-                : $this->keycloak->mapRole($realmRoles);
 
-            // Selalu sync role dari Keycloak — DB tidak boleh override Keycloak
+            // Sync role dari token Keycloak
+            $newRole = $this->keycloak->resolveRoleFromToken($tokenPayload);
             if ($user->role !== $newRole) {
-                Log::info("[SyncKeycloakRole] Role di-sync: {$user->name} {$user->role} → {$newRole} (dari Keycloak)");
+                Log::info("[SyncKeycloakRole] Role di-sync: {$user->name} {$user->role} → {$newRole}");
                 $user->update(['role' => $newRole]);
                 Auth::setUser($user->fresh());
             }
 
-            // Sync permissions dari token payload ke session.
-            // Permissions akan ada di JWT setelah Keycloak Authorization Services diaktifkan.
-            if (!empty($tokenPayload)) {
+            // Sync permissions dari Keycloak Authorization Services ke session
+            if ($user->role !== 'admin') {
                 $permissions = $this->keycloak->extractPermissionsFromToken($tokenPayload);
                 $request->session()->put('keycloak_permissions', $permissions);
-                Log::debug('[SyncKeycloakRole] Permissions di-sync: ' . (implode(', ', $permissions) ?: '(kosong)'));
+                Log::debug('[SyncKeycloakRole] Permissions: ' . (implode(', ', $permissions) ?: '(kosong)'));
             }
         }
 

@@ -8,33 +8,36 @@ class KeycloakPermissionService
 {
     public function extractPermissionsFromToken(array $tokenPayload): array
     {
-        $permissions = $tokenPayload['authorization']['permissions'] ?? [];
-
-        if (empty($permissions)) {
-            Log::debug('[KeycloakPermission] Tidak ada claim authorization.permissions di JWT.');
-            return [];
-        }
-
-        $result = [];
-
-        foreach ($permissions as $permission) {
-            $resource = $permission['rsname'] ?? null;
-            $scopes   = $permission['scopes'] ?? [];
-
-            if (! $resource) {
-                continue;
-            }
+        $authPermissions = [];
+        foreach ($tokenPayload['authorization']['permissions'] ?? [] as $permission) {
+            $resource = $permission['Resource Set Name'] ?? null;
+            if (! $resource) continue;
 
             $prefix = $this->normalizeResourceName($resource);
-
-            foreach ($scopes as $scope) {
-                $result[] = "{$prefix}:{$scope}";
+            foreach ($permission['scopes'] ?? [] as $scope) {
+                $authPermissions[] = "{$prefix}:{$scope}";
             }
         }
+        $authPermissions = array_values(array_unique($authPermissions));
 
-        Log::debug('[KeycloakPermission] Permissions diekstrak: ' . implode(', ', $result));
+        if (! empty($authPermissions)) {
+            Log::debug('[KeycloakPermission] Permissions dari Authorization Services: ' . implode(', ', $authPermissions));
+            return $authPermissions;
+        }
 
-        return array_unique($result);
+        $clientId = config('services.keycloak.client_id', 'icu-bed');
+        $roles    = $tokenPayload['resource_access'][$clientId]['roles'] ?? [];
+        $clientPermissions = array_values(array_unique(
+            array_filter($roles, fn ($role) => str_contains($role, ':'))
+        ));
+
+        if (! empty($clientPermissions)) {
+            Log::debug('[KeycloakPermission] Permissions dari client roles: ' . implode(', ', $clientPermissions));
+            return $clientPermissions;
+        }
+
+        Log::debug('[KeycloakPermission] Tidak ada permissions di JWT (authorization.permissions maupun client roles).');
+        return [];
     }
 
     /**

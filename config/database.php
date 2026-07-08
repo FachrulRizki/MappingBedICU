@@ -51,21 +51,22 @@ return [
             'encrypt'                  => env('DB_ENCRYPT', 'false'),
         ],
 
-        // ── Koneksi ke DB RS (SQL Server, read-only) ──────────────────────
-        // Untuk membaca tabel existing RS: RegistrasiPasien, Pendaftaran,
-        // StatusKamar, M_Kelas, M_RuangMaster, M_CaraBayar, dll.
+        // ── Koneksi ke DB RS (SQL Server) ─────────────────────────────────
+        // Di prod: bisa pakai DB yang sama dengan koneksi utama (DB_RSUS_DATABASE = DB_DATABASE)
+        // Di dev lokal: bisa pakai DB terpisah atau fallback ke MySQL
         'sqlsrv_rsus' => [
             'driver'                   => 'sqlsrv',
-            'host'                     => env('DB_RSUS_HOST', '192.168.200.160'),
-            'port'                     => env('DB_RSUS_PORT', '1433'),
-            'database'                 => env('DB_RSUS_DATABASE', 'DB_RSUS'),
-            'username'                 => env('DB_RSUS_USERNAME', ''),
-            'password'                 => env('DB_RSUS_PASSWORD', ''),
+            'host'                     => env('DB_RSUS_HOST', env('DB_HOST', '192.168.200.160')),
+            'port'                     => env('DB_RSUS_PORT', env('DB_PORT', '1433')),
+            'database'                 => env('DB_RSUS_DATABASE', env('DB_DATABASE', 'DB_RSUS')),
+            'username'                 => env('DB_RSUS_USERNAME', env('DB_USERNAME', '')),
+            'password'                 => env('DB_RSUS_PASSWORD', env('DB_PASSWORD', '')),
             'charset'                  => 'utf8',
             'prefix'                   => '',
             'prefix_indexes'           => true,
-            'trust_server_certificate' => env('DB_RSUS_TRUST_CERT', 'true'),
+            'trust_server_certificate' => env('DB_RSUS_TRUST_CERT', env('DB_TRUST_CERT', 'true')),
             'encrypt'                  => 'false',
+            'enabled'                  => env('DB_RSUS_ENABLED', 'auto'),
         ],
 
     ],

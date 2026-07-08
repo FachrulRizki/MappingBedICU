@@ -9,7 +9,7 @@ class RsusConnectionService
 {
     public function isAvailable(): bool
     {
-        $mode = env('DB_RSUS_ENABLED', 'auto');
+        $mode = config('database.connections.sqlsrv_rsus.enabled', 'auto');
 
         if ($mode === 'false' || $mode === false) {
             return false;
@@ -25,8 +25,8 @@ class RsusConnectionService
 
     private function ping(): bool
     {
-        $host = env('DB_RSUS_HOST', '');
-        $port = (int) env('DB_RSUS_PORT', 1433);
+        $host = config('database.connections.sqlsrv_rsus.host', '');
+        $port = (int) config('database.connections.sqlsrv_rsus.port', 1433);
 
         if (! $host) {
             return false;

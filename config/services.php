@@ -37,6 +37,7 @@ return [
 
     // Keycloak SSO 
     'keycloak' => [
+        'enabled'       => env('KEYCLOAK_ENABLED', 'auto'),
         'client_id'     => env('KEYCLOAK_CLIENT_ID'),
         'client_secret' => env('KEYCLOAK_CLIENT_SECRET'),
         'redirect'      => env('KEYCLOAK_REDIRECT_URI'),
