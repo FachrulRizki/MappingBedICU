@@ -19,13 +19,15 @@ export default defineConfig({
         tailwindcss(),
     ],
 
+    // Dev server — hanya aktif saat npm run dev (lokal)
+    // Di prod, assets di-serve dari public/build (hasil npm run build)
     server: {
         host: '0.0.0.0',
         port: 5173,
         cors: true,
 
         hmr: {
-            host: '192.168.200.142',
+            host: process.env.VITE_HMR_HOST || '192.168.200.142',
             port: 5173,
             protocol: 'ws',
         },

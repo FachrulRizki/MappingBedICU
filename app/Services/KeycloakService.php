@@ -17,48 +17,7 @@ class KeycloakService
 
         if ($enabled === 'true' || $enabled === true) {
             return true;
-        }
-
-        // Mode auto: cek koneksi aktual ke Keycloak server
-        return Cache::remember('keycloak_reachable', 30, function () {
-            return $this->pingKeycloak();
-        });
-    }
-
-    private function pingKeycloak(): bool
-    {
-        $baseUrl = rtrim(config('services.keycloak.base_url', ''), '/');
-        $realm   = config('services.keycloak.realms', 'myrealm');
-        $url     = "{$baseUrl}/realms/{$realm}/.well-known/openid-configuration";
-
-        if (! $baseUrl) {
-            return false;
-        }
-
-        try {
-            $ch = curl_init($url);
-            curl_setopt_array($ch, [
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_CONNECTTIMEOUT => 2,
-                CURLOPT_TIMEOUT        => 2,
-                CURLOPT_NOBODY         => true,
-                CURLOPT_FOLLOWLOCATION => false,
-            ]);
-            curl_exec($ch);
-            $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $error    = curl_error($ch);
-            curl_close($ch);
-
-            if ($error) {
-                Log::debug("[Keycloak] Ping gagal: {$error}");
-                return false;
-            }
-
-            return $httpCode >= 200 && $httpCode < 500;
-        } catch (\Throwable $e) {
-            Log::debug("[Keycloak] Ping exception: " . $e->getMessage());
-            return false;
-        }
+        };
     }
 
     public function mapRole(array $realmRoles): string
@@ -136,6 +95,52 @@ class KeycloakService
     {
         return app(\App\Services\KeycloakPermissionService::class)
             ->extractPermissionsFromToken($tokenPayload);
+    }
+
+    // Introspect access token ke Keycloak untuk verifikasi aktif/tidak.
+    public function introspectToken(string $accessToken): array
+    {
+        $baseUrl  = rtrim(config('services.keycloak.base_url', ''), '/');
+        $realm    = config('services.keycloak.realms', 'myrealm');
+        $clientId = config('services.keycloak.client_id');
+        $secret   = config('services.keycloak.client_secret');
+
+        if (! $baseUrl || ! $clientId || ! $secret) {
+            Log::debug('[Keycloak] Introspect skip — config tidak lengkap.');
+            return [];
+        }
+
+        $url = "{$baseUrl}/realms/{$realm}/protocol/openid-connect/token/introspect";
+
+        try {
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => http_build_query([
+                    'token'        => $accessToken,
+                    'client_id'    => $clientId,
+                    'client_secret'=> $secret,
+                ]),
+                CURLOPT_HTTPHEADER     => ['Content-Type: application/x-www-form-urlencoded'],
+                CURLOPT_TIMEOUT        => 3,
+                CURLOPT_CONNECTTIMEOUT => 2,
+            ]);
+            $response = curl_exec($ch);
+            $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $error    = curl_error($ch);
+            curl_close($ch);
+
+            if ($error || $httpCode !== 200) {
+                Log::warning("[Keycloak] Introspect gagal (HTTP {$httpCode}): {$error}");
+                return [];
+            }
+
+            return json_decode($response, true) ?? [];
+        } catch (\Throwable $e) {
+            Log::warning('[Keycloak] Introspect exception: ' . $e->getMessage());
+            return [];
+        }
     }
 
     public function decodeJwtPayload(string $token): array

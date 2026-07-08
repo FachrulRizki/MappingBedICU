@@ -90,9 +90,13 @@ class AuthController extends Controller
 
         Auth::login($user, remember: false);
         $request->session()->regenerate();
+
         $request->session()->put('auth_via', 'keycloak');
         $request->session()->put('keycloak_id_token', $idToken);
         $request->session()->put('keycloak_token_payload', $tokenPayload);
+        // Simpan access token untuk keperluan introspection di SyncKeycloakRole
+        $request->session()->put('keycloak_access_token', $socialUser->token);
+        $request->session()->put('keycloak_last_introspect', time());
 
         Log::info("[Keycloak] Login: {$user->name} role:{$localRole} id_token:" . ($idToken ? 'ada' : 'KOSONG'));
 

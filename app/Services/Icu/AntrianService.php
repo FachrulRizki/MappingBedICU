@@ -136,22 +136,14 @@ class AntrianService
     {
         if (empty($noRegs)) return [];
 
-        $conn    = RegistrasiPasien::activeConnection();
-        $isRsus  = RegistrasiPasien::rsusAvailable();
-        $pTable  = $isRsus ? 'PENDAFTARAN'  : 'pendaftaran';
-        $cbTable = $isRsus ? 'M_CARABAYAR'  : 'm_carabayar';
-        $cbKet   = $isRsus ? 'Ket_Bayar'    : 'KET_BAYAR';
-        $cbKode  = $isRsus ? 'Kode_Bayar'   : 'KODE_BAYAR';
-        $isnull  = $isRsus ? 'ISNULL' : 'COALESCE';
-
         try {
-            $rows = DB::connection($conn)
-                ->table("{$pTable} as p")
-                ->leftJoin("{$cbTable} as cb", "p.Kode_Bayar", '=', "cb.{$cbKode}")
+            $rows = DB::connection('sqlsrv_rsus')
+                ->table('PENDAFTARAN as p')
+                ->leftJoin('M_CARABAYAR as cb', 'p.Kode_Bayar', '=', 'cb.Kode_Bayar')
                 ->whereIn('p.No_Reg', $noRegs)
                 ->select([
                     'p.No_Reg',
-                    DB::raw("{$isnull}(cb.{$cbKet}, p.Kode_Bayar) as ket_bayar"),
+                    DB::raw("ISNULL(cb.Ket_Bayar, p.Kode_Bayar) as ket_bayar"),
                 ])
                 ->get();
 
@@ -166,21 +158,15 @@ class AntrianService
         if (empty($noRegs)) return [];
 
         try {
-            $isRsus  = \App\Models\RegistrasiPasien::rsusAvailable();
-            $conn    = $isRsus ? 'sqlsrv_rsus' : config('database.default');
-            $adkTbl  = $isRsus ? 'ASESMEN_DOKTER_KOLABORASI' : 'asesmen_dokter_kolaborasi';
-            $dTbl    = $isRsus ? 'DOKTER' : 'dokter';
-
-            $rows = \Illuminate\Support\Facades\DB::connection($conn)
-                ->table("{$adkTbl} as adk")
-                ->leftJoin("{$dTbl} as d", 'adk.Dokter', '=', 'd.Kode_Dokter')
+            $rows = \Illuminate\Support\Facades\DB::connection('sqlsrv_rsus')
+                ->table('ASESMEN_DOKTER_KOLABORASI as adk')
+                ->leftJoin('DOKTER as d', 'adk.Dokter', '=', 'd.Kode_Dokter')
                 ->where('adk.Ket', '!=', 'Sayhello')
                 ->whereIn('adk.No_Reg', $noRegs)
                 ->select(['adk.No_Reg', 'd.Nama_Dokter', 'adk.Dokter as Kode_Dokter', 'adk.Ket'])
                 ->get();
 
-            // Group by No_Reg → array of dokter names
-           $map = [];
+            $map = [];
             foreach ($rows as $row) {
                 if ($row->No_Reg) {
                     $map[$row->No_Reg][] = [
@@ -190,7 +176,6 @@ class AntrianService
                 }
             }
             return $map;
-
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::warning('[fetchDokterKolab] ' . $e->getMessage());
             return [];

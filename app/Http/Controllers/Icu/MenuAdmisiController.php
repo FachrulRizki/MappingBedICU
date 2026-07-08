@@ -174,22 +174,15 @@ class MenuAdmisiController extends Controller
 
         $kunjungans = collect();
         try {
-            $conn   = RegistrasiPasien::activeConnection();
-            $isRsus = RegistrasiPasien::rsusAvailable();
-            $pTable = $isRsus ? 'PENDAFTARAN'    : 'pendaftaran';
-            $rmTable= $isRsus ? 'M_RUANG_MASTER' : 'm_ruang_master';
-            $nullFn = $isRsus ? 'ISNULL'         : 'COALESCE';
-            $tglCol = $isRsus ? 'p.Tanggal'      : 'p.created_at';
-
-            $rows = \Illuminate\Support\Facades\DB::connection($conn)
-                ->table("{$pTable} as p")
-                ->leftJoin("{$rmTable} as rm", 'p.Kode_Ruang', '=', 'rm.Kode_RuangM')
+            $rows = \Illuminate\Support\Facades\DB::connection('sqlsrv_rsus')
+                ->table('PENDAFTARAN as p')
+                ->leftJoin('M_RUANG_MASTER as rm', 'p.Kode_Ruang', '=', 'rm.Kode_RuangM')
                 ->where('p.No_MR', $noMr)
-                ->orderByDesc($tglCol)
+                ->orderByDesc('p.Tanggal')
                 ->limit(10)
                 ->select([
                     'p.No_Reg', 'p.Kode_Masuk',
-                    \Illuminate\Support\Facades\DB::raw("{$nullFn}(rm.Nama_RuangM, p.Kode_Ruang) as nama_ruang"),
+                    \Illuminate\Support\Facades\DB::raw("ISNULL(rm.Nama_RuangM, p.Kode_Ruang) as nama_ruang"),
                 ])->get();
 
             $kunjungans = $rows->map(fn ($r) => [

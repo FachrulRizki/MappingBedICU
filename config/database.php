@@ -51,11 +51,12 @@ return [
             'encrypt'                  => env('DB_ENCRYPT', 'false'),
         ],
 
-        // ── Koneksi ke DB RS (SQL Server) ─────────────────────────────────
-        // Di prod: bisa pakai DB yang sama dengan koneksi utama (DB_RSUS_DATABASE = DB_DATABASE)
-        // Di dev lokal: bisa pakai DB terpisah atau fallback ke MySQL
+
+        // ── Koneksi ke DB RS (SQL Server di prod, MySQL di dev) ───────────
+        // Prod: DB_CONNECTION=sqlsrv, DB_DATABASE=DB_RSUS
+        // Dev:  kalau DB_RSUS_* tidak di-set, fallback ke DB_* utama
         'sqlsrv_rsus' => [
-            'driver'                   => 'sqlsrv',
+            'driver'                   => env('DB_CONNECTION', 'sqlsrv') === 'sqlsrv' ? 'sqlsrv' : env('DB_CONNECTION', 'mysql'),
             'host'                     => env('DB_RSUS_HOST', env('DB_HOST', '192.168.200.160')),
             'port'                     => env('DB_RSUS_PORT', env('DB_PORT', '1433')),
             'database'                 => env('DB_RSUS_DATABASE', env('DB_DATABASE', 'DB_RSUS')),
@@ -66,7 +67,6 @@ return [
             'prefix_indexes'           => true,
             'trust_server_certificate' => env('DB_RSUS_TRUST_CERT', env('DB_TRUST_CERT', 'true')),
             'encrypt'                  => 'false',
-            'enabled'                  => env('DB_RSUS_ENABLED', 'auto'),
         ],
 
     ],

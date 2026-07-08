@@ -2,55 +2,62 @@
 
 namespace App\Models\Concerns;
 
-use App\Services\RsusConnectionService;
-
-/**
- * Trait untuk model yang membaca data dari DB RS.
- */
 trait UsesRsusConnection
 {
+    public static function isSqlServer(): bool
+    {
+        $driver = config('database.connections.' . config('database.connections.sqlsrv_rsus.driver', 'none') . '.driver');
+        return config('database.default') === 'sqlsrv'
+            || config('database.connections.sqlsrv_rsus.driver') === 'sqlsrv';
+    }
+
     public function getConnectionName(): string
     {
-        return static::rsusAvailable() ? 'sqlsrv_rsus' : config('database.default');
+        return 'sqlsrv_rsus';
     }
 
     public function getTable(): string
     {
-        if (static::rsusAvailable()) {
+        $driver = config('database.connections.sqlsrv_rsus.driver', 'mysql');
+
+        if ($driver === 'sqlsrv') {
             return $this->rsusTable ?? parent::getTable();
         }
+
         return $this->localTable ?? parent::getTable();
+    }
+
+    /**
+     * Nama koneksi aktif (untuk raw DB::connection() calls).
+     */
+    public static function activeConnection(): string
+    {
+        return 'sqlsrv_rsus';
+    }
+
+    /**
+     * Helper SQL null-coalesce kompatibel antar driver.
+     */
+    public static function sqlNull(string $col, string $fallback): string
+    {
+        $driver = config('database.connections.sqlsrv_rsus.driver', 'mysql');
+        return $driver === 'sqlsrv'
+            ? "ISNULL({$col}, {$fallback})"
+            : "COALESCE({$col}, {$fallback})";
+    }
+
+    public static function rsusIsSqlServer(): bool
+    {
+        return config('database.connections.sqlsrv_rsus.driver', 'mysql') === 'sqlsrv';
     }
 
     public static function rsusAvailable(): bool
     {
-        return app(RsusConnectionService::class)->isAvailable();
+        return static::rsusIsSqlServer();
     }
 
-    /**
-     * Versi static murni — aman dipanggil dari Seeder tanpa instance model.
-     */
     public static function rsusIsAvailableStatic(): bool
     {
-        return app(RsusConnectionService::class)->isAvailable();
-    }
-
-    /**
-     * Nama koneksi aktif (untuk dipakai di raw DB::connection() calls).
-     */
-    public static function activeConnection(): string
-    {
-        return static::rsusAvailable() ? 'sqlsrv_rsus' : config('database.default');
-    }
-
-    /**
-     * Helper SQL null-coalesce yang kompatibel antar driver.
-     * SQL Server: ISNULL(a, b) | MySQL: COALESCE(a, b)
-     */
-    public static function sqlNull(string $col, string $fallback): string
-    {
-        return static::rsusAvailable()
-            ? "ISNULL({$col}, {$fallback})"
-            : "COALESCE({$col}, {$fallback})";
+        return static::rsusIsSqlServer();
     }
 }

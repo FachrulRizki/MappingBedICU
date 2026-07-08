@@ -67,9 +67,7 @@ class MenuPetugasController extends Controller
         if ($fStatus) $q->where('status', $fStatus);
 
         if ($fNama) {
-            $ids = RegistrasiPasien::rsusAvailable()
-                ? RegistrasiPasien::where('Nama_Pasien', 'like', "%{$fNama}%")->pluck('No_MR')->toArray()
-                : [];
+            $ids = RegistrasiPasien::where('Nama_Pasien', 'like', "%{$fNama}%")->pluck('No_MR')->toArray();
             $q->where(fn ($qq) => $qq->whereIn('No_MR', $ids)->orWhere('No_MR', 'like', "%{$fNama}%"));
         }
 
@@ -132,23 +130,15 @@ class MenuPetugasController extends Controller
     {
         if (empty($noRegs)) return [];
 
-        $conn    = RegistrasiPasien::activeConnection();
-        $isRsus  = RegistrasiPasien::rsusAvailable();
-        $pTable  = $isRsus ? 'PENDAFTARAN'  : 'pendaftaran';
-        $cbTable = $isRsus ? 'M_CARABAYAR'  : 'm_carabayar';
-        $cbKet   = $isRsus ? 'Ket_Bayar'    : 'KET_BAYAR';
-        $cbKode  = $isRsus ? 'Kode_Bayar'   : 'KODE_BAYAR';
-        $isnull  = $isRsus ? 'ISNULL' : 'COALESCE';
-
         try {
-            $rows = DB::connection($conn)
-                ->table("{$pTable} as p")
-                ->leftJoin("{$cbTable} as cb", "p.Kode_Bayar", '=', "cb.{$cbKode}")
+            $rows = DB::connection('sqlsrv_rsus')
+                ->table('PENDAFTARAN as p')
+                ->leftJoin('M_CARABAYAR as cb', 'p.Kode_Bayar', '=', 'cb.Kode_Bayar')
                 ->whereIn('p.No_Reg', $noRegs)
                 ->select([
                     'p.No_Reg',
                     'p.Kode_Bayar',
-                    DB::raw("{$isnull}(cb.{$cbKet}, p.Kode_Bayar) as ket_bayar"),
+                    DB::raw("ISNULL(cb.Ket_Bayar, p.Kode_Bayar) as ket_bayar"),
                 ])
                 ->get();
 
@@ -167,90 +157,6 @@ class MenuPetugasController extends Controller
     }
 
     private function getPasienAktif(string $cari): array
-    {
-        /** @var \App\Models\User|null $user */
-        $user = Auth::user();
-        if (! $user) return [];
-
-        return RegistrasiPasien::rsusAvailable()
-            ? $this->getPasienAktifSSO($cari)
-            : $this->getPasienAktifLokal($cari);
-    }
-
-    private function isIgdUser(): bool
-    {
-        /** @var \App\Models\User|null $user */
-        $user = Auth::user();
-        if (! $user) return false;
-
-        $unitKerja = strtoupper($user->unit_kerja ?? '');
-        if (str_contains($unitKerja, 'IGD') || str_contains($unitKerja, 'UGD') || str_contains($unitKerja, 'EMERGENCY')) {
-            return true;
-        }
-
-        foreach ($this->userWardIds() as $w) {
-            $upper = strtoupper((string) $w);
-            if (str_contains($upper, 'IGD') || str_contains($upper, 'UGD') || str_contains($upper, 'EMR')) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private function getPasienAktifLokal(string $cari): array
-    {
-        $conn     = config('database.default');
-        $isSqlSrv = str_starts_with($conn, 'sqlsrv');
-        $nullFn   = $isSqlSrv ? 'ISNULL' : 'COALESCE';
-
-        try {
-            $q = DB::connection($conn)
-                ->table('registrasi_pasien as rp')
-                ->leftJoin(
-                    DB::raw('(SELECT No_MR, MAX(No_Reg) as No_Reg, MAX(Kode_Asal) as Kode_Asal, MAX(PermintaanDPJP) as Dokter FROM pendaftaran GROUP BY No_MR) as p'),
-                    'rp.No_MR', '=', 'p.No_MR'
-                )
-                ->leftJoin('m_ruang_master as rm', 'p.Kode_Asal', '=', 'rm.Kode_RuangM')
-                ->select([
-                    'rp.No_MR', 'p.No_Reg', 'rp.Nama_Pasien', 'rp.jenis_kelamin',
-                    DB::raw($isSqlSrv
-                        ? "ISNULL(rm.Nama_RuangM, ISNULL(p.Kode_Asal, 'Lokal')) as Nama_RuangM"
-                        : "COALESCE(rm.Nama_RuangM, p.Kode_Asal, 'Lokal') as Nama_RuangM"),
-                    DB::raw("{$nullFn}(rm.Kode_RuangM, 'LOKAL') as Kode_RuangM"),
-                    DB::raw("{$nullFn}(p.Dokter, '') as Dokter"),
-                ])
-                ->groupBy('rp.No_MR', 'rp.Nama_Pasien', 'rp.jenis_kelamin',
-                          'p.No_Reg', 'p.Kode_Asal', 'p.Dokter',
-                          'rm.Nama_RuangM', 'rm.Kode_RuangM');
-
-            if ($cari) {
-                $q->where(fn ($qq) => $qq
-                    ->where('rp.Nama_Pasien', 'like', "%{$cari}%")
-                    ->orWhere('rp.No_MR', 'like', "%{$cari}%")
-                );
-            }
-
-            return $q->orderBy('rp.Nama_Pasien')->limit(50)->get()
-                ->map(fn ($r) => [
-                    'No_MR'         => $r->No_MR,
-                    'No_Reg'        => $r->No_Reg,
-                    'Kode_Masuk'    => null,
-                    'Nama_Pasien'   => $r->Nama_Pasien,
-                    'jenis_kelamin' => strtoupper($r->jenis_kelamin ?? ''),
-                    'Kode_RuangM'   => $r->Kode_RuangM,
-                    'Nama_RuangM'   => $r->Nama_RuangM,
-                    'Kode_Bangsal'  => null,
-                    'Nama_Bangsal'  => 'Data Lokal',
-                    'Dokter'        => $this->formatNamaDokter($r->Dokter ?? ''),
-                ])->toArray();
-        } catch (\Exception $e) {
-            Log::error('[getPasienAktifLokal] ' . $e->getMessage());
-            return [];
-        }
-    }
-
-    private function getPasienAktifSSO(string $cari): array
     {
         $wardIds = $this->userWardIds();
         $isIgd   = $this->isIgdUser();
@@ -302,11 +208,31 @@ class MenuPetugasController extends Controller
                     'Nama_Bangsal'  => $r->Nama_Bangsal,
                     'Dokter'        => $this->formatNamaDokter($r->Nama_Dokter ?? ''),
                 ])->toArray();
-
         } catch (\Exception $e) {
-            Log::error('[getPasienAktifSSO] ' . $e->getMessage());
+            Log::error('[getPasienAktif] ' . $e->getMessage());
             return [];
         }
+    }
+
+    private function isIgdUser(): bool
+    {
+        /** @var \App\Models\User|null $user */
+        $user = Auth::user();
+        if (! $user) return false;
+
+        $unitKerja = strtoupper($user->unit_kerja ?? '');
+        if (str_contains($unitKerja, 'IGD') || str_contains($unitKerja, 'UGD') || str_contains($unitKerja, 'EMERGENCY')) {
+            return true;
+        }
+
+        foreach ($this->userWardIds() as $w) {
+            $upper = strtoupper((string) $w);
+            if (str_contains($upper, 'IGD') || str_contains($upper, 'UGD') || str_contains($upper, 'EMR')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function formatNamaDokter(string $nama): string
@@ -335,41 +261,22 @@ class MenuPetugasController extends Controller
         if (! $pasien) return response()->json(['found' => false, 'message' => "No_MR '{$noMr}' tidak ditemukan."]);
 
         $kunjungans = collect();
-        $isRsus     = RegistrasiPasien::rsusAvailable();
-        $conn       = RegistrasiPasien::activeConnection();
-
         try {
-            if ($isRsus) {
-                $rows = DB::connection($conn)
-                    ->table('PENDAFTARAN as p')
-                    ->leftJoin('M_RUANG_MASTER as rm', 'p.Kode_Ruang', '=', 'rm.Kode_RuangM')
-                    ->leftJoin('DOKTER as d', 'p.Kode_Dokter', '=', 'd.Kode_Dokter')
-                    ->leftJoin('M_CARABAYAR as cb', 'p.Kode_Bayar', '=', 'cb.Kode_Bayar')
-                    ->leftJoin(DB::raw('(SELECT No_Reg, MAX(Diagnosis) as Diagnosis FROM ASESMEN_SURAT_PERMINTAAN_RI GROUP BY No_Reg) as asmt'), 'p.No_Reg', '=', 'asmt.No_Reg')
-                    ->where('p.No_MR', $noMr)->orderByDesc('p.Tanggal')
-                    ->select([
-                        'p.No_Reg', 'p.Kode_Masuk', 'p.Kode_Ruang', 'p.Kode_Dokter', 'p.Kode_Bayar',
-                        DB::raw("ISNULL(rm.Nama_RuangM, p.Kode_Ruang) as nama_asal_ruang"),
-                        DB::raw("ISNULL(NULLIF(LTRIM(RTRIM(d.Nama_Dokter)),''), p.PermintaanDPJP) as nama_dokter"),
-                        DB::raw("ISNULL(cb.Ket_Bayar, p.Kode_Bayar) as ket_bayar"),
-                        'asmt.Diagnosis',
-                    ])->get();
-            } else {
-                $rows = DB::connection($conn)
-                    ->table('pendaftaran as p')
-                    ->leftJoin('m_ruang_master as rm', 'p.Kode_Asal', '=', 'rm.Kode_RuangM')
-                    ->leftJoin('m_carabayar as cb', 'p.Kode_Bayar', '=', 'cb.KODE_BAYAR')
-                    ->where('p.No_MR', $noMr)->orderByDesc('p.created_at')
-                    ->select([
-                        'p.No_Reg', 'p.Kode_Masuk', 'p.Kode_Asal as Kode_Ruang',
-                        DB::raw("'' as Kode_Dokter"),
-                        DB::raw("'' as Kode_Bayar"),
-                        DB::raw("COALESCE(rm.Nama_RuangM, p.Kode_Asal, '') as nama_asal_ruang"),
-                        DB::raw("COALESCE(p.PermintaanDPJP, '') as nama_dokter"),
-                        DB::raw("COALESCE(cb.KET_BAYAR, '') as ket_bayar"),
-                        DB::raw("NULL as Diagnosis"),
-                    ])->get();
-            }
+            $rows = DB::connection('sqlsrv_rsus')
+                ->table('PENDAFTARAN as p')
+                ->leftJoin('M_RUANG_MASTER as rm', 'p.Kode_Ruang', '=', 'rm.Kode_RuangM')
+                ->leftJoin('DOKTER as d', 'p.Kode_Dokter', '=', 'd.Kode_Dokter')
+                ->leftJoin('M_CARABAYAR as cb', 'p.Kode_Bayar', '=', 'cb.Kode_Bayar')
+                ->leftJoin(DB::raw('(SELECT No_Reg, MAX(Diagnosis) as Diagnosis FROM ASESMEN_SURAT_PERMINTAAN_RI GROUP BY No_Reg) as asmt'), 'p.No_Reg', '=', 'asmt.No_Reg')
+                ->where('p.No_MR', $noMr)
+                ->orderByDesc('p.Tanggal')
+                ->select([
+                    'p.No_Reg', 'p.Kode_Masuk', 'p.Kode_Ruang', 'p.Kode_Dokter', 'p.Kode_Bayar',
+                    DB::raw("ISNULL(rm.Nama_RuangM, p.Kode_Ruang) as nama_asal_ruang"),
+                    DB::raw("ISNULL(NULLIF(LTRIM(RTRIM(d.Nama_Dokter)),''), p.PermintaanDPJP) as nama_dokter"),
+                    DB::raw("ISNULL(cb.Ket_Bayar, p.Kode_Bayar) as ket_bayar"),
+                    'asmt.Diagnosis',
+                ])->get();
 
             $kunjungans = $rows->map(fn ($r) => [
                 'No_Reg'      => $r->No_Reg,

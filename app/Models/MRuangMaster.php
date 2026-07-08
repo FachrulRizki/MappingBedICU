@@ -42,14 +42,12 @@ class MRuangMaster extends Model
     public static function bedIcuDenganStatus(): \Illuminate\Support\Collection
     {
         $instance = new static();
-        $conn     = static::activeConnection();
         $rm       = $instance->getTable();
         $mk       = (new MKelas())->getTable();
         $sk       = (new StatusKamar())->getTable();
-        $isnull   = static::rsusAvailable() ? 'ISNULL' : 'COALESCE';
 
         try {
-            return DB::connection($conn)
+            return DB::connection('sqlsrv_rsus')
                 ->table("{$rm} as rm")
                 ->leftJoin("{$mk} as mk", 'rm.Kode_Kelas', '=', 'mk.Kode_Kelas')
                 ->leftJoin("{$sk} as sk", 'rm.Kode_RuangM', '=', 'sk.Kode_Ruang')

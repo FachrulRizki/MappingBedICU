@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Icu;
 
 use App\Http\Controllers\Controller;
-use App\Models\RegistrasiPasien;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -20,16 +19,8 @@ class Icd10Controller extends Controller
             return response()->json([]);
         }
 
-        $isRsus = RegistrasiPasien::rsusAvailable();
-        $conn   = RegistrasiPasien::activeConnection();
-
-        // ICD-10 hanya tersedia di SQL Server RS — lokal return kosong
-        if (! $isRsus) {
-            return response()->json([]);
-        }
-
         try {
-            $rows = DB::connection($conn)
+            $rows = DB::connection('sqlsrv_rsus')
                 ->table('ICD10')
                 ->where(function ($query) use ($q) {
                     $query->where('KODE', 'LIKE', "%{$q}%")
@@ -50,7 +41,6 @@ class Icd10Controller extends Controller
                     'label'      => trim($r->KODE) . ' — ' . trim($r->KET),
                 ])->values()
             );
-
         } catch (\Exception $e) {
             Log::error('[Icd10Controller::search] ' . $e->getMessage());
             return response()->json([]);

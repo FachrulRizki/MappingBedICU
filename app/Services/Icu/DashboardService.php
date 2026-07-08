@@ -89,12 +89,8 @@ class DashboardService
         $pasienMap = [];
         if (!empty($noMRs)) {
             try {
-                $conn    = \App\Models\RegistrasiPasien::activeConnection();
-                $isRsus  = \App\Models\RegistrasiPasien::rsusAvailable();
-                $tblName = $isRsus ? 'REGISTER_PASIEN' : 'registrasi_pasien';
-
-                $rows = DB::connection($conn)
-                    ->table($tblName)
+                $rows = DB::connection('sqlsrv_rsus')
+                    ->table('REGISTER_PASIEN')
                     ->select('No_MR', 'Nama_Pasien', 'jenis_kelamin')
                     ->whereIn('No_MR', $noMRs)
                     ->get();
