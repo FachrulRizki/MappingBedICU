@@ -1,6 +1,5 @@
 <script setup>
 import { ref, watch, computed } from 'vue';
-import { router } from '@inertiajs/vue3';
 import AppLayout  from '@/Layouts/AppLayout.vue';
 import AlertModal from '@/Components/AlertModal.vue';
 
@@ -241,12 +240,14 @@ const rolePerms = computed(() => {
                     </div>
                 </div>
 
-                <!-- Catatan penting -->
-                <div class="p-4 rounded-xl text-xs space-y-1.5"
-                    style="background:rgba(230,126,34,0.08); border:1px solid rgba(230,126,34,0.2)">
-                    <p class="font-bold" style="color:#E67E22">⚠ Catatan Penting</p>
-                    <p style="color:var(--text-secondary)">Permission di atas bersifat <strong>tetap berdasarkan role</strong>. Untuk mengubah role seorang user, gunakan halaman <a href="/settings/users" style="color:#00A884; text-decoration:underline">Kelola User</a>.</p>
-                    <p style="color:var(--text-secondary)">Integrasi Keycloak akan menggantikan mekanisme login ini dan mapping role akan dilakukan dari claim JWT Keycloak.</p>
+                <!-- Info SSO -->
+                <div class="p-4 rounded-xl text-xs space-y-1"
+                    style="background:rgba(79,70,229,0.06); border:1px solid rgba(79,70,229,0.15)">
+                    <p class="font-bold" style="color:#6366f1">ℹ Role dikelola via Keycloak SSO</p>
+                    <p style="color:var(--text-secondary)">
+                        Assign role di <strong style="color:var(--text-primary)">Keycloak Admin Console → Users → Role Mappings</strong>.
+                        Perubahan akan aktif saat user login berikutnya.
+                    </p>
                 </div>
             </div>
         </div>

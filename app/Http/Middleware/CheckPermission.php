@@ -2,7 +2,7 @@
 
 namespace App\Http\Middleware;
 
-use App\Services\KeycloakPermissionService;
+use App\Services\KeycloakService;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -11,10 +11,10 @@ use Symfony\Component\HttpFoundation\Response;
 class CheckPermission
 {
     public function __construct(
-        private readonly KeycloakPermissionService $permissionService,
+        private readonly KeycloakService $keycloak,
     ) {}
 
-    public function handle(Request $request, Closure $next, string ...$requiredPermissions): Response
+    public function handle(Request $request, Closure $next, string ...$required): Response
     {
         if (! Auth::check()) {
             return redirect()->route('login');
@@ -22,22 +22,18 @@ class CheckPermission
 
         $user = Auth::user();
 
-        // Admin selalu full akses — tidak perlu cek permissions
+        // Admin full access — skip cek permission
         if ($user->role === 'admin') {
             return $next($request);
         }
 
-        // Ambil permissions dari session (diisi oleh SyncKeycloakRole saat tiap request)
-        $userPermissions = $request->session()->get('keycloak_permissions', []);
+        $permissions = $request->session()->get('keycloak_permissions', []);
 
-        // Permissions wajib ada — sudah divalidasi saat login di handleCallback
-        // Jika kosong berarti ada anomali (token expired, session rusak, dll)
-        if (empty($userPermissions)) {
-            abort(403, 'Sesi Anda tidak memiliki akses. Silakan login ulang.');
+        if (empty($permissions)) {
+            abort(403, 'Sesi tidak memiliki akses. Silakan login ulang.');
         }
 
-        // Cek apakah user punya salah satu dari permissions yang diminta (OR logic)
-        if ($this->permissionService->hasAnyPermission($userPermissions, $requiredPermissions)) {
+        if ($this->keycloak->hasAnyPermission($permissions, $required)) {
             return $next($request);
         }
 

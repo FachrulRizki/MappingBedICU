@@ -12,17 +12,14 @@ use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Inertia\Response;
 
-/**
- * LoginController — login lokal (username + password).
- * Fallback ketika Keycloak tidak dapat dijangkau atau untuk akun admin lokal.
- */
 class LoginController extends Controller
 {
     public function __construct(
-        private readonly KeycloakService     $keycloak,
-        private readonly ActivityLogService  $activityLog,
+        private readonly KeycloakService    $keycloak,
+        private readonly ActivityLogService $activityLog,
     ) {}
 
+    /** Halaman login — pass status Keycloak ke Vue untuk show/hide tombol SSO. */
     public function showLogin(): Response|RedirectResponse
     {
         if (Auth::check()) {
@@ -30,13 +27,13 @@ class LoginController extends Controller
         }
 
         return Inertia::render('Auth/Login', [
-            'flash'              => ['error' => session('error')],
-            // Flag untuk Vue: tampilkan tombol SSO jika Keycloak bisa dijangkau
-            'keycloakAvailable'  => $this->keycloak->isReachable(),
-            'keycloakRedirectUrl'=> route('auth.keycloak'),
+            'flash'               => ['error' => session('error')],
+            'keycloakAvailable'   => $this->keycloak->isReachable(),
+            'keycloakRedirectUrl' => route('auth.keycloak'),
         ]);
     }
 
+    /** Login lokal — fallback untuk admin atau saat Keycloak tidak bisa dijangkau. */
     public function login(Request $request): RedirectResponse
     {
         $request->validate([
@@ -46,23 +43,15 @@ class LoginController extends Controller
 
         $user = User::where('username', $request->username)->first();
 
-        if (! $user) {
+        if (! $user || ! $user->is_active) {
             return back()->with('error', 'Username atau password salah.');
         }
 
-        if (! $user->is_active) {
-            return back()->with('error', 'Akun Anda tidak aktif. Hubungi administrator.');
-        }
-
-        // Blok user Keycloak dari login lokal — mereka harus pakai SSO
         if ($user->isKeycloakUser()) {
-            return back()->with('error', 'Akun ini menggunakan SSO. Silakan login dengan tombol SSO.');
+            return back()->with('error', 'Akun ini terdaftar via SSO. Silakan login dengan tombol SSO.');
         }
 
-        if (Auth::attempt(
-            ['username' => $request->username, 'password' => $request->password],
-            $request->boolean('remember')
-        )) {
+        if (Auth::attempt(['username' => $request->username, 'password' => $request->password])) {
             $request->session()->regenerate();
             $request->session()->put('auth_via', 'local');
             $this->activityLog->loginLog();

@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Icu\ActivityLogController;
@@ -17,10 +18,10 @@ use App\Http\Controllers\Icu\MonitorController;
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 Route::middleware('guest')->group(function () {
-    Route::get('/login',                 [LoginController::class, 'showLogin'])->name('login');
-    Route::post('/login',                [LoginController::class, 'login']);
-    Route::get('/auth/keycloak',         [AuthController::class,  'redirectToKeycloak'])->name('auth.keycloak');
-    Route::get('/auth/keycloak/callback',[AuthController::class,  'handleCallback'])->name('auth.keycloak.callback');
+    Route::get('/login',                  [LoginController::class, 'showLogin'])->name('login');
+    Route::post('/login',                 [LoginController::class, 'login']);
+    Route::get('/auth/keycloak',          [AuthController::class,  'redirectToKeycloak'])->name('auth.keycloak');
+    Route::get('/auth/keycloak/callback', [AuthController::class,  'handleCallback'])->name('auth.keycloak.callback');
 });
 
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout')->middleware('auth');
@@ -73,18 +74,14 @@ Route::middleware('auth')->group(function () {
     // Sebelumnya: role:petugas_ruang → sekarang permission
     Route::post('/icu/menu-petugas/spri', [MenuPetugasController::class, 'storeSpri'])->name('icu.menu_petugas.spri.store')->middleware('permission:booking_int:create');
 
-    // ── SETTINGS (admin only — permission kosong = admin only via fallback) ──
+    // ── SETTINGS ──────────────────────────────────────────────────────────
     Route::middleware('permission:settings_users:view')->group(function () {
-        Route::get('/settings/users',                      [UserController::class, 'index'])->name('settings.users');
-        Route::post('/settings/users',                     [UserController::class, 'store'])->name('settings.users.store')->middleware('permission:settings_users:create');
-        Route::put('/settings/users/{id}',                 [UserController::class, 'update'])->name('settings.users.update')->middleware('permission:settings_users:edit');
-        Route::post('/settings/users/{id}/reset-password', [UserController::class, 'resetPassword'])->name('settings.users.reset_password')->middleware('permission:settings_users:reset_password');
-        Route::delete('/settings/users/{id}',              [UserController::class, 'destroy'])->name('settings.users.destroy')->middleware('permission:settings_users:delete');
+        Route::get('/settings/users',      [UserController::class, 'index'])->name('settings.users');
+        Route::put('/settings/users/{id}', [UserController::class, 'update'])->name('settings.users.update')->middleware('permission:settings_users:edit');
     });
 
     Route::middleware('permission:settings_roles:view')->group(function () {
-        Route::get('/settings/roles',         [RolePermissionController::class, 'index'])->name('settings.roles');
-        Route::post('/settings/roles/user/{id}', [RolePermissionController::class, 'updateUserRole'])->name('settings.roles.update_user')->middleware('permission:settings_roles:edit');
+        Route::get('/settings/roles', [RolePermissionController::class, 'index'])->name('settings.roles');
     });
 
     // ── LOG AKTIVITAS ─────────────────────────────────────────────────────

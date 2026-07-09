@@ -34,11 +34,11 @@ class ActivityLogService
                 'user_agent'      => substr(Request::userAgent() ?? '', 0, 300),
             ]);
         } catch (\Throwable $e) {
-            Log::error('[ActivityLog] Gagal mencatat: ' . $e->getMessage());
+            Log::error('[ActivityLog] ' . $e->getMessage());
         }
     }
 
-    // ── Auth ───────────────────────────────────────────────────────────────
+    // ── Auth ──────────────────────────────────────────────────────────────────
 
     public function loginLog(): void
     {
@@ -50,119 +50,56 @@ class ActivityLogService
         $this->log('Autentikasi', 'Melakukan logout', 'auth');
     }
 
-    // ── Booking External (Admisi) ──────────────────────────────────────────
+    // ── Booking External ──────────────────────────────────────────────────────
 
-    /** Admisi membuat booking ICU baru untuk pasien eksternal */
     public function bookingBaru(int $id, string $namaPasien): void
     {
-        $this->log(
-            'Buat Data',
-            "Membuat booking ICU untuk {$namaPasien}",
-            'booking_external',
-            $id,
-            'IcuBookingExternal',
-        );
+        $this->log('Buat Data', "Membuat booking ICU untuk {$namaPasien}", 'booking_external', $id, 'IcuBookingExternal');
     }
 
-    /** Admisi memverifikasi data pasien eksternal setelah bed dikonfirmasi ICU */
     public function verifikasiPasien(int $id, string $namaPasien, string $noMr): void
     {
-        $this->log(
-            'Verifikasi Pasien',
-            "Verifikasi pasien {$namaPasien} — No. MR: {$noMr}",
-            'booking_external',
-            $id,
-            'IcuBookingExternal',
-        );
+        $this->log('Verifikasi Pasien', "Verifikasi {$namaPasien} — No. MR: {$noMr}", 'booking_external', $id, 'IcuBookingExternal');
     }
 
-    // ── SPRI Internal (Admisi) ─────────────────────────────────────────────
+    // ── SPRI Internal (Admisi) ────────────────────────────────────────────────
 
-    /** Admisi menyetujui SPRI dari petugas ruang → diteruskan ke ICU */
     public function approveSpri(int $id, string $namaPasien): void
     {
-        $this->log(
-            'Setujui Data',
-            "Menyetujui BU SPRI untuk {$namaPasien} — diteruskan ke ICU",
-            'spri_internal',
-            $id,
-            'IcuSpriInternal',
-        );
+        $this->log('Setujui Data', "Menyetujui BU SPRI untuk {$namaPasien}", 'spri_internal', $id, 'IcuSpriInternal');
     }
 
-    /** Admisi menolak SPRI */
     public function tolakSpriAdmisi(int $id, string $namaPasien, string $alasan): void
     {
-        $this->log(
-            'Tolak Data',
-            "Menolak BU SPRI {$namaPasien}: {$alasan}",
-            'spri_internal',
-            $id,
-            'IcuSpriInternal',
-        );
+        $this->log('Tolak Data', "Menolak BU SPRI {$namaPasien}: {$alasan}", 'spri_internal', $id, 'IcuSpriInternal');
     }
 
-    // ── Petugas ICU ────────────────────────────────────────────────────────
+    // ── Petugas ICU ───────────────────────────────────────────────────────────
 
-    /** ICU mengkonfirmasi bed untuk booking external */
     public function konfirmasibed(int $id, string $namaPasien, string $namaBed): void
     {
-        $this->log(
-            'Konfirmasi Bed',
-            "Konfirmasi bed {$namaBed} untuk {$namaPasien}",
-            'booking_external',
-            $id,
-            'IcuBookingExternal',
-        );
+        $this->log('Konfirmasi Bed', "Konfirmasi bed {$namaBed} untuk {$namaPasien}", 'booking_external', $id, 'IcuBookingExternal');
     }
 
-    /** ICU menolak booking external */
     public function tolakBookingIcu(int $id, string $namaPasien, string $alasan): void
     {
-        $this->log(
-            'Tolak Data',
-            "Menolak booking ICU {$namaPasien}: {$alasan}",
-            'booking_external',
-            $id,
-            'IcuBookingExternal',
-        );
+        $this->log('Tolak Data', "Menolak booking ICU {$namaPasien}: {$alasan}", 'booking_external', $id, 'IcuBookingExternal');
     }
 
-    /** ICU memverifikasi bed untuk SPRI internal */
     public function verifikasibed(int $id, string $namaPasien, string $namaBed): void
     {
-        $this->log(
-            'Verifikasi Bed',
-            "Verifikasi bed {$namaBed} untuk SPRI {$namaPasien}",
-            'spri_internal',
-            $id,
-            'IcuSpriInternal',
-        );
+        $this->log('Verifikasi Bed', "Verifikasi bed {$namaBed} untuk SPRI {$namaPasien}", 'spri_internal', $id, 'IcuSpriInternal');
     }
 
-    /** ICU menolak SPRI internal */
     public function tolakSpriIcu(int $id, string $namaPasien, string $alasan): void
     {
-        $this->log(
-            'Tolak Data',
-            "Menolak BU SPRI {$namaPasien} oleh ICU: {$alasan}",
-            'spri_internal',
-            $id,
-            'IcuSpriInternal',
-        );
+        $this->log('Tolak Data', "Menolak BU SPRI {$namaPasien} oleh ICU: {$alasan}", 'spri_internal', $id, 'IcuSpriInternal');
     }
 
-    // ── Petugas Ruang ──────────────────────────────────────────────────────
+    // ── Petugas Ruang ─────────────────────────────────────────────────────────
 
-    /** Petugas ruang / IGD membuat BU SPRI internal */
     public function buatSpri(int $id, string $namaPasien): void
     {
-        $this->log(
-            'Buat Data',
-            "Membuat BU SPRI (Booking ICU) untuk {$namaPasien}",
-            'spri_internal',
-            $id,
-            'IcuSpriInternal',
-        );
+        $this->log('Buat Data', "Membuat BU SPRI (Booking ICU) untuk {$namaPasien}", 'spri_internal', $id, 'IcuSpriInternal');
     }
 }

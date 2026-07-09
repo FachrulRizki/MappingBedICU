@@ -53,7 +53,7 @@ const year = new Date().getFullYear();
                 </svg>
             </div>
             <div>
-                <p class="brand-name">Bed ICU &amp; HCU</p>
+                <p class="brand-name">Booking ICU &amp; HCU</p>
                 <p class="brand-sub">RS Urip Sumoharjo</p>
             </div>
         </div>

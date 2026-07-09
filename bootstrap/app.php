@@ -12,19 +12,20 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+
+        // Global web stack — berjalan di setiap request web
         $middleware->web(append: [
             \App\Http\Middleware\HandleInertiaRequests::class,
             \App\Http\Middleware\SyncKeycloakRole::class,
         ]);
 
-        // $middleware->alias([
-        //     'role' => \App\Http\Middleware\CheckRole::class,
-        // ]);
-
+        // Alias middleware — dipakai langsung di routes
         $middleware->alias([
-        'role'       => \App\Http\Middleware\CheckRole::class,
-        'permission' => \App\Http\Middleware\CheckPermission::class,
+            'role'          => \App\Http\Middleware\CheckRole::class,
+            'permission'    => \App\Http\Middleware\CheckPermission::class,
+            'keycloak.auth' => \App\Http\Middleware\KeycloakAuthenticate::class,
         ]);
+
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

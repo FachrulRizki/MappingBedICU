@@ -3,162 +3,220 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class KeycloakService
 {
+    private string $baseUrl;
+    private string $realm;
+    private string $clientId;
+    private string $clientSecret;
+    private int    $timeout;
+    private int    $cacheTtl;
+
+    public function __construct()
+    {
+        $this->baseUrl      = rtrim(config('keycloak.base_url', ''), '/');
+        $this->realm        = config('keycloak.realm', 'myrealm');
+        $this->clientId     = config('keycloak.client_id', '');
+        $this->clientSecret = config('keycloak.client_secret', '');
+        $this->timeout      = (int) config('keycloak.timeout', 5);
+        $this->cacheTtl     = (int) config('keycloak.cache_ttl', 60);
+    }
+
+    // ── OIDC Endpoints ────────────────────────────────────────────────────────
+
+    private function oidcBase(): string      { return "{$this->baseUrl}/realms/{$this->realm}/protocol/openid-connect"; }
+    private function tokenUrl(): string      { return $this->oidcBase() . '/token'; }
+    private function introspectUrl(): string { return $this->oidcBase() . '/token/introspect'; }
+    private function logoutUrl(): string     { return $this->oidcBase() . '/logout'; }
+
+    // ── Reachability ──────────────────────────────────────────────────────────
+
+    /** Cek apakah Keycloak bisa dijangkau — untuk show/hide tombol SSO. */
     public function isReachable(): bool
     {
-        $enabled = config('services.keycloak.enabled', 'auto');
-
-        if ($enabled === 'false' || $enabled === false) {
+        if (! config('keycloak.enabled', true)) {
             return false;
         }
 
-        if ($enabled === 'true' || $enabled === true) {
-            return true;
-        };
+        try {
+            return Http::timeout(3)
+                ->get("{$this->baseUrl}/realms/{$this->realm}/.well-known/openid-configuration")
+                ->successful();
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
-    public function mapRole(array $realmRoles): string
+    // ── Token ─────────────────────────────────────────────────────────────────
+
+    /** Introspect token — hasil di-cache untuk kurangi round-trip ke Keycloak. */
+    public function introspectToken(string $accessToken): array
     {
-        $map = [
-            // Role admin
-            'admin'               => 'admin',
+        $key = 'keycloak_token:' . hash('sha256', $accessToken);
 
-            // Role admisi
-            'admisi'              => 'admisi',
+        return Cache::remember($key, $this->cacheTtl, fn () =>
+            Http::timeout($this->timeout)
+                ->asForm()
+                ->withBasicAuth($this->clientId, $this->clientSecret)
+                ->post($this->introspectUrl(), ['token' => $accessToken])
+                ->json() ?? []
+        );
+    }
 
-            // Role petugas ICU
-            'petugas_icu'         => 'petugas_icu',
+    /** Refresh access token. */
+    public function refreshToken(string $refreshToken): array
+    {
+        return Http::timeout($this->timeout)
+            ->asForm()
+            ->post($this->tokenUrl(), [
+                'grant_type'    => 'refresh_token',
+                'client_id'     => $this->clientId,
+                'client_secret' => $this->clientSecret,
+                'refresh_token' => $refreshToken,
+            ])
+            ->json() ?? [];
+    }
 
-            // Role petugas ruang
-            'petugas_ruang'       => 'petugas_ruang',
-        ];
+    /** Hapus cache introspection — dipanggil saat logout. */
+    public function forgetTokenCache(string $accessToken): void
+    {
+        Cache::forget('keycloak_token:' . hash('sha256', $accessToken));
+    }
 
-        $priority = ['admin', 'petugas_icu', 'admisi', 'petugas_ruang'];
+    // ── JWT ───────────────────────────────────────────────────────────────────
 
-        $matched = [];
-        foreach ($realmRoles as $keycloakRole) {
-            if (isset($map[$keycloakRole])) {
-                $matched[] = $map[$keycloakRole];
+    /** Decode payload JWT tanpa verifikasi signature (claims dibaca saja). */
+    public function decodeJwtPayload(string $jwt): array
+    {
+        $parts = explode('.', $jwt);
+
+        return count($parts) === 3
+            ? json_decode(base64_decode(strtr($parts[1], '-_', '+/')), true) ?? []
+            : [];
+    }
+
+    // ── Role ──────────────────────────────────────────────────────────────────
+
+    /** Semua role yang dikenali aplikasi (urutan = prioritas resolve). */
+    private function recognizedRoles(): array
+    {
+        return ['admin', 'admisi', 'petugas_icu', 'petugas_ruang'];
+    }
+
+    /** Gabungkan realm roles + client roles dari token payload. */
+    public function getRolesFromToken(array $payload): array
+    {
+        $realm  = $payload['realm_access']['roles'] ?? [];
+        $client = $payload['resource_access'][$this->clientId]['roles'] ?? [];
+
+        return array_values(array_unique(array_merge($realm, $client)));
+    }
+
+    /** Cek apakah token punya minimal satu role yang dikenali. */
+    public function hasRecognizedRole(array $payload): bool
+    {
+        $roles = $this->getRolesFromToken($payload);
+
+        return (bool) array_intersect($this->recognizedRoles(), $roles);
+    }
+
+    /** Pilih satu role lokal sesuai prioritas — fallback ke petugas_ruang. */
+    public function resolveRoleFromToken(array $payload): string
+    {
+        $roles = $this->getRolesFromToken($payload);
+
+        foreach ($this->recognizedRoles() as $role) {
+            if (in_array($role, $roles, true)) {
+                return $role;
             }
         }
 
-        foreach ($priority as $r) {
-            if (in_array($r, $matched)) {
-                return $r;
-            }
-        }
-
-        Log::warning('[Keycloak] Role tidak dikenali: ' . implode(', ', $realmRoles) . ' — fallback ke petugas_ruang');
         return 'petugas_ruang';
     }
 
-    public function extractClientRoles(array $tokenPayload): array
-    {
-        $clientId = config('services.keycloak.client_id', 'icu-bed');
-        return $tokenPayload['resource_access'][$clientId]['roles'] ?? [];
-    }
-
-    public function resolveRoleFromToken(array $tokenPayload): string
-    {
-        $clientRoles = $this->extractClientRoles($tokenPayload);
-        if (!empty($clientRoles)) {
-            return $this->mapRole($clientRoles);
-        }
-
-        $realmRoles = $tokenPayload['realm_access']['roles'] ?? [];
-        return $this->mapRole($realmRoles);
-    }
+    // ── Permission ────────────────────────────────────────────────────────────
 
     /**
-     * Cek apakah token mengandung minimal satu role yang dikenali aplikasi.
-     * Digunakan untuk menolak login user yang belum di-setup role-nya di Keycloak.
+     * Ekstrak permissions dari token.
+     * Prioritas: Keycloak Authorization Services → client roles berbentuk "resource:scope".
      */
-    public function hasRecognizedRole(array $tokenPayload): bool
+    public function extractPermissionsFromToken(array $payload): array
     {
-        $knownRoles  = ['admin', 'admisi', 'petugas_icu', 'petugas_ruang'];
-        $clientRoles = $this->extractClientRoles($tokenPayload);
-        $realmRoles  = $tokenPayload['realm_access']['roles'] ?? [];
+        // 1 — Authorization Services
+        $perms = $this->parseAuthorizationPermissions($payload);
 
-        foreach (array_merge($clientRoles, $realmRoles) as $role) {
-            if (in_array($role, $knownRoles, true)) {
-                return true;
+        if (! empty($perms)) {
+            Log::debug('[Keycloak] Permissions (Authorization Services): ' . implode(', ', $perms));
+            return $perms;
+        }
+
+        // 2 — Client roles sebagai permissions (format "resource:scope")
+        $clientRoles = $payload['resource_access'][$this->clientId]['roles'] ?? [];
+        $perms       = array_values(array_unique(
+            array_filter($clientRoles, fn ($r) => str_contains($r, ':'))
+        ));
+
+        if (! empty($perms)) {
+            Log::debug('[Keycloak] Permissions (client roles): ' . implode(', ', $perms));
+            return $perms;
+        }
+
+        return [];
+    }
+
+    /** Cek apakah user punya salah satu dari permissions yang diminta (OR). */
+    public function hasAnyPermission(array $userPermissions, array $required): bool
+    {
+        return (bool) array_intersect($userPermissions, $required);
+    }
+
+    // ── Logout ────────────────────────────────────────────────────────────────
+
+    /** Bangun URL logout Keycloak — sertakan id_token_hint jika ada. */
+    public function buildLogoutUrl(string $postRedirect, ?string $idToken = null): string
+    {
+        $params = [
+            'client_id'                => $this->clientId,
+            'post_logout_redirect_uri' => $postRedirect,
+        ];
+
+        if ($idToken) {
+            $params['id_token_hint'] = $idToken;
+        }
+
+        return $this->logoutUrl() . '?' . http_build_query($params);
+    }
+
+    // ── Private ───────────────────────────────────────────────────────────────
+
+    private function parseAuthorizationPermissions(array $payload): array
+    {
+        $map = [
+            'booking-external' => 'booking_ext',
+            'booking-internal' => 'booking_int',
+            'dashboard'        => 'dashboard',
+            'denah-bed'        => 'denah_bed',
+            'settings-users'   => 'settings_users',
+            'settings-roles'   => 'settings_roles',
+            'activity-log'     => 'activity_log',
+        ];
+
+        $perms = [];
+
+        foreach ($payload['authorization']['permissions'] ?? [] as $item) {
+            $resource = $item['Resource Set Name'] ?? null;
+            if (! $resource) continue;
+
+            $prefix = $map[$resource] ?? str_replace('-', '_', $resource);
+
+            foreach ($item['scopes'] ?? [] as $scope) {
+                $perms[] = "{$prefix}:{$scope}";
             }
         }
 
-        return false;
-    }
-
-    public function extractPermissionsFromToken(array $tokenPayload): array
-    {
-        return app(\App\Services\KeycloakPermissionService::class)
-            ->extractPermissionsFromToken($tokenPayload);
-    }
-
-    // Introspect access token ke Keycloak untuk verifikasi aktif/tidak.
-    public function introspectToken(string $accessToken): array
-    {
-        $baseUrl  = rtrim(config('services.keycloak.base_url', ''), '/');
-        $realm    = config('services.keycloak.realms', 'myrealm');
-        $clientId = config('services.keycloak.client_id');
-        $secret   = config('services.keycloak.client_secret');
-
-        if (! $baseUrl || ! $clientId || ! $secret) {
-            Log::debug('[Keycloak] Introspect skip — config tidak lengkap.');
-            return [];
-        }
-
-        $url = "{$baseUrl}/realms/{$realm}/protocol/openid-connect/token/introspect";
-
-        try {
-            $ch = curl_init($url);
-            curl_setopt_array($ch, [
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_POST           => true,
-                CURLOPT_POSTFIELDS     => http_build_query([
-                    'token'        => $accessToken,
-                    'client_id'    => $clientId,
-                    'client_secret'=> $secret,
-                ]),
-                CURLOPT_HTTPHEADER     => ['Content-Type: application/x-www-form-urlencoded'],
-                CURLOPT_TIMEOUT        => 3,
-                CURLOPT_CONNECTTIMEOUT => 2,
-            ]);
-            $response = curl_exec($ch);
-            $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $error    = curl_error($ch);
-            curl_close($ch);
-
-            if ($error || $httpCode !== 200) {
-                Log::warning("[Keycloak] Introspect gagal (HTTP {$httpCode}): {$error}");
-                return [];
-            }
-
-            return json_decode($response, true) ?? [];
-        } catch (\Throwable $e) {
-            Log::warning('[Keycloak] Introspect exception: ' . $e->getMessage());
-            return [];
-        }
-    }
-
-    public function decodeJwtPayload(string $token): array
-    {
-        $parts = explode('.', $token);
-        if (count($parts) !== 3) {
-            return [];
-        }
-
-        try {
-            $payload = base64_decode(str_pad(
-                strtr($parts[1], '-_', '+/'),
-                strlen($parts[1]) % 4 === 0 ? strlen($parts[1]) : strlen($parts[1]) + (4 - strlen($parts[1]) % 4),
-                '='
-            ));
-            return json_decode($payload, true) ?? [];
-        } catch (\Throwable) {
-            return [];
-        }
+        return array_values(array_unique($perms));
     }
 }
