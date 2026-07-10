@@ -51,6 +51,10 @@ class LoginController extends Controller
             return back()->with('error', 'Akun ini terdaftar via SSO. Silakan login dengan tombol SSO.');
         }
 
+        if (! $user->role) {
+            return back()->with('error', 'Akun Anda belum memiliki role. Hubungi administrator.');
+        }
+
         if (Auth::attempt(['username' => $request->username, 'password' => $request->password])) {
             $request->session()->regenerate();
             $request->session()->put('auth_via', 'local');

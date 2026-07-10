@@ -43,11 +43,35 @@ class SyncKeycloakRole
                 $info = $this->keycloak->introspectToken($accessToken);
 
                 if (! empty($info) && ($info['active'] ?? false) === false) {
+                    // Coba refresh token sebelum logout paksa
+                    $refreshToken = $request->session()->get('keycloak_refresh_token');
+                    if ($refreshToken) {
+                        $newTokens = $this->keycloak->refreshToken($refreshToken);
+                        if (! empty($newTokens['access_token'])) {
+                            $newPayload = $this->keycloak->decodeJwtPayload($newTokens['access_token']);
+                            $request->session()->put([
+                                'keycloak_access_token'    => $newTokens['access_token'],
+                                'keycloak_refresh_token'   => $newTokens['refresh_token'] ?? $refreshToken,
+                                'keycloak_token_payload'   => $newPayload,
+                                'keycloak_last_introspect' => time(),
+                            ]);
+                            Log::info("[SyncKeycloakRole] Token diperbarui (refresh): {$user->name}");
+                            return null; // lanjut tanpa logout
+                        }
+                    }
+
+                    // Refresh gagal — user di-disable atau refresh token expired
                     Log::info("[SyncKeycloakRole] Token tidak aktif, logout: {$user->name}");
+                    $user->update(['is_active' => false]);
                     Auth::guard('web')->logout();
                     $request->session()->invalidate();
                     $request->session()->regenerateToken();
-                    return redirect()->route('login')->with('error', 'Sesi Anda telah berakhir.');
+                    return redirect()->route('login')->with('error', 'Sesi Anda telah berakhir. Silakan login kembali.');
+                }
+
+                // Token masih aktif — pastikan is_active di DB sinkron
+                if (! $user->is_active) {
+                    $user->update(['is_active' => true]);
                 }
 
                 $request->session()->put('keycloak_last_introspect', time());

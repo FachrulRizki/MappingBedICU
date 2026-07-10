@@ -57,31 +57,49 @@ class AuthController extends Controller
                 ->with('error', 'Akun Anda belum memiliki role yang sesuai. Hubungi administrator.');
         }
 
-        $user = User::updateOrCreate(
-            ['keycloak_id' => $socialUser->getId()],
-            [
-                'name'              => $socialUser->getName() ?: $socialUser->getNickname(),
-                'email'             => $socialUser->getEmail() ?: null,
-                'username'          => $socialUser->getNickname() ?: 'kc_' . $socialUser->getId(),
-                'keycloak_username' => $socialUser->getNickname() ?: null,
-                'role'              => $this->keycloak->resolveRoleFromToken($payload),
-                'auth_provider'     => 'keycloak',
-                'is_active'         => true,
-                'password'          => null,
-                'ward_ids'          => $payload['ward_ids'] ?? null,
-            ]
-        );
+        $keycloakId = $socialUser->getId();
+        $email      = $socialUser->getEmail() ?: null;
+
+        // Cari user by keycloak_id dulu, fallback ke email (hindari duplicate key)
+        $user = User::where('keycloak_id', $keycloakId)->first()
+            ?? ($email ? User::where('email', $email)->first() : null);
+
+        $attributes = [
+            'name'              => $socialUser->getName() ?: $socialUser->getNickname(),
+            'email'             => $email,
+            'username'          => $socialUser->getNickname() ?: 'kc_' . $keycloakId,
+            'keycloak_id'       => $keycloakId,
+            'keycloak_username' => $socialUser->getNickname() ?: null,
+            'role'              => $this->keycloak->resolveRoleFromToken($payload),
+            'auth_provider'     => 'keycloak',
+            'is_active'         => true,
+            'password'          => null,
+            'ward_ids'          => $payload['ward_ids'] ?? null,
+        ];
+
+        if ($user) {
+            $user->update($attributes);
+            $user->refresh();
+        } else {
+            $user = User::create($attributes);
+        }
+
+        // Validasi role terset (role dikelola di Keycloak)
+        if (! $user->role) {
+            Log::warning('[Keycloak] Login ditolak — role belum diset: ' . $user->name);
+            return redirect()->route('login')
+                ->with('error', 'Akun Anda belum memiliki role. Hubungi administrator.');
+        }
 
         Auth::login($user, remember: false);
 
-        // regenerate dulu, lalu tulis semua data session dalam satu flush
-        // supaya tidak ada jeda antara session ID baru dan data yang belum tertulis
         $request->session()->regenerate();
         $request->session()->put([
             'auth_via'                 => 'keycloak',
             'keycloak_id_token'        => $idToken,
             'keycloak_token_payload'   => $payload,
             'keycloak_access_token'    => $socialUser->token,
+            'keycloak_refresh_token'   => $socialUser->refreshToken ?? null,
             'keycloak_last_introspect' => time(),
         ]);
         $request->session()->save(); // paksa flush ke storage sekarang, sebelum redirect
