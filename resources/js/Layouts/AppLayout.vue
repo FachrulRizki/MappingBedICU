@@ -13,10 +13,25 @@ const page     = usePage();
 const authUser = computed(() => page.props.auth?.user ?? null);
 const userRole = computed(() => authUser.value?.role ?? '');
 
-const canSee = (roles) => {
+// Gunakan role_label & role_color dari server (di-sync dari Keycloak via HandleInertiaRequests)
+// Tidak perlu hardcode di sini — role baru apapun dari Keycloak otomatis punya label & warna
+const roleLabel = computed(() => authUser.value?.role_label ?? userRole.value ?? '—');
+const roleColor = computed(() => {
+    const color = authUser.value?.role_color ?? '#64748B';
+    return { bg: color + '20', color };
+});
+
+// Cek visibilitas nav berdasarkan permission dari session Keycloak
+// Fallback ke role untuk kompatibilitas menu yang belum pakai permission
+const userPermissions = computed(() => authUser.value?.permissions ?? []);
+
+const canSee = (roles, permission = null) => {
     if (!authUser.value) return false;
-    if (userRole.value === 'admin') return true;
-    return roles.includes(userRole.value);
+    // Cek permission spesifik jika ada
+    if (permission && userPermissions.value.includes(permission)) return true;
+    // Fallback: cek role (untuk backward compatibility)
+    if (roles.includes(userRole.value)) return true;
+    return false;
 };
 
 const doLogout = () => {
@@ -63,40 +78,26 @@ onUnmounted(() => {
 });
 
 const navItems = [
-    { label:'Dashboard',     href:'/dashboard-icu',    roles:['admin','admisi','petugas_icu','petugas_ruang'], icon:'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
-    { label:'Admisi',        href:'/icu/menu-admision', roles:['admin','admisi'], icon:'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01' },
-    { label:'ICU',           href:'/icu/menu-icu',      roles:['admin','petugas_icu'], icon:'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z' },
-    { label:'Rawat Inap',    href:'/icu/menu-petugas',  roles:['admin','petugas_ruang'], icon:'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
-    { label:'Informasi Bed', href:'/icu/denah-bed',     roles:['admin','admisi','petugas_icu','petugas_ruang'], icon:'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' },
+    { label:'Dashboard',     href:'/dashboard-icu',    permission:'dashboard:view',        roles:['admin','admisi','petugas_icu','petugas_ruang'], icon:'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
+    { label:'Admisi',        href:'/icu/menu-admision', permission:'booking_ext:view',      roles:['admin','admisi'], icon:'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01' },
+    { label:'ICU',           href:'/icu/menu-icu',      permission:'booking_int:view',      roles:['admin','petugas_icu'], icon:'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z' },
+    { label:'Rawat Inap',    href:'/icu/menu-petugas',  permission:'booking_int:create',    roles:['admin','petugas_ruang'], icon:'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
+    { label:'Informasi Bed', href:'/icu/denah-bed',     permission:'denah_bed:view',        roles:['admin','admisi','petugas_icu','petugas_ruang'], icon:'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' },
 ];
 
 const moreItems = [
-    { label:'Kelola User',      href:'/settings/users',         roles:['admin'], icon:'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z' },
-    { label:'Role & Permission',href:'/settings/roles',         roles:['admin'], icon:'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' },
-    { label:'Log Aktivitas',    href:'/settings/activity-logs', roles:['admin'], icon:'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4' },
+    { label:'Log Aktivitas', href:'/settings/activity-logs', permission:'activity_log:view', roles:['admin'], icon:'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4' },
+    // { label:'Kelola User',      href:'/settings/users',      permission:'settings_users:view', roles:['admin'], icon:'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z' },
 ];
 
-const visibleNavItems  = computed(() => navItems.filter(i => canSee(i.roles)));
-const visibleMoreItems = computed(() => moreItems.filter(i => canSee(i.roles)));
+const visibleNavItems  = computed(() => navItems.filter(i => canSee(i.roles, i.permission)));
+const visibleMoreItems = computed(() => moreItems.filter(i => canSee(i.roles, i.permission)));
 
 const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
 const isActive    = (href) => currentPath === href || currentPath.startsWith(href + '/');
 
 const iconSun  = 'M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707M17.657 17.657l-.707-.707M6.343 6.343l-.707-.707M16 12a4 4 0 11-8 0 4 4 0 018 0z';
 const iconMoon = 'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z';
-
-const roleLabels = {
-    admin: 'Administrator', admisi: 'Petugas Admisi',
-    petugas_icu: 'Petugas ICU', petugas_ruang: 'Petugas Ruang',
-};
-const roleLabel  = computed(() => roleLabels[userRole.value] ?? userRole.value ?? '—');
-const roleColors = {
-    admin: { bg:'rgba(124,58,237,0.12)', color:'#7C3AED' },
-    admisi: { bg:'rgba(0,168,132,0.12)', color:'#00A884' },
-    petugas_icu: { bg:'rgba(220,38,38,0.10)', color:'#DC2626' },
-    petugas_ruang: { bg:'rgba(0,168,132,0.12)', color:'#00A884' },
-};
-const roleColor = computed(() => roleColors[userRole.value] ?? { bg:'rgba(100,116,139,0.12)', color:'#64748B' });
 </script>
 
 <template>

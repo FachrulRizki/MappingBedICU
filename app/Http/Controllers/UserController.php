@@ -40,8 +40,6 @@ class UserController extends Controller
         $user = User::findOrFail($id);
 
         $validated = $request->validate([
-            'ward_ids'  => 'nullable|array',
-            'ward_ids.*'=> 'string',
             'is_active' => 'required|boolean',
         ]);
 

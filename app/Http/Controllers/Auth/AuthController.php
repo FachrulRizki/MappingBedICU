@@ -96,6 +96,7 @@ class AuthController extends Controller
             'keycloak_access_token'    => $socialUser->token,
             'keycloak_refresh_token'   => $socialUser->refreshToken ?? null,
             'keycloak_last_introspect' => time(),
+            'keycloak_permissions'     => $this->keycloak->extractPermissionsFromToken($payload),
         ]);
         $request->session()->save();
 

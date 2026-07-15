@@ -15,8 +15,8 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Global web stack — berjalan di setiap request web
         $middleware->web(append: [
-            \App\Http\Middleware\HandleInertiaRequests::class,
             \App\Http\Middleware\SyncKeycloakRole::class,
+            \App\Http\Middleware\HandleInertiaRequests::class,
         ]);
 
         // Alias middleware — dipakai langsung di routes

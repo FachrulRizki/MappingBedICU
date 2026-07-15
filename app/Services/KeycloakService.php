@@ -112,7 +112,11 @@ class KeycloakService
 
         $all = array_values(array_unique(array_merge($realm, $client)));
 
-        return array_values(array_filter($all, fn ($r) => ! in_array($r, $systemRoles, true)));
+        // Filter system roles dan client roles berbentuk permission (mengandung ":")
+        return array_values(array_filter(
+            $all,
+            fn ($r) => ! in_array($r, $systemRoles, true) && ! str_contains($r, ':')
+        ));
     }
 
     public function resolveRoleFromToken(array $payload): string
@@ -133,7 +137,10 @@ class KeycloakService
         }
 
         $clientRoles = $payload['resource_access'][$this->clientId]['roles'] ?? [];
-        $perms       = array_values(array_unique(
+        Log::debug('[Keycloak] Client roles raw [' . $this->clientId . ']: ' . implode(', ', $clientRoles) ?: '(kosong)');
+        Log::debug('[Keycloak] resource_access keys: ' . implode(', ', array_keys($payload['resource_access'] ?? [])));
+
+        $perms = array_values(array_unique(
             array_filter($clientRoles, fn ($r) => str_contains($r, ':'))
         ));
 
@@ -142,6 +149,7 @@ class KeycloakService
             return $perms;
         }
 
+        Log::debug('[Keycloak] Tidak ada permissions ditemukan di token.');
         return [];
     }
 

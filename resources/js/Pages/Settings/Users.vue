@@ -10,7 +10,6 @@ const props = defineProps({
     flash: { type: Object, default: () => ({}) },
 });
 
-// ── Alerts ────────────────────────────────────────────────────────────────────
 const alert   = ref({ show: false, type: 'success', title: '', message: '' });
 const confirm = ref({ show: false, action: null, title: '', message: '' });
 
@@ -23,23 +22,7 @@ watch(() => props.flash, (f) => {
     if (f?.error)   showAlert('error',   'Gagal',    f.error);
 }, { immediate: true, deep: true });
 
-// ── Edit inline (ward_ids + is_active) ───────────────────────────────────────
-const editId   = ref(null);
-const editForm = useForm({ ward_ids: [], is_active: true });
-
-const openEdit = (u) => {
-    editId.value        = u.id;
-    editForm.ward_ids   = u.ward_ids ?? [];
-    editForm.is_active  = u.is_active;
-};
-const cancelEdit = () => { editId.value = null; editForm.reset(); };
-const submitEdit = (id) => {
-    editForm.put(route('settings.users.update', id), {
-        onSuccess: () => { editId.value = null; },
-    });
-};
-
-// ── Toggle active — confirm dulu ─────────────────────────────────────────────
+// Toggle aktif — satu klik, confirm dulu
 const toggleActive = (u) => openConfirm({
     title:   u.is_active ? 'Nonaktifkan User?' : 'Aktifkan User?',
     message: u.is_active
@@ -47,15 +30,11 @@ const toggleActive = (u) => openConfirm({
         : `${u.name} akan bisa login kembali.`,
     danger:  u.is_active,
     action:  () => {
-        const form = useForm({ ward_ids: u.ward_ids ?? [], is_active: !u.is_active });
-        form.put(route('settings.users.update', u.id));
+        useForm({ is_active: !u.is_active }).put(route('settings.users.update', u.id));
     },
 });
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 const getInitial = (name) => name?.charAt(0)?.toUpperCase() ?? '?';
-
-const wardIdsInput = (u) => (u.ward_ids ?? []).join(', ');
 </script>
 
 <template>
@@ -70,7 +49,7 @@ const wardIdsInput = (u) => (u.ward_ids ?? []).join(', ');
                 <div>
                     <h1 class="font-bold text-lg" style="color:var(--text-primary)">Kelola User</h1>
                     <p class="text-sm mt-0.5" style="color:var(--text-secondary)">
-                        User terdaftar otomatis saat login SSO. Kelola bangsal & status aktif dari sini.
+                        User terdaftar otomatis saat login SSO. Data di-sync dari Keycloak setiap login.
                     </p>
                 </div>
                 <div class="flex items-center gap-2 text-xs px-3 py-2 rounded-xl flex-shrink-0"
@@ -78,7 +57,7 @@ const wardIdsInput = (u) => (u.ward_ids ?? []).join(', ');
                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
                     </svg>
-                    Akun dikelola via Keycloak SSO
+                    Dikelola via Keycloak SSO
                 </div>
             </div>
 
@@ -94,12 +73,12 @@ const wardIdsInput = (u) => (u.ward_ids ?? []).join(', ');
                 </div>
 
                 <div class="overflow-x-auto">
-                    <table class="w-full dark-table" style="min-width:700px">
+                    <table class="w-full dark-table" style="min-width:680px">
                         <thead>
                             <tr>
                                 <th class="text-left px-5">User</th>
                                 <th class="text-left px-4">Role</th>
-                                <th class="text-left px-4">Bangsal (ward_ids)</th>
+                                <th class="text-left px-4">Bangsal</th>
                                 <th class="text-left px-4">Provider</th>
                                 <th class="text-left px-4">Status</th>
                                 <th class="text-left px-4">Bergabung</th>
@@ -107,134 +86,61 @@ const wardIdsInput = (u) => (u.ward_ids ?? []).join(', ');
                             </tr>
                         </thead>
                         <tbody>
-                            <template v-for="u in users" :key="u.id">
-
-                                <!-- Row normal -->
-                                <tr v-if="editId !== u.id">
-                                    <td class="px-5">
-                                        <div class="flex items-center gap-3">
-                                            <div class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0"
-                                                :style="`background:${u.role_color}22; color:${u.role_color}`">
-                                                {{ getInitial(u.name) }}
-                                            </div>
-                                            <div>
-                                                <p class="font-semibold text-sm" style="color:var(--text-primary)">{{ u.name }}</p>
-                                                <p class="text-xs font-mono" style="color:var(--text-secondary)">
-                                                    {{ u.email ?? u.username }}
-                                                </p>
-                                            </div>
+                            <tr v-for="u in users" :key="u.id">
+                                <td class="px-5">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0"
+                                            :style="`background:${u.role_color}22; color:${u.role_color}`">
+                                            {{ getInitial(u.name) }}
                                         </div>
-                                    </td>
-                                    <td class="px-4">
-                                        <span class="text-xs font-semibold px-2.5 py-1 rounded-full"
-                                            :style="`background:${u.role_color}20; color:${u.role_color}`">
-                                            {{ u.role_label }}
-                                        </span>
-                                    </td>
-                                    <td class="px-4 text-xs font-mono" style="color:var(--text-secondary)">
-                                        {{ u.ward_ids?.length ? u.ward_ids.join(', ') : '—' }}
-                                    </td>
-                                    <td class="px-4">
-                                        <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
-                                            :style="u.auth_provider === 'keycloak'
-                                                ? 'background:rgba(79,70,229,0.12); color:#6366f1'
-                                                : 'background:rgba(0,168,132,0.12); color:#00A884'">
-                                            {{ u.auth_provider === 'keycloak' ? 'SSO' : 'Lokal' }}
-                                        </span>
-                                    </td>
-                                    <td class="px-4">
-                                        <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
-                                            :style="u.is_active
-                                                ? 'background:rgba(61,219,138,0.12); color:#3DDB8A'
-                                                : 'background:rgba(231,76,60,0.12); color:#E74C3C'">
-                                            {{ u.is_active ? 'Aktif' : 'Nonaktif' }}
-                                        </span>
-                                    </td>
-                                    <td class="px-4 text-xs" style="color:var(--text-secondary)">{{ u.created_at }}</td>
-                                    <td class="px-4 text-center">
-                                        <div class="flex items-center justify-center gap-1.5">
-                                            <!-- Edit ward_ids -->
-                                            <button @click="openEdit(u)" title="Edit Bangsal"
-                                                class="p-1.5 rounded-lg transition-all"
-                                                style="background:rgba(0,168,132,0.1); color:#00A884; border:1px solid rgba(0,168,132,0.2)">
-                                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                                                </svg>
-                                            </button>
-                                            <!-- Toggle aktif/nonaktif -->
-                                            <button @click="toggleActive(u)"
-                                                :title="u.is_active ? 'Nonaktifkan' : 'Aktifkan'"
-                                                class="p-1.5 rounded-lg transition-all"
-                                                :style="u.is_active
-                                                    ? 'background:rgba(231,76,60,0.1); color:#E74C3C; border:1px solid rgba(231,76,60,0.2)'
-                                                    : 'background:rgba(61,219,138,0.1); color:#3DDB8A; border:1px solid rgba(61,219,138,0.2)'">
-                                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                    <path v-if="u.is_active" stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
-                                                    <path v-else stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                                </svg>
-                                            </button>
+                                        <div>
+                                            <p class="font-semibold text-sm" style="color:var(--text-primary)">{{ u.name }}</p>
+                                            <p class="text-xs font-mono" style="color:var(--text-secondary)">
+                                                {{ u.email ?? u.username }}
+                                            </p>
                                         </div>
-                                    </td>
-                                </tr>
-
-                                <!-- Row edit inline — hanya ward_ids + is_active -->
-                                <tr v-else style="background:var(--bg-surface-2)">
-                                    <td colspan="7" class="px-5 py-4">
-                                        <p class="text-xs font-semibold mb-3" style="color:var(--text-primary)">
-                                            Edit — {{ u.name }}
-                                            <span class="font-normal ml-1" style="color:var(--text-secondary)">
-                                                (nama & role dikelola via Keycloak)
-                                            </span>
-                                        </p>
-                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                                            <div>
-                                                <label class="block text-xs font-semibold mb-1" style="color:var(--text-primary)">
-                                                    Bangsal (ward_ids)
-                                                    <span class="font-normal ml-1" style="color:var(--text-secondary)">pisahkan dengan koma</span>
-                                                </label>
-                                                <input
-                                                    :value="editForm.ward_ids.join(', ')"
-                                                    @input="editForm.ward_ids = $event.target.value.split(',').map(s => s.trim()).filter(Boolean)"
-                                                    placeholder="contoh: ICU1, ICU2, HCU"
-                                                    class="w-full px-3 py-2 text-sm rounded-xl outline-none font-mono"
-                                                    style="border:1px solid var(--border-default); background:var(--bg-surface); color:var(--text-primary)"/>
-                                            </div>
-                                            <div>
-                                                <label class="block text-xs font-semibold mb-1" style="color:var(--text-primary)">Status</label>
-                                                <div class="flex gap-2 pt-0.5">
-                                                    <button type="button" @click="editForm.is_active = true"
-                                                        class="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
-                                                        :style="editForm.is_active
-                                                            ? 'background:#3DDB8A; color:#fff'
-                                                            : 'background:var(--bg-surface); color:var(--text-secondary); border:1px solid var(--border-default)'">
-                                                        Aktif
-                                                    </button>
-                                                    <button type="button" @click="editForm.is_active = false"
-                                                        class="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
-                                                        :style="!editForm.is_active
-                                                            ? 'background:#E74C3C; color:#fff'
-                                                            : 'background:var(--bg-surface); color:var(--text-secondary); border:1px solid var(--border-default)'">
-                                                        Nonaktif
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="flex gap-2">
-                                            <button @click="submitEdit(u.id)" :disabled="editForm.processing"
-                                                class="text-sm font-bold px-4 py-2 rounded-xl disabled:opacity-50"
-                                                style="background:#00A884; color:#fff">
-                                                Simpan
-                                            </button>
-                                            <button @click="cancelEdit"
-                                                class="text-sm px-4 py-2 rounded-xl"
-                                                style="background:var(--bg-main); color:var(--text-secondary); border:1px solid var(--border-default)">
-                                                Batal
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-
-                            </template>
+                                    </div>
+                                </td>
+                                <td class="px-4">
+                                    <span class="text-xs font-semibold px-2.5 py-1 rounded-full"
+                                        :style="`background:${u.role_color}20; color:${u.role_color}`">
+                                        {{ u.role_label }}
+                                    </span>
+                                </td>
+                                <td class="px-4 text-xs font-mono" style="color:var(--text-secondary)">
+                                    {{ u.ward_ids?.length ? u.ward_ids.join(', ') : '—' }}
+                                </td>
+                                <td class="px-4">
+                                    <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
+                                        :style="u.auth_provider === 'keycloak'
+                                            ? 'background:rgba(79,70,229,0.12); color:#6366f1'
+                                            : 'background:rgba(0,168,132,0.12); color:#00A884'">
+                                        {{ u.auth_provider === 'keycloak' ? 'SSO' : 'Lokal' }}
+                                    </span>
+                                </td>
+                                <td class="px-4">
+                                    <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
+                                        :style="u.is_active
+                                            ? 'background:rgba(61,219,138,0.12); color:#3DDB8A'
+                                            : 'background:rgba(231,76,60,0.12); color:#E74C3C'">
+                                        {{ u.is_active ? 'Aktif' : 'Nonaktif' }}
+                                    </span>
+                                </td>
+                                <td class="px-4 text-xs" style="color:var(--text-secondary)">{{ u.created_at }}</td>
+                                <td class="px-4 text-center">
+                                    <button @click="toggleActive(u)"
+                                        :title="u.is_active ? 'Nonaktifkan' : 'Aktifkan'"
+                                        class="p-1.5 rounded-lg transition-all"
+                                        :style="u.is_active
+                                            ? 'background:rgba(231,76,60,0.1); color:#E74C3C; border:1px solid rgba(231,76,60,0.2)'
+                                            : 'background:rgba(61,219,138,0.1); color:#3DDB8A; border:1px solid rgba(61,219,138,0.2)'">
+                                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path v-if="u.is_active" stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+                                            <path v-else stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                        </svg>
+                                    </button>
+                                </td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
@@ -245,13 +151,8 @@ const wardIdsInput = (u) => (u.ward_ids ?? []).join(', ');
                 style="background:rgba(79,70,229,0.06); border:1px solid rgba(79,70,229,0.15)">
                 <p class="font-bold" style="color:#6366f1">ℹ Tentang User Management</p>
                 <p style="color:var(--text-secondary)">
-                    Akun user dibuat otomatis saat pertama kali login via Keycloak SSO.
-                    Nama, email, username, dan role di-sync dari token Keycloak setiap login.
-                </p>
-                <p style="color:var(--text-secondary)">
-                    Yang bisa dikelola dari sini: <strong style="color:var(--text-primary)">Bangsal (ward_ids)</strong>
-                    dan <strong style="color:var(--text-primary)">Status aktif</strong>.
-                    Untuk blokir akses permanen, nonaktifkan user atau hapus role di Keycloak Admin Console.
+                    Semua data user (nama, role, ward_ids, permissions) dikelola dan di-sync otomatis dari Keycloak SSO setiap login.
+                    Satu-satunya yang bisa dikelola dari sini adalah <strong style="color:var(--text-primary)">status aktif</strong> — untuk blokir akses darurat tanpa harus masuk Keycloak Admin Console.
                 </p>
             </div>
 
