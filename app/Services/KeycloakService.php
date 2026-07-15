@@ -25,14 +25,14 @@ class KeycloakService
         $this->cacheTtl     = (int) config('keycloak.cache_ttl', 60);
     }
 
-    // ── OIDC Endpoints ────────────────────────────────────────────────────────
+    // OIDC Endpoints ────────────────────────────────────────────────────────
 
     private function oidcBase(): string      { return "{$this->baseUrl}/realms/{$this->realm}/protocol/openid-connect"; }
     private function tokenUrl(): string      { return $this->oidcBase() . '/token'; }
     private function introspectUrl(): string { return $this->oidcBase() . '/token/introspect'; }
     private function logoutUrl(): string     { return $this->oidcBase() . '/logout'; }
 
-    // ── Reachability ──────────────────────────────────────────────────────────
+    // Reachability ──────────────────────────────────────────────────────────
 
     /** Cek apakah Keycloak bisa dijangkau — untuk show/hide tombol SSO. */
     public function isReachable(): bool
@@ -50,7 +50,7 @@ class KeycloakService
         }
     }
 
-    // ── Token ─────────────────────────────────────────────────────────────────
+    // Token
 
     /** Introspect token — hasil di-cache untuk kurangi round-trip ke Keycloak. */
     public function introspectToken(string $accessToken): array
@@ -86,7 +86,7 @@ class KeycloakService
         Cache::forget('keycloak_token:' . hash('sha256', $accessToken));
     }
 
-    // ── JWT ───────────────────────────────────────────────────────────────────
+    // JWT
 
     /** Decode payload JWT tanpa verifikasi signature (claims dibaca saja). */
     public function decodeJwtPayload(string $jwt): array
@@ -98,54 +98,33 @@ class KeycloakService
             : [];
     }
 
-    // ── Role ──────────────────────────────────────────────────────────────────
-
-    /** Semua role yang dikenali aplikasi (urutan = prioritas resolve). */
-    private function recognizedRoles(): array
-    {
-        return ['admin', 'admisi', 'petugas_icu', 'petugas_ruang'];
-    }
-
-    /** Gabungkan realm roles + client roles dari token payload. */
+    // Role
     public function getRolesFromToken(array $payload): array
     {
         $realm  = $payload['realm_access']['roles'] ?? [];
         $client = $payload['resource_access'][$this->clientId]['roles'] ?? [];
 
-        return array_values(array_unique(array_merge($realm, $client)));
+        $systemRoles = [
+            'offline_access',
+            'uma_authorization',
+            'default-roles-' . $this->realm,
+        ];
+
+        $all = array_values(array_unique(array_merge($realm, $client)));
+
+        return array_values(array_filter($all, fn ($r) => ! in_array($r, $systemRoles, true)));
     }
 
-    /** Cek apakah token punya minimal satu role yang dikenali. */
-    public function hasRecognizedRole(array $payload): bool
-    {
-        $roles = $this->getRolesFromToken($payload);
-
-        return (bool) array_intersect($this->recognizedRoles(), $roles);
-    }
-
-    /** Pilih satu role lokal sesuai prioritas — fallback ke petugas_ruang. */
     public function resolveRoleFromToken(array $payload): string
     {
         $roles = $this->getRolesFromToken($payload);
 
-        foreach ($this->recognizedRoles() as $role) {
-            if (in_array($role, $roles, true)) {
-                return $role;
-            }
-        }
-
-        return 'petugas_ruang';
+        return $roles[0] ?? 'user';
     }
 
-    // ── Permission ────────────────────────────────────────────────────────────
-
-    /**
-     * Ekstrak permissions dari token.
-     * Prioritas: Keycloak Authorization Services → client roles berbentuk "resource:scope".
-     */
+    // Permission
     public function extractPermissionsFromToken(array $payload): array
     {
-        // 1 — Authorization Services
         $perms = $this->parseAuthorizationPermissions($payload);
 
         if (! empty($perms)) {
@@ -153,7 +132,6 @@ class KeycloakService
             return $perms;
         }
 
-        // 2 — Client roles sebagai permissions (format "resource:scope")
         $clientRoles = $payload['resource_access'][$this->clientId]['roles'] ?? [];
         $perms       = array_values(array_unique(
             array_filter($clientRoles, fn ($r) => str_contains($r, ':'))
@@ -167,13 +145,21 @@ class KeycloakService
         return [];
     }
 
+    /**
+     * Validasi apakah token layak login ke aplikasi ini.
+     */
+    public function hasAppAccess(array $payload): bool
+    {
+        return ! empty($this->extractPermissionsFromToken($payload));
+    }
+
     /** Cek apakah user punya salah satu dari permissions yang diminta (OR). */
     public function hasAnyPermission(array $userPermissions, array $required): bool
     {
         return (bool) array_intersect($userPermissions, $required);
     }
 
-    // ── Logout ────────────────────────────────────────────────────────────────
+    // Logout
 
     /** Bangun URL logout Keycloak — sertakan id_token_hint jika ada. */
     public function buildLogoutUrl(string $postRedirect, ?string $idToken = null): string
@@ -190,7 +176,7 @@ class KeycloakService
         return $this->logoutUrl() . '?' . http_build_query($params);
     }
 
-    // ── Private ───────────────────────────────────────────────────────────────
+    // Private
 
     private function parseAuthorizationPermissions(array $payload): array
     {

@@ -20,13 +20,6 @@ class CheckPermission
             return redirect()->route('login');
         }
 
-        $user = Auth::user();
-
-        // Admin full access — skip cek permission
-        if ($user->role === 'admin') {
-            return $next($request);
-        }
-
         $permissions = $request->session()->get('keycloak_permissions', []);
 
         if (empty($permissions)) {

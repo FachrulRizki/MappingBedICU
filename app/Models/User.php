@@ -20,7 +20,6 @@ class User extends Authenticatable
         'role',
         'unit_kerja',
         'is_active',
-        // SSO Keycloak
         'keycloak_id',
         'keycloak_username',
         'auth_provider',
@@ -39,17 +38,13 @@ class User extends Authenticatable
         ];
     }
 
-    /**
-     * Kode bangsal yang menjadi scope akses user ini.
-     * Dari Keycloak token field 'ward_ids'.
-     */
+    // Ward
     public function getWardIdsArray(): array
     {
         return $this->ward_ids ?? [];
     }
 
-    // ── Auth provider helpers ──────────────────────────────────────────────
-
+    // Auth provider
     public function isKeycloakUser(): bool
     {
         return $this->auth_provider === 'keycloak';
@@ -60,42 +55,28 @@ class User extends Authenticatable
         return $this->auth_provider === 'local' || $this->auth_provider === null;
     }
 
-    // ── Role helpers ───────────────────────────────────────────────────────
-
-    public function isAdmin(): bool        { return $this->role === 'admin'; }
-    public function isAdmisi(): bool       { return $this->role === 'admisi'; }
-    public function isIcu(): bool          { return $this->role === 'petugas_icu'; }
-    public function isPetugasRuang(): bool { return $this->role === 'petugas_ruang'; }
-
-    public function canManageAdmisi(): bool
-    {
-        return in_array($this->role, ['admin', 'admisi']);
-    }
-
-    public function canManageIcu(): bool
-    {
-        return in_array($this->role, ['admin', 'petugas_icu']);
-    }
-
+    // Role label & color — dinamis, tidak hardcode
     public function roleLabel(): string
     {
-        return match ($this->role) {
-            'admin'         => 'Administrator',
-            'admisi'        => 'Petugas Admisi',
-            'petugas_icu'   => 'Petugas ICU',
-            'petugas_ruang' => 'Petugas Ruang',
-            default         => $this->role,
-        };
+        if (! $this->role) return 'User';
+
+        return ucwords(str_replace(['_', '-'], ' ', $this->role));
     }
 
+    /**
+     * Warna badge untuk role — diambil dari palet tetap berdasarkan hash nama role.
+     * Role yang sama selalu dapat warna yang sama, role baru otomatis dapat warna.
+     */
     public function roleColor(): string
     {
-        return match ($this->role) {
-            'admin'         => '#E0923A',
-            'admisi'        => '#4A90D9',
-            'petugas_icu'   => '#2DD9A4',
-            'petugas_ruang' => '#D9517A',
-            default         => '#8EA89E',
-        };
+        $palette = [
+            '#E0923A', '#4A90D9', '#2DD9A4', '#D9517A',
+            '#9B59B6', '#1ABC9C', '#E74C3C', '#3498DB',
+            '#F39C12', '#27AE60', '#8E44AD', '#16A085',
+        ];
+
+        $index = abs(crc32($this->role ?? '')) % count($palette);
+
+        return $palette[$index];
     }
 }

@@ -50,19 +50,21 @@ class AuthController extends Controller
         $payload = $this->keycloak->decodeJwtPayload($socialUser->token);
         $idToken = $socialUser->accessTokenResponseBody['id_token'] ?? null;
 
-        if (! $this->keycloak->hasRecognizedRole($payload)) {
-            Log::warning('[Keycloak] Login ditolak — ' . $socialUser->getNickname()
+        // Tolak jika tidak punya permission apapun di app ini
+        if (! $this->keycloak->hasAppAccess($payload)) {
+            Log::warning('[Keycloak] Login ditolak — tidak ada permission: '
+                . $socialUser->getNickname()
                 . ' roles: [' . implode(', ', $this->keycloak->getRolesFromToken($payload)) . ']');
             return redirect()->route('login')
-                ->with('error', 'Akun Anda belum memiliki role yang sesuai. Hubungi administrator.');
+                ->with('error', 'Akun Anda belum memiliki akses ke aplikasi ini. Hubungi administrator.');
         }
 
         $keycloakId = $socialUser->getId();
         $email      = $socialUser->getEmail() ?: null;
 
-        // Cari user by keycloak_id dulu, fallback ke email (hindari duplicate key)
+        // Cari user by keycloak_id dulu, fallback ke email
         $user = User::where('keycloak_id', $keycloakId)->first()
-            ?? ($email ? User::where('email', $email)->first() : null);
+            ?? ($email ? User::where('email', $email)->whereNull('keycloak_id')->first() : null);
 
         $attributes = [
             'name'              => $socialUser->getName() ?: $socialUser->getNickname(),
@@ -84,13 +86,6 @@ class AuthController extends Controller
             $user = User::create($attributes);
         }
 
-        // Validasi role terset (role dikelola di Keycloak)
-        if (! $user->role) {
-            Log::warning('[Keycloak] Login ditolak — role belum diset: ' . $user->name);
-            return redirect()->route('login')
-                ->with('error', 'Akun Anda belum memiliki role. Hubungi administrator.');
-        }
-
         Auth::login($user, remember: false);
 
         $request->session()->regenerate();
@@ -102,7 +97,7 @@ class AuthController extends Controller
             'keycloak_refresh_token'   => $socialUser->refreshToken ?? null,
             'keycloak_last_introspect' => time(),
         ]);
-        $request->session()->save(); // paksa flush ke storage sekarang, sebelum redirect
+        $request->session()->save();
 
         Log::info("[Keycloak] Login: {$user->name} role:{$user->role}");
 
@@ -120,7 +115,6 @@ class AuthController extends Controller
 
         try { $this->activityLog->logoutLog(); } catch (\Throwable) {}
 
-        // Hapus cache introspection agar token lama tidak bisa dipakai lagi
         if ($accessToken) {
             $this->keycloak->forgetTokenCache($accessToken);
         }

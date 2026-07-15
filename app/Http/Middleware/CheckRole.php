@@ -15,24 +15,17 @@ class CheckRole
             return redirect()->route('login');
         }
 
-        $user = Auth::user();
+        $userRole = Auth::user()->role;
 
-        // Admin full access
-        if ($user->role === 'admin') {
-            return $next($request);
-        }
-
-        // Flatten — support 'admin,petugas_icu' dalam satu string
         $required = array_merge(...array_map(
             fn ($r) => array_map('trim', explode(',', $r)),
             $roles
         ));
 
-        if (in_array($user->role, $required, true)) {
+        if ($userRole && in_array($userRole, $required, true)) {
             return $next($request);
         }
 
-        // Role tidak cocok — redirect ke login dengan pesan
         return redirect()->route('login')
             ->with('error', 'Akun Anda tidak memiliki akses ke halaman ini.');
     }

@@ -21,8 +21,6 @@ class SyncKeycloakRole
     {
         $user = Auth::user();
 
-        // Hanya sync jika user Keycloak DAN session sudah punya token payload
-        // Tanpa guard ini, request pertama setelah login bisa crash karena race condition
         if ($user?->auth_provider === 'keycloak' && $request->session()->has('keycloak_token_payload')) {
             $redirect = $this->sync($request, $user);
             if ($redirect) return $redirect;
@@ -35,7 +33,6 @@ class SyncKeycloakRole
     {
         $accessToken = $request->session()->get('keycloak_access_token');
 
-        // Introspect setiap 5 menit — paksa logout jika token tidak aktif
         if ($accessToken) {
             $last = $request->session()->get('keycloak_last_introspect', 0);
 
@@ -45,8 +42,10 @@ class SyncKeycloakRole
                 if (! empty($info) && ($info['active'] ?? false) === false) {
                     // Coba refresh token sebelum logout paksa
                     $refreshToken = $request->session()->get('keycloak_refresh_token');
+
                     if ($refreshToken) {
                         $newTokens = $this->keycloak->refreshToken($refreshToken);
+
                         if (! empty($newTokens['access_token'])) {
                             $newPayload = $this->keycloak->decodeJwtPayload($newTokens['access_token']);
                             $request->session()->put([
@@ -55,23 +54,15 @@ class SyncKeycloakRole
                                 'keycloak_token_payload'   => $newPayload,
                                 'keycloak_last_introspect' => time(),
                             ]);
-                            Log::info("[SyncKeycloakRole] Token diperbarui (refresh): {$user->name}");
-                            return null; // lanjut tanpa logout
+                            return null;
                         }
                     }
 
-                    // Refresh gagal — user di-disable atau refresh token expired
                     Log::info("[SyncKeycloakRole] Token tidak aktif, logout: {$user->name}");
-                    $user->update(['is_active' => false]);
                     Auth::guard('web')->logout();
                     $request->session()->invalidate();
                     $request->session()->regenerateToken();
                     return redirect()->route('login')->with('error', 'Sesi Anda telah berakhir. Silakan login kembali.');
-                }
-
-                // Token masih aktif — pastikan is_active di DB sinkron
-                if (! $user->is_active) {
-                    $user->update(['is_active' => true]);
                 }
 
                 $request->session()->put('keycloak_last_introspect', time());
@@ -82,7 +73,7 @@ class SyncKeycloakRole
 
         if (empty($payload)) return null;
 
-        // Sync role jika berubah di Keycloak
+        // Sync role — ambil langsung dari token, tidak hardcode
         $newRole = $this->keycloak->resolveRoleFromToken($payload);
         if ($user->role !== $newRole) {
             Log::info("[SyncKeycloakRole] Role sync: {$user->name} [{$user->role}→{$newRole}]");
@@ -90,13 +81,9 @@ class SyncKeycloakRole
             Auth::setUser($user->fresh());
         }
 
-        // Sync permissions ke session (skip admin — sudah full access)
-        if ($user->role !== 'admin') {
-            $request->session()->put(
-                'keycloak_permissions',
-                $this->keycloak->extractPermissionsFromToken($payload)
-            );
-        }
+        // Sync permissions dari token ke session — semua role dapat permissions sesuai Keycloak
+        $permissions = $this->keycloak->extractPermissionsFromToken($payload);
+        $request->session()->put('keycloak_permissions', $permissions);
 
         return null;
     }
