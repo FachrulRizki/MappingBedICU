@@ -21,7 +21,6 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Alias middleware — dipakai langsung di routes
         $middleware->alias([
-            'role'          => \App\Http\Middleware\CheckRole::class,
             'permission'    => \App\Http\Middleware\CheckPermission::class,
             'keycloak.auth' => \App\Http\Middleware\KeycloakAuthenticate::class,
         ]);
