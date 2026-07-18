@@ -76,10 +76,10 @@ class AntrianService
 
     private function queryExternal(string $fStatus, string $fNama, string $fTglDari, string $fTglAkh): Collection
     {
-        $activeStatuses = ['pending_icu', 'waiting_list', 'bed_confirmed'];
+        // Semua status aktif — termasuk admisi_verified agar terlihat di menu tanpa filter manual
+        $activeStatuses = ['pending_icu', 'waiting_list', 'bed_confirmed', 'admisi_verified'];
         $q = IcuBookingExternal::with('pasien');
 
-        // Filter status: jika ada filter spesifik, pakai itu; jika tidak, tampilkan semua aktif
         if ($fStatus) {
             $q->where('status', $fStatus);
         } else {
@@ -103,6 +103,7 @@ class AntrianService
 
     private function queryInternal(string $fStatus, string $fNama, string $fTglDari, string $fTglAkh): Collection
     {
+        // Semua status aktif — termasuk bed_verified agar terlihat di menu tanpa filter manual
         $activeStatuses = ['pending_admisi', 'pending_icu', 'waiting_list', 'bed_verified'];
         $q = IcuSpriInternal::query();
 

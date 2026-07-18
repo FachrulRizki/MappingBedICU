@@ -92,11 +92,18 @@ const gColor = (g) => g === 'L' ? '#00A884' : g === 'P' ? '#8E44AD' : 'var(--tex
 
 // ── Summary cards ──────────────────────────────────────────
 const CARDS = computed(() => [
-    { key:'',               label:'Total',           val: props.summary.total          ?? 0, color:'#5A6B7C', icon:'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
-    { key:'pending_admisi', label:'Menunggu Admisi',  val: props.antrian.filter(a=>a.status==='pending_admisi').length, color:'#E67E22', icon:'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
-    { key:'waiting_list',   label:'Waiting List',    val: props.summary.waiting_list   ?? 0, color:'#D97706', icon:'M12 8v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z' },
-    { key:'bed_confirmed',  label:'Perlu Verifikasi', val: props.antrian.filter(a=>a.status==='bed_confirmed').length,  color:'#00A884', icon:'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
-    { key:'ditolak',        label:'Ditolak',          val: props.summary.ditolak        ?? 0, color:'#E74C3C', icon:'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z' },
+    { key:'',                label:'Total',           val: props.summary.total ?? 0,
+      color:'#5A6B7C', icon:'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
+    { key:'pending_admisi',  label:'Menunggu Admisi', val: props.antrian.filter(a=>a.status==='pending_admisi').length,
+      color:'#E67E22', icon:'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
+    { key:'waiting_list',    label:'Waiting List',    val: props.summary.waiting_list ?? 0,
+      color:'#D97706', icon:'M12 8v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z' },
+    { key:'bed_confirmed',   label:'Perlu Verifikasi',val: props.antrian.filter(a=>['bed_confirmed','bed_verified'].includes(a.status)).length,
+      color:'#0EA5E9', icon:'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
+    { key:'admisi_verified', label:'Terverifikasi',   val: props.antrian.filter(a=>['admisi_verified','bed_verified'].includes(a.status)).length,
+      color:'#00A884', icon:'M5 13l4 4L19 7' },
+    { key:'ditolak',         label:'Ditolak',         val: props.summary.ditolak ?? 0,
+      color:'#E74C3C', icon:'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z' },
 ]);
 
 // ── Aksi yang tersedia per item — setiap tombol dijaga permission sendiri ──
@@ -278,7 +285,7 @@ const jenisOptions = [
         </div>
 
         <!-- ═══ KPI SUMMARY CARDS ═══════════════════════════════════════ -->
-        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
             <button v-for="c in CARDS" :key="c.key"
                 @click="fStatus=c.key; applyFilters()"
                 class="group relative flex items-center gap-4 p-4 rounded-2xl text-left transition-all duration-200 hover:-translate-y-1 hover:shadow-lg"
