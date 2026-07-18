@@ -22,8 +22,17 @@ class DashboardService
 
     public function getDashboardData(?User $user = null, array $filters = []): array
     {
-        $role           = $user?->role ?? 'guest';
-        $isPetugasRuang = $role === 'petugas_ruang';
+        // Gunakan permission untuk menentukan scope data, bukan nama role.
+        // Ini memastikan role baru dari Keycloak dengan permission yang sama
+        // mendapat tampilan data yang benar secara otomatis.
+        $permissions    = $filters['_permissions'] ?? [];
+        $canViewAll     = in_array('booking_ext:view', $permissions, true)
+                       || in_array('booking_int:view', $permissions, true);
+        $canCreateSpri  = in_array('booking_int:create', $permissions, true);
+
+        // Fallback ke scope terbatas jika tidak bisa lihat semua
+        // (misalnya petugas ruang — hanya lihat data milik sendiri)
+        $isPetugasRuang = ! $canViewAll && $canCreateSpri;
 
         $tglDari   = $filters['tgl_dari']   ?? now()->format('Y-m-d');
         $tglSampai = $filters['tgl_sampai'] ?? now()->format('Y-m-d');
@@ -157,7 +166,7 @@ class DashboardService
             'statsExternal' => $statsExternal,
             'statsInternal' => $statsInternal,
             'listAktif'     => $listAktif,
-            'userRole'      => $role,
+            'userRole'      => $isPetugasRuang ? 'petugas_ruang' : ($user?->role ?? 'guest'),
             'filters'       => [
                 'tgl_dari'   => $tglDari,
                 'tgl_sampai' => $tglSampai,

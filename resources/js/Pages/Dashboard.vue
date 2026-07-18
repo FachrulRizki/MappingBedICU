@@ -6,8 +6,10 @@ import { Chart as ChartJS, ArcElement, Tooltip, CategoryScale, LinearScale, BarE
 ChartJS.register(ArcElement, Tooltip, CategoryScale, LinearScale, BarElement);
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { useTheme } from '@/composables/useTheme.js';
+import { useAuth } from '@/composables/useAuth.js';
 
 const { theme } = useTheme();
+const { canBuatSpriInternal, can } = useAuth();
 const page     = usePage();
 const authUser = computed(() => page.props.auth?.user ?? null);
 const logoUrl     = `${import.meta.env.BASE_URL}images/logo-urip.png`;
@@ -297,7 +299,7 @@ const kpiCards = computed(() => [
           <tr v-if="!listFiltered.length"><td colspan="8">
             <div class="db-empty">
               <svg style="width:40px;height:40px;opacity:.25" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-              <p style="font-size:13px;font-weight:600;color:var(--text-secondary)">{{ userRole==='petugas_ruang'?'Belum ada BU':'Tidak ada pasien aktif' }}</p>
+              <p style="font-size:13px;font-weight:600;color:var(--text-secondary)">{{ canBuatSpriInternal && !can('booking_ext:view') ? 'Belum ada BU' : 'Tidak ada pasien aktif' }}</p>
             </div>
           </td></tr>
           <tr v-for="(p,i) in listFiltered" :key="p.id">

@@ -55,15 +55,15 @@ class RolePermissionController extends Controller
                 'label' => 'Kelola User',
                 'icon'  => 'users',
                 'perms' => [
-                    'users:view'  => ['admin'],
-                    'users:edit'  => ['admin'],
+                    'settings_users:view' => ['admin'],
+                    'settings_users:edit' => ['admin'],
                 ],
             ],
             'settings_roles' => [
                 'label' => 'Settings - Role',
                 'icon'  => 'shield-check',
                 'perms' => [
-                    'roles:view' => ['admin'],
+                    'settings_roles:view' => ['admin'],
                 ],
             ],
             'activity_log' => [

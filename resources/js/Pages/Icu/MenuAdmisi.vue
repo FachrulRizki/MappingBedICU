@@ -5,7 +5,7 @@ import AppLayout  from '@/Layouts/AppLayout.vue';
 import Icd10Search from '@/Components/Icd10Search.vue';
 import { useAuth } from '@/composables/useAuth.js';
 
-const { canBuatBookingExternal, canVerifikasiAdmisiExt, canApproveAdmisi, isAdmin } = useAuth();
+const { canBuatBookingExternal, canVerifikasiAdmisiExt, canApproveAdmisi, canTolakAdmisi, isAdmin } = useAuth();
 const logoUrl      = `${import.meta.env.BASE_URL}images/logo-urip.png`;
 const doctorImgUrl = `${import.meta.env.BASE_URL}images/welcome-doctors.svg`;
 
@@ -99,18 +99,27 @@ const CARDS = computed(() => [
     { key:'ditolak',        label:'Ditolak',          val: props.summary.ditolak        ?? 0, color:'#E74C3C', icon:'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z' },
 ]);
 
-// ── Aksi yang tersedia per item ────────────────────────────
-const canAct = computed(() => canVerifikasiAdmisiExt.value || canApproveAdmisi.value || isAdmin.value);
+// ── Aksi yang tersedia per item — setiap tombol dijaga permission sendiri ──
+const canAct = computed(() => canVerifikasiAdmisiExt.value || canApproveAdmisi.value || canTolakAdmisi.value || isAdmin.value);
 
 const actionsOf = (item) => {
     if (!canAct.value) return [];
     const acts = [];
     if (item.sumber === 'internal' && item.status === 'pending_admisi') {
-        acts.push({ id:'approve', label:'Setujui Booking ICU', color:'#00A884', bg:'rgba(0,168,132,.12)', border:'rgba(0,168,132,.3)' });
-        acts.push({ id:'tolak',   label:'Tolak Booking ICU',   color:'#E74C3C', bg:'rgba(231,76,60,.08)', border:'rgba(231,76,60,.25)' });
+        // Approve — butuh booking_int:approve
+        if (canApproveAdmisi.value || isAdmin.value) {
+            acts.push({ id:'approve', label:'Setujui Booking ICU', color:'#00A884', bg:'rgba(0,168,132,.12)', border:'rgba(0,168,132,.3)' });
+        }
+        // Tolak admisi — butuh booking_int:tolak_admisi
+        if (canTolakAdmisi.value || isAdmin.value) {
+            acts.push({ id:'tolak',   label:'Tolak Booking ICU',   color:'#E74C3C', bg:'rgba(231,76,60,.08)', border:'rgba(231,76,60,.25)' });
+        }
     }
     if (item.sumber === 'external' && item.status === 'bed_confirmed') {
-        acts.push({ id:'verifikasi', label:'Verifikasi Pasien', color:'#00A884', bg:'rgba(0,168,132,.12)', border:'rgba(0,168,132,.3)' });
+        // Verifikasi pasien tiba — butuh booking_ext:verifikasi_pasien
+        if (canVerifikasiAdmisiExt.value || isAdmin.value) {
+            acts.push({ id:'verifikasi', label:'Verifikasi Pasien', color:'#00A884', bg:'rgba(0,168,132,.12)', border:'rgba(0,168,132,.3)' });
+        }
     }
     return acts;
 };

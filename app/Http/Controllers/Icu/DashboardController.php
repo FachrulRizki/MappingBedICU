@@ -19,9 +19,10 @@ class DashboardController extends Controller
         $today = now()->format('Y-m-d');
 
         $filters = [
-            'tgl_dari'   => $request->query('tgl_dari',   $today),
-            'tgl_sampai' => $request->query('tgl_sampai', $today),
-            'search'     => $request->query('search',     ''),
+            'tgl_dari'      => $request->query('tgl_dari',   $today),
+            'tgl_sampai'    => $request->query('tgl_sampai', $today),
+            'search'        => $request->query('search',     ''),
+            '_permissions'  => $request->session()->get('keycloak_permissions', []),
         ];
 
         return Inertia::render('Dashboard', [

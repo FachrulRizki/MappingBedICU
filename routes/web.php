@@ -12,8 +12,6 @@ use App\Http\Controllers\Icu\MenuIcuController;
 use App\Http\Controllers\Icu\MenuAdmisiController;
 use App\Http\Controllers\Icu\MenuPetugasController;
 use App\Http\Controllers\Icu\MonitorController;
-use App\Http\Controllers\UserController;
-use App\Http\Controllers\RolePermissionController;
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 Route::middleware('guest')->group(function () {
@@ -42,8 +40,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/icu/lookup-pasien',          [MenuPetugasController::class, 'lookupPasien'])->name('icu.spri_internal.lookup_pasien');
     Route::get('/icu/lookup-pasien-external', [MenuAdmisiController::class,  'lookupPasienExternal'])->name('icu.booking_external.lookup_pasien');
 
-    // ── Menu ICU ──────────────────────────────────────────────────────────────
-    Route::get('/icu/menu-icu', [MenuIcuController::class, 'index'])->name('icu.menu_icu');
+    // ── Menu ICU — bisa diakses jika punya salah satu permission view ────────
+    Route::get('/icu/menu-icu', [MenuIcuController::class, 'index'])
+        ->name('icu.menu_icu')
+        ->middleware('permission:booking_ext:view,booking_int:view');
     Route::post('/icu/menu-icu/ext/{id}/konfirmasi',   [MenuIcuController::class, 'konfirmasiExt'])->name('icu.menu_icu.ext.konfirmasi')->middleware('permission:booking_ext:konfirmasi_bed');
     Route::post('/icu/menu-icu/ext/{id}/tolak',        [MenuIcuController::class, 'tolakExt'])->name('icu.menu_icu.ext.tolak')->middleware('permission:booking_ext:tolak');
     Route::post('/icu/menu-icu/ext/{id}/waiting-list', [MenuIcuController::class, 'waitingListExt'])->name('icu.menu_icu.ext.waiting_list')->middleware('permission:booking_ext:waiting_list');
@@ -56,7 +56,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/icu/menu-admisi/booking',             [MenuAdmisiController::class, 'storeBooking'])->name('icu.menu_admisi.booking.store')->middleware('permission:booking_ext:create');
     Route::post('/icu/menu-admisi/int/{id}/approve',    [MenuAdmisiController::class, 'approveInt'])->name('icu.menu_admisi.int.approve')->middleware('permission:booking_int:approve');
     Route::post('/icu/menu-admisi/int/{id}/tolak',      [MenuAdmisiController::class, 'tolakInt'])->name('icu.menu_admisi.int.tolak')->middleware('permission:booking_int:tolak_admisi');
-    Route::post('/icu/menu-admisi/ext/{id}/verifikasi', [MenuAdmisiController::class, 'verifikasiExt'])->name('icu.menu_admisi.ext.verifikasi')->middleware('permission:booking_ext:verifikasi');
+    Route::post('/icu/menu-admisi/ext/{id}/verifikasi', [MenuAdmisiController::class, 'verifikasiExt'])->name('icu.menu_admisi.ext.verifikasi')->middleware('permission:booking_ext:verifikasi_pasien');
 
     // ── Menu Petugas Ruang ────────────────────────────────────────────────────
     Route::get('/icu/menu-petugas',              [MenuPetugasController::class, 'index'])->name('icu.menu_petugas');
@@ -65,11 +65,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/icu/menu-petugas/spri',        [MenuPetugasController::class, 'storeSpri'])->name('icu.menu_petugas.spri.store')->middleware('permission:booking_int:create');
 
     // ── Settings ──────────────────────────────────────────────────────────────
-    Route::middleware('permission:settings_users:view')->group(function () {
-        Route::get('/settings/users',      [UserController::class, 'index'])->name('settings.users');
-        Route::put('/settings/users/{id}', [UserController::class, 'update'])->name('settings.users.update')->middleware('permission:settings_users:edit');
-    });
-
-    Route::get('/settings/roles',         [RolePermissionController::class, 'index'])->name('settings.roles')->middleware('permission:settings_roles:view');
-    Route::get('/settings/activity-logs', [ActivityLogController::class,    'index'])->name('settings.activity_logs')->middleware('permission:activity_log:view');
+    // Kelola User & Role dikelola penuh oleh Keycloak SSO — tidak ada di aplikasi.
+    Route::get('/settings/activity-logs', [ActivityLogController::class, 'index'])
+        ->name('settings.activity_logs')
+        ->middleware('permission:activity_log:view');
 });

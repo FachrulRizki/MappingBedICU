@@ -4,7 +4,7 @@ import { router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { useAuth } from '@/composables/useAuth.js';
 
-const { canKonfirmasiIcu, isAdmin } = useAuth();
+const { canKonfirmasiIcu, canTolakBookingExt, canWaitingListExt, canTolakIcu, canWaitingListInt, canVerifikasiIcuInt, isAdmin } = useAuth();
 const logoUrl      = `${import.meta.env.BASE_URL}images/logo-urip.png`;
 const doctorImgUrl = `${import.meta.env.BASE_URL}images/welcome-doctors.svg`;
 
@@ -87,21 +87,44 @@ const jaminanLabel = (k) => {
 const gIcon  = (g) => g==='L'?'♂':g==='P'?'♀':'·';
 const gColor = (g) => g==='L'?'#00A884':g==='P'?'#8E44AD':'var(--text-secondary)';
 
-// ── Aksi yang tersedia per item ────────────────────────────
+// ── Aksi yang tersedia per item — setiap tombol dijaga permission sendiri ──
 const actionsOf = (item) => {
-    if (!canKonfirmasiIcu.value && !isAdmin.value) return [];
     const acts = [];
-    if (['pending_icu', 'waiting_list'].includes(item.status)) {
-        const isWaiting    = item.status === 'waiting_list';
-        const labelKonfirm = item.sumber === 'external'
+    if (!['pending_icu', 'waiting_list'].includes(item.status)) return acts;
+
+    const isWaiting = item.status === 'waiting_list';
+    const isExt     = item.sumber === 'external';
+
+    // Konfirmasi Bed (ext) / Verifikasi Bed (int)
+    const canKonfirm = isExt
+        ? (canKonfirmasiIcu.value || isAdmin.value)
+        : (canVerifikasiIcuInt.value || isAdmin.value);
+
+    if (canKonfirm) {
+        const labelKonfirm = isExt
             ? (isWaiting ? 'Bed Tersedia — Konfirmasi Sekarang' : 'Konfirmasi Bed')
             : (isWaiting ? 'Bed Tersedia — Verifikasi Sekarang'  : 'Verifikasi Bed');
         acts.push({ id:'konfirmasi', label: labelKonfirm, bg:'rgba(0,168,132,.12)', color:'#00A884', border:'rgba(0,168,132,.3)' });
-        if (!isWaiting) {
-            acts.push({ id:'waiting', label:'Masukkan ke Waiting List', bg:'rgba(217,119,6,.1)', color:'#D97706', border:'rgba(217,119,6,.3)' });
-        }
+    }
+
+    // Waiting List — butuh permission waiting_list sesuai sumber
+    const canWaiting = isExt
+        ? (canWaitingListExt.value || isAdmin.value)
+        : (canWaitingListInt.value || isAdmin.value);
+
+    if (canWaiting && !isWaiting) {
+        acts.push({ id:'waiting', label:'Masukkan ke Waiting List', bg:'rgba(217,119,6,.1)', color:'#D97706', border:'rgba(217,119,6,.3)' });
+    }
+
+    // Tolak — butuh permission tolak sesuai sumber
+    const canTolak = isExt
+        ? (canTolakBookingExt.value || isAdmin.value)
+        : (canTolakIcu.value || isAdmin.value);
+
+    if (canTolak) {
         acts.push({ id:'tolak', label:'Tolak Permintaan', bg:'rgba(231,76,60,.08)', color:'#E74C3C', border:'rgba(231,76,60,.25)' });
     }
+
     return acts;
 };
 

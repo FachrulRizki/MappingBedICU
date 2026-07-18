@@ -188,14 +188,14 @@ class KeycloakService
 
     private function parseAuthorizationPermissions(array $payload): array
     {
+        // Key: Resource Set Name di Keycloak → prefix permission di aplikasi
         $map = [
             'booking-external' => 'booking_ext',
             'booking-internal' => 'booking_int',
             'dashboard'        => 'dashboard',
             'denah-bed'        => 'denah_bed',
-            'settings-users'   => 'settings_users',
-            'settings-roles'   => 'settings_roles',
             'activity-log'     => 'activity_log',
+            // User & role dikelola Keycloak — tidak ada resource settings-users/roles
         ];
 
         $perms = [];

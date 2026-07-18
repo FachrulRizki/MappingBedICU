@@ -16,7 +16,13 @@ class ActivityLogController extends Controller
     {
         /** @var \App\Models\User $user */
         $user    = Auth::user();
-        $isAdmin = $user->role === 'admin';
+
+        // Cek permission dari session Keycloak — bukan hardcode role.
+        // Siapapun yang punya 'activity_log:view' bisa lihat semua log (termasuk role baru).
+        // Yang tidak punya permission ini pun tidak bisa masuk ke sini karena route sudah
+        // dijaga middleware: permission:activity_log:view
+        $permissions   = $request->session()->get('keycloak_permissions', []);
+        $canViewAll    = in_array('activity_log:view', $permissions, true);
 
         $tglDari = $request->query('tgl_dari',   '');
         $tglAkh  = $request->query('tgl_sampai', '');
@@ -27,8 +33,8 @@ class ActivityLogController extends Controller
 
         $q = ActivityLog::query()->latest('created_at');
 
-        // Non-admin hanya bisa melihat log mereka sendiri
-        if (! $isAdmin) {
+        // Tanpa canViewAll → hanya bisa lihat log sendiri
+        if (! $canViewAll) {
             $q->where('user_id', $user->id);
         } elseif ($userId !== '') {
             $q->where('user_id', (int) $userId);
@@ -60,8 +66,8 @@ class ActivityLogController extends Controller
                 : '—',
         ]);
 
-        // Daftar user untuk filter dropdown (admin only)
-        $users = $isAdmin
+        // Daftar user untuk filter dropdown — hanya jika punya permission lihat semua
+        $users = $canViewAll
             ? User::where('is_active', true)
                 ->orderBy('name')
                 ->get(['id', 'name', 'role'])
@@ -73,7 +79,7 @@ class ActivityLogController extends Controller
             'logs'         => $logs,
             'jenisOptions' => ActivityLog::jenisOptions(),
             'users'        => $users,
-            'isAdmin'      => $isAdmin,
+            'isAdmin'      => $canViewAll,
             'filters'      => [
                 'tglDari'  => $tglDari,
                 'tglAkh'   => $tglAkh,
