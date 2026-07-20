@@ -5,8 +5,8 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 import { useAuth } from '@/composables/useAuth.js';
 
 const { canKonfirmasiIcu, canTolakBookingExt, canWaitingListExt, canTolakIcu, canWaitingListInt, canVerifikasiIcuInt, isAdmin } = useAuth();
-const logoUrl      = `${import.meta.env.BASE_URL}images/logo-urip.png`;
-const doctorImgUrl = `${import.meta.env.BASE_URL}images/welcome-doctors.svg`;
+const logoUrl     = '/images/logo-urip.png';
+const doctorImgUrl = '/images/welcome-doctors.svg';
 
 const props = defineProps({
     antrian:     { type: Array,  default: () => [] },

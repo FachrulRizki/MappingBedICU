@@ -6,8 +6,8 @@ import Icd10Search from '@/Components/Icd10Search.vue'
 import { useAuth } from '@/composables/useAuth.js'
 
 const { canBuatSpriInternal, isAdmin } = useAuth()
-const logoUrl      = `${import.meta.env.BASE_URL}images/logo-urip.png`
-const doctorImgUrl = `${import.meta.env.BASE_URL}images/welcome-doctors.svg`
+const logoUrl     = '/images/logo-urip.png';
+const doctorImgUrl = '/images/welcome-doctors.svg';
 
 const props = defineProps({
     spriList:        { type: Array,   default: () => [] },

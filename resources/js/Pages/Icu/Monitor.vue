@@ -150,6 +150,11 @@ onUnmounted(() => {
   <!-- ══ HEADER ══════════════════════════════════════════════════════════════ -->
   <header class="mon-header">
     <div class="mon-header-left">
+      <a href="/dashboard-icu" class="mon-back-btn" title="Kembali ke Dashboard">
+        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+        </svg>
+      </a>
       <div class="mon-logo">
         <svg width="30" height="30" fill="white" viewBox="0 0 24 24">
           <path d="M19 8H15V4H9v4H5v6h4v4h6v-4h4V8z"/>
@@ -450,6 +455,17 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 .mon-header-left { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
+.mon-back-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 38px; height: 38px; border-radius: 11px;
+  background: rgba(255,255,255,.18); border: 1.5px solid rgba(255,255,255,.35);
+  text-decoration: none; flex-shrink: 0;
+  transition: background .2s, transform .15s;
+}
+.mon-back-btn:hover {
+  background: rgba(255,255,255,.30);
+  transform: translateX(-2px);
+}
 .mon-logo {
   width: 48px; height: 48px; border-radius: 14px;
   background: rgba(255,255,255,.2); border: 1.5px solid rgba(255,255,255,.35);

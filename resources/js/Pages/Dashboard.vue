@@ -12,8 +12,8 @@ const { theme } = useTheme();
 const { canBuatSpriInternal, can } = useAuth();
 const page     = usePage();
 const authUser = computed(() => page.props.auth?.user ?? null);
-const logoUrl     = `${import.meta.env.BASE_URL}images/logo-urip.png`;
-const doctorImgUrl = `${import.meta.env.BASE_URL}images/welcome-doctors.svg`;
+const logoUrl     = '/images/logo-urip.png';
+const doctorImgUrl = '/images/welcome-doctors.svg';
 
 const props = defineProps({
     semuaKamar:    { type: Array,  default: () => [] },
