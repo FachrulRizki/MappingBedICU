@@ -67,16 +67,34 @@ class DenahBedController extends Controller
             }
         }
 
+        // Lookup jenis_kelamin dari REGISTER_PASIEN
+        $jenisKelaminMap = [];
+        if (!empty($noMrList)) {
+            try {
+                \Illuminate\Support\Facades\DB::connection('sqlsrv_rsus')
+                    ->table('REGISTER_PASIEN')
+                    ->select('No_MR', 'jenis_kelamin')
+                    ->whereIn('No_MR', $noMrList)
+                    ->get()
+                    ->each(function ($r) use (&$jenisKelaminMap) {
+                        $jenisKelaminMap[$r->No_MR] = $r->jenis_kelamin ?? null;
+                    });
+            } catch (\Exception $e) {
+                Log::warning('[DenahBedController] Gagal lookup jenis_kelamin: ' . $e->getMessage());
+            }
+        }
+
         $semuaKamar = $bedData->map(fn($row) => [
-            'Kode_Ruang'   => $row->Kode_RuangM,
-            'nama_ruang'   => $row->Nama_RuangM,
-            'kode_kelas'   => $row->kelas_master ?? $row->Kode_Kelas,
-            'nama_kelas'   => $row->Nama_Kelas,
-            'Status'       => $row->Status ?? 'KOSONG',
-            'No_MR'        => $row->No_MR ?? null,
-            'nama_pasien'  => $row->No_MR ? ($pasienMap[$row->No_MR] ?? null) : null,
-            'diagnosa'     => $row->No_MR ? ($diagnosisMap[$row->No_MR] ?? null) : null,
-            'asal_ruang'   => $row->No_MR ? ($asalRuangMap[$row->No_MR] ?? null) : null,
+            'Kode_Ruang'    => $row->Kode_RuangM,
+            'nama_ruang'    => $row->Nama_RuangM,
+            'kode_kelas'    => $row->kelas_master ?? $row->Kode_Kelas,
+            'nama_kelas'    => $row->Nama_Kelas,
+            'Status'        => $row->Status ?? 'KOSONG',
+            'No_MR'         => $row->No_MR ?? null,
+            'nama_pasien'   => $row->No_MR ? ($pasienMap[$row->No_MR] ?? null) : null,
+            'jenis_kelamin' => $row->No_MR ? ($jenisKelaminMap[$row->No_MR] ?? null) : null,
+            'diagnosa'      => $row->No_MR ? ($diagnosisMap[$row->No_MR] ?? null) : null,
+            'asal_ruang'    => $row->No_MR ? ($asalRuangMap[$row->No_MR] ?? null) : null,
         ])->values();
 
         $summary = [

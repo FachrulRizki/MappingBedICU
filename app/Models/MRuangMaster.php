@@ -48,9 +48,9 @@ class MRuangMaster extends Model
 
         try {
             return DB::connection('sqlsrv_rsus')
-                ->table("{$rm} as rm")
-                ->leftJoin("{$mk} as mk", 'rm.Kode_Kelas', '=', 'mk.Kode_Kelas')
-                ->leftJoin("{$sk} as sk", 'rm.Kode_RuangM', '=', 'sk.Kode_Ruang')
+                ->table("{$sk} as sk")
+                ->join("{$rm} as rm", 'sk.Kode_Ruang', '=', 'rm.Kode_RuangM')
+                ->join("{$mk} as mk", 'rm.Kode_Kelas', '=', 'mk.Kode_Kelas')
                 ->where('rm.Kode_Bangsal', 'ICU')
                 ->select([
                     'rm.Kode_RuangM',

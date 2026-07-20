@@ -27,10 +27,22 @@ class KeycloakService
 
     // OIDC Endpoints ────────────────────────────────────────────────────────
 
-    private function oidcBase(): string      { return "{$this->baseUrl}/realms/{$this->realm}/protocol/openid-connect"; }
-    private function tokenUrl(): string      { return $this->oidcBase() . '/token'; }
-    private function introspectUrl(): string { return $this->oidcBase() . '/token/introspect'; }
-    private function logoutUrl(): string     { return $this->oidcBase() . '/logout'; }
+    private function oidcBase(): string
+    {
+        return "{$this->baseUrl}/realms/{$this->realm}/protocol/openid-connect";
+    }
+    private function tokenUrl(): string
+    {
+        return $this->oidcBase() . '/token';
+    }
+    private function introspectUrl(): string
+    {
+        return $this->oidcBase() . '/token/introspect';
+    }
+    private function logoutUrl(): string
+    {
+        return $this->oidcBase() . '/logout';
+    }
 
     // Reachability ──────────────────────────────────────────────────────────
 
@@ -57,8 +69,7 @@ class KeycloakService
     {
         $key = 'keycloak_token:' . hash('sha256', $accessToken);
 
-        return Cache::remember($key, $this->cacheTtl, fn () =>
-            Http::timeout($this->timeout)
+        return Cache::remember($key, $this->cacheTtl, fn() => Http::timeout($this->timeout)
                 ->asForm()
                 ->withBasicAuth($this->clientId, $this->clientSecret)
                 ->post($this->introspectUrl(), ['token' => $accessToken])
@@ -115,7 +126,7 @@ class KeycloakService
         // Filter system roles dan client roles berbentuk permission (mengandung ":")
         return array_values(array_filter(
             $all,
-            fn ($r) => ! in_array($r, $systemRoles, true) && ! str_contains($r, ':')
+            fn($r) => ! in_array($r, $systemRoles, true) && ! str_contains($r, ':')
         ));
     }
 
@@ -141,7 +152,7 @@ class KeycloakService
         Log::debug('[Keycloak] resource_access keys: ' . implode(', ', array_keys($payload['resource_access'] ?? [])));
 
         $perms = array_values(array_unique(
-            array_filter($clientRoles, fn ($r) => str_contains($r, ':'))
+            array_filter($clientRoles, fn($r) => str_contains($r, ':'))
         ));
 
         if (! empty($perms)) {

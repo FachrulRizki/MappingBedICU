@@ -37,14 +37,35 @@ class MonitorController extends Controller
 
     private function getBedData(): array
     {
-        return MRuangMaster::bedIcuDenganStatus()
+        $bedData  = MRuangMaster::bedIcuDenganStatus();
+        $noMrList = $bedData->pluck('No_MR')->filter()->unique()->values()->toArray();
+
+        $pasienMap = [];
+        if (!empty($noMrList)) {
+            try {
+                \Illuminate\Support\Facades\DB::connection('sqlsrv_rsus')
+                    ->table('REGISTER_PASIEN')
+                    ->select('No_MR', 'Nama_Pasien', 'jenis_kelamin')
+                    ->whereIn('No_MR', $noMrList)
+                    ->get()
+                    ->each(function ($r) use (&$pasienMap) {
+                        $pasienMap[$r->No_MR] = $r;
+                    });
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::warning('[MonitorController] getBedData pasien: ' . $e->getMessage());
+            }
+        }
+
+        return $bedData
             ->map(fn ($row) => [
-                'kode'        => $row->Kode_RuangM,
-                'nama'        => $row->Nama_RuangM,
-                'kode_kelas'  => $row->kelas_master ?? $row->Kode_Kelas,
-                'nama_kelas'  => $row->Nama_Kelas,
-                'status'      => $row->Status ?? 'KOSONG',
-                'No_MR'       => $row->No_MR,
+                'kode'          => $row->Kode_RuangM,
+                'nama'          => $row->Nama_RuangM,
+                'kode_kelas'    => $row->kelas_master ?? $row->Kode_Kelas,
+                'nama_kelas'    => $row->Nama_Kelas,
+                'status'        => $row->Status ?? 'KOSONG',
+                'No_MR'         => $row->No_MR,
+                'nama_pasien'   => $row->No_MR ? ($pasienMap[$row->No_MR]->Nama_Pasien ?? null) : null,
+                'jenis_kelamin' => $row->No_MR ? ($pasienMap[$row->No_MR]->jenis_kelamin ?? null) : null,
             ])
             ->values()
             ->toArray();
