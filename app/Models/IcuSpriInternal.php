@@ -19,12 +19,15 @@ class IcuSpriInternal extends Model
         'waiting_alasan', 'waiting_estimasi', 'waiting_by',
         'approved_by', 'approved_at',
         'verified_by', 'verified_at',
+        // kolom import SIMRS
+        'simrs_no_reg', 'simrs_source', 'simrs_imported_at',
     ];
 
     protected $casts = [
-        'waiting_estimasi' => 'datetime',
-        'approved_at'      => 'datetime',
-        'verified_at'      => 'datetime',
+        'waiting_estimasi'   => 'datetime',
+        'approved_at'        => 'datetime',
+        'verified_at'        => 'datetime',
+        'simrs_imported_at'  => 'datetime',
     ];
 
     public function pasien()
