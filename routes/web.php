@@ -54,6 +54,9 @@ Route::middleware('auth')->group(function () {
     // ── Menu Admisi ───────────────────────────────────────────────────────────
     Route::get('/icu/menu-admision', [MenuAdmisiController::class, 'index'])->name('icu.menu_admisi');
     Route::post('/icu/menu-admisi/booking',             [MenuAdmisiController::class, 'storeBooking'])->name('icu.menu_admisi.booking.store')->middleware('permission:booking_ext:create');
+    Route::put('/icu/menu-admisi/booking/{id}',         [MenuAdmisiController::class, 'updateBooking'])->name('icu.menu_admisi.booking.update')->middleware('permission:booking_ext:create');
+    Route::post('/icu/menu-admisi/booking/{id}/batal',  [MenuAdmisiController::class, 'batalBooking'])->name('icu.menu_admisi.booking.batal')->middleware('permission:booking_ext:create');
+    Route::delete('/icu/menu-admisi/booking/{id}',      [MenuAdmisiController::class, 'deleteBooking'])->name('icu.menu_admisi.booking.delete')->middleware('permission:booking_ext:create');
     Route::post('/icu/menu-admisi/int/{id}/approve',    [MenuAdmisiController::class, 'approveInt'])->name('icu.menu_admisi.int.approve')->middleware('permission:booking_int:approve');
     Route::post('/icu/menu-admisi/int/{id}/tolak',      [MenuAdmisiController::class, 'tolakInt'])->name('icu.menu_admisi.int.tolak')->middleware('permission:booking_int:tolak_admisi');
     Route::post('/icu/menu-admisi/ext/{id}/verifikasi', [MenuAdmisiController::class, 'verifikasiExt'])->name('icu.menu_admisi.ext.verifikasi')->middleware('permission:booking_ext:verifikasi_pasien');
@@ -63,6 +66,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/icu/menu-petugas/pasien-aktif', [MenuPetugasController::class, 'pasienAktifSearch'])->name('icu.menu_petugas.pasien_aktif');
     Route::get('/icu/menu-petugas/lookup',       [MenuPetugasController::class, 'lookupPasien'])->name('icu.menu_petugas.lookup');
     Route::post('/icu/menu-petugas/spri',        [MenuPetugasController::class, 'storeSpri'])->name('icu.menu_petugas.spri.store')->middleware('permission:booking_int:create');
+    Route::put('/icu/menu-petugas/spri/{id}',    [MenuPetugasController::class, 'updateSpri'])->name('icu.menu_petugas.spri.update')->middleware('permission:booking_int:create');
+    Route::post('/icu/menu-petugas/spri/{id}/batal', [MenuPetugasController::class, 'batalSpri'])->name('icu.menu_petugas.spri.batal')->middleware('permission:booking_int:create');
+    Route::delete('/icu/menu-petugas/spri/{id}', [MenuPetugasController::class, 'deleteSpri'])->name('icu.menu_petugas.spri.delete')->middleware('permission:booking_int:create');
 
     // ── Settings ──────────────────────────────────────────────────────────────
     // Kelola User & Role dikelola penuh oleh Keycloak SSO — tidak ada di aplikasi.

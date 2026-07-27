@@ -59,6 +59,7 @@ class MenuAdmisiController extends Controller
             'asal_rujukan'     => 'nullable|string|max:150',
             'no_telp_keluarga' => 'nullable|string|max:20',
             'diagnosa'         => 'required|string|max:255',
+            'diagnosa_icd'     => 'nullable|string|max:255',
             'rencana_tindakan' => 'required|string|max:255',
             'jaminan'          => 'required|string|max:50',
             'catatan_jaminan'  => 'nullable|string|max:500',
@@ -75,6 +76,94 @@ class MenuAdmisiController extends Controller
         $this->activityLog->bookingBaru($booking->id, $booking->nama_pasien);
 
         return back()->with('success', "Booking untuk {$booking->nama_pasien} berhasil dikirim ke ICU.");
+    }
+
+    public function updateBooking(Request $request, int $id): RedirectResponse
+    {
+        $validated = $request->validate([
+            'nama_pasien'      => 'required|string|max:150',
+            'jenis_kelamin'    => 'required|in:L,P',
+            'no_identitas'     => 'nullable|string|max:30',
+            'asal_rujukan'     => 'nullable|string|max:150',
+            'no_telp_keluarga' => 'nullable|string|max:20',
+            'diagnosa'         => 'required|string|max:255',
+            'diagnosa_icd'     => 'nullable|string|max:255',
+            'rencana_tindakan' => 'required|string|max:255',
+            'jaminan'          => 'required|string|max:50',
+            'catatan_jaminan'  => 'nullable|string|max:500',
+            'keterangan'       => 'nullable|string|max:500',
+        ]);
+
+        $booking = IcuBookingExternal::findOrFail($id);
+
+        // Hanya bisa edit jika masih pending atau ditolak
+        if (!in_array($booking->status, ['pending_icu', 'ditolak'])) {
+            return back()->with('error', 'Booking tidak dapat diedit karena sudah diproses.');
+        }
+
+        $booking->update($validated);
+
+        $this->activityLog->log(
+            'Edit Booking',
+            "Edit booking {$booking->nama_pasien}",
+            'booking_external',
+            $booking->id,
+            'IcuBookingExternal'
+        );
+
+        return back()->with('success', "Booking {$booking->nama_pasien} berhasil diupdate.");
+    }
+
+    public function batalBooking(int $id): RedirectResponse
+    {
+        $booking = IcuBookingExternal::findOrFail($id);
+
+        // Hanya bisa batalkan jika masih pending, waiting_list, atau bed_confirmed
+        if (!in_array($booking->status, ['pending_icu', 'waiting_list', 'bed_confirmed'])) {
+            return back()->with('error', 'Booking tidak dapat dibatalkan.');
+        }
+
+        $namaPasien = $booking->nama_pasien;
+        $oldStatus = $booking->status;
+
+        $booking->update([
+            'status' => 'dibatalkan',
+            'alasan_tolak' => 'Dibatalkan oleh ' . $this->actor(),
+        ]);
+
+        $this->activityLog->log(
+            'Batal Booking',
+            "Batalkan booking {$namaPasien} (status sebelumnya: {$oldStatus})",
+            'booking_external',
+            $booking->id,
+            'IcuBookingExternal'
+        );
+
+        return back()->with('success', "Booking {$namaPasien} berhasil dibatalkan.");
+    }
+
+    public function deleteBooking(int $id): RedirectResponse
+    {
+        $booking = IcuBookingExternal::findOrFail($id);
+
+        // Hanya bisa hapus jika masih pending atau ditolak/dibatalkan
+        if (!in_array($booking->status, ['pending_icu', 'ditolak', 'dibatalkan'])) {
+            return back()->with('error', 'Booking tidak dapat dihapus karena sudah diproses.');
+        }
+
+        $namaPasien = $booking->nama_pasien;
+
+        $this->activityLog->log(
+            'Hapus Booking',
+            "Hapus booking {$namaPasien}",
+            'booking_external',
+            $booking->id,
+            'IcuBookingExternal'
+        );
+
+        $booking->delete();
+
+        return back()->with('success', "Booking {$namaPasien} berhasil dihapus.");
     }
 
     public function approveInt(Request $request, int $id): RedirectResponse

@@ -76,8 +76,8 @@ class AntrianService
 
     private function queryExternal(string $fStatus, string $fNama, string $fTglDari, string $fTglAkh): Collection
     {
-        // Semua status aktif — termasuk admisi_verified agar terlihat di menu tanpa filter manual
-        $activeStatuses = ['pending_icu', 'waiting_list', 'bed_confirmed', 'admisi_verified'];
+        // Tampilkan semua status aktif termasuk dibatalkan (agar data tidak hilang dari list)
+        $activeStatuses = ['pending_icu', 'waiting_list', 'bed_confirmed', 'ditolak', 'admisi_verified', 'dibatalkan'];
         $q = IcuBookingExternal::with('pasien');
 
         if ($fStatus) {
@@ -103,8 +103,8 @@ class AntrianService
 
     private function queryInternal(string $fStatus, string $fNama, string $fTglDari, string $fTglAkh): Collection
     {
-        // Semua status aktif — termasuk bed_verified agar terlihat di menu tanpa filter manual
-        $activeStatuses = ['pending_admisi', 'pending_icu', 'waiting_list', 'bed_verified'];
+        // Hanya tampilkan yang masih perlu tindakan - exclude bed_verified, waiting_list
+        $activeStatuses = ['pending_admisi', 'pending_icu'];
         $q = IcuSpriInternal::query();
 
         if ($fStatus) {
@@ -217,6 +217,7 @@ class AntrianService
             'bed_confirmed' => $data->filter(fn ($i) => in_array($i['status'] ?? '', ['bed_confirmed', 'bed_verified']))->count(),
             'verified'      => $data->filter(fn ($i) => in_array($i['status'] ?? '', ['admisi_verified', 'bed_verified']))->count(),
             'ditolak'       => $data->filter(fn ($i) => ($i['status'] ?? '') === 'ditolak')->count(),
+            'dibatalkan'    => $data->filter(fn ($i) => ($i['status'] ?? '') === 'dibatalkan')->count(),
             'by_sumber'     => [
                 'external' => $data->filter(fn ($i) => ($i['sumber'] ?? '') === 'external')->count(),
                 'internal' => $data->filter(fn ($i) => ($i['sumber'] ?? '') === 'internal')->count(),
@@ -239,6 +240,7 @@ class AntrianService
             'asal_ruang'       => $b->asal_rujukan,
             'Dokter'           => null,
             'diagnosa'         => $b->diagnosa,
+            'diagnosa_icd'     => $b->diagnosa_icd,
             'rencana_tindakan' => $b->rencana_tindakan,
             'kebutuhan_bed'    => $b->kebutuhan_bed,
             'nama_bed'         => $b->nama_bed,
@@ -283,6 +285,7 @@ class AntrianService
             'asal_ruang'     => $s->asal_ruang,
             'Dokter'         => $s->Dokter,
             'diagnosa'       => $s->Diagnosis,
+            'diagnosa_icd'   => $s->Diagnosis_ICD,
             'IndikasiRI'     => $s->IndikasiRI,
             'spesialis'      => $s->spesialis,
             'kebutuhan_bed'  => $s->kebutuhan_bed,

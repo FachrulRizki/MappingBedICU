@@ -52,22 +52,24 @@ return [
         ],
 
 
-        // ── Koneksi ke DB RS (SQL Server di prod, MySQL di dev) ───────────
-        // Prod: DB_CONNECTION=sqlsrv, DB_DATABASE=DB_RSUS
-        // Dev:  kalau DB_RSUS_* tidak di-set, fallback ke DB_* utama
-        'sqlsrv_rsus' => [
-            'driver'                   => env('DB_CONNECTION', 'sqlsrv') === 'sqlsrv' ? 'sqlsrv' : env('DB_CONNECTION', 'mysql'),
-            'host'                     => env('DB_RSUS_HOST', env('DB_HOST', '192.168.200.160')),
-            'port'                     => env('DB_RSUS_PORT', env('DB_PORT', '1433')),
-            'database'                 => env('DB_RSUS_DATABASE', env('DB_DATABASE', 'DB_RSUS')),
-            'username'                 => env('DB_RSUS_USERNAME', env('DB_USERNAME', '')),
-            'password'                 => env('DB_RSUS_PASSWORD', env('DB_PASSWORD', '')),
-            'charset'                  => 'utf8',
-            'prefix'                   => '',
-            'prefix_indexes'           => true,
-            'trust_server_certificate' => env('DB_RSUS_TRUST_CERT', env('DB_TRUST_CERT', 'true')),
-            'encrypt'                  => 'false',
-        ],
+        // ── Koneksi ke DB RS ──────────────────────────────────────────────
+        // Jika DB_RSUS_DRIVER=sqlsrv di .env → pakai SQL Server (prod/staging)
+        // Jika tidak di-set / mysql → pakai MySQL lokal (dev tanpa SQL Server)
+        'sqlsrv_rsus' => array_filter([
+            'driver'   => env('DB_RSUS_DRIVER', 'mysql'),
+            'host'     => env('DB_RSUS_HOST', env('DB_HOST', '127.0.0.1')),
+            'port'     => env('DB_RSUS_PORT', env('DB_PORT', '3306')),
+            'database' => env('DB_RSUS_DATABASE', env('DB_DATABASE', 'bed-icu')),
+            'username' => env('DB_RSUS_USERNAME', env('DB_USERNAME', 'root')),
+            'password' => env('DB_RSUS_PASSWORD', env('DB_PASSWORD', '')),
+            'charset'  => env('DB_RSUS_DRIVER', 'mysql') === 'sqlsrv' ? 'utf8' : 'utf8mb4',
+            'collation'=> env('DB_RSUS_DRIVER', 'mysql') === 'sqlsrv' ? null : 'utf8mb4_unicode_ci',
+            'prefix'   => '',
+            'prefix_indexes' => true,
+            // SQL Server only
+            'trust_server_certificate' => env('DB_RSUS_DRIVER', 'mysql') === 'sqlsrv' ? env('DB_RSUS_TRUST_CERT', true) : null,
+            'encrypt'  => env('DB_RSUS_DRIVER', 'mysql') === 'sqlsrv' ? env('DB_RSUS_ENCRYPT', false) : null,
+        ]),
 
     ],
 

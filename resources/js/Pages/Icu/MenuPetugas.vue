@@ -162,12 +162,13 @@ const kunjungans        = ref([])
 const diagnosisExisting = ref('')
 const jaminanExisting   = ref('')
 const skipLookupWatch   = ref(false)
-const fmSpri = useForm({ No_MR:'', No_Reg:'', Diagnosis:'', IndikasiRI:'', asal_ruang:'', Dokter:'', spesialis:'', Keterangan:'' })
+const fmSpri = useForm({ No_MR:'', No_Reg:'', Diagnosis:'', Diagnosis_ICD:'', IndikasiRI:'', asal_ruang:'', Dokter:'', spesialis:'', Keterangan:'' })
 
 const resetSpri = () => {
     skipLookupWatch.value = false; fmSpri.reset()
     lookupResult.value = null; lookupError.value = ''; kunjungans.value = []
     diagnosisExisting.value = ''; jaminanExisting.value = ''
+    fmSpri.Diagnosis_ICD = ''
 }
 watch(() => fmSpri.No_MR, (val) => {
     if (skipLookupWatch.value) return
@@ -235,6 +236,44 @@ const doLookupDiagnosis = async (noMr, noReg) => {
 }
 const submitSpri = () => fmSpri.post(route('icu.menu_petugas.spri.store'), { onSuccess: closeModal })
 const canSubmit  = computed(() => fmSpri.No_MR.trim() && fmSpri.No_Reg.trim() && fmSpri.Diagnosis.trim() && fmSpri.IndikasiRI.trim() && lookupResult.value?.found)
+
+// ── Edit SPRI ────────────────────────────────────────────────────────────────
+const fmEditSpri = useForm({ No_MR:'', No_Reg:'', Diagnosis:'', Diagnosis_ICD:'', IndikasiRI:'', asal_ruang:'', Dokter:'', spesialis:'', Keterangan:'' })
+const openEditSpri = (item) => {
+    fmEditSpri.No_MR         = item.No_MR       ?? ''
+    fmEditSpri.No_Reg        = item.No_Reg      ?? ''
+    fmEditSpri.Diagnosis     = item.Diagnosis   ?? item.diagnosa ?? ''
+    fmEditSpri.Diagnosis_ICD = item.diagnosa_icd ?? ''
+    fmEditSpri.IndikasiRI    = item.IndikasiRI  ?? ''
+    fmEditSpri.asal_ruang    = item.asal_ruang  ?? ''
+    fmEditSpri.Dokter        = item.Dokter      ?? ''
+    fmEditSpri.spesialis     = item.spesialis   ?? ''
+    fmEditSpri.Keterangan    = item.Keterangan  ?? item.keterangan ?? ''
+    openModal('edit_spri')
+    selectedItem.value = item
+}
+const submitEditSpri = () => {
+    if (!selectedItem.value) return
+    fmEditSpri.put(route('icu.menu_petugas.spri.update', selectedItem.value.id), {
+        onSuccess: () => { closeModal(); modal.value = { open:false, type:'' } }
+    })
+}
+
+// ── Batal SPRI ────────────────────────────────────────────────────────────────
+const batalSpri = (item) => {
+    if (!confirm(`Batalkan booking untuk ${item.nama_pasien}?`)) return
+    router.post(route('icu.menu_petugas.spri.batal', item.id), {}, {
+        onSuccess: () => { selectedItem.value = null }
+    })
+}
+
+// ── Hapus SPRI ────────────────────────────────────────────────────────────────
+const hapusSpri = (item) => {
+    if (!confirm(`Hapus permanen booking untuk ${item.nama_pasien}? Tindakan tidak dapat dibatalkan.`)) return
+    router.delete(route('icu.menu_petugas.spri.delete', item.id), {
+        onSuccess: () => { selectedItem.value = null }
+    })
+}
 </script>
 
 <template>
@@ -758,8 +797,7 @@ const canSubmit  = computed(() => fmSpri.No_MR.trim() && fmSpri.No_Reg.trim() &&
 <Transition enter-active-class="transition-all duration-200" enter-from-class="opacity-0" leave-to-class="opacity-0">
   <div v-if="modal.open" class="mp-modal-overlay" @click.self="closeModal">
     <Transition enter-active-class="transition-all duration-200" enter-from-class="opacity-0 scale-95" leave-to-class="opacity-0 scale-95">
-      <div v-if="modal.type==='spri'" class="mp-modal">
-        <!-- Header -->
+      <div v-if="modal.type==='spri'" class="mp-modal">        <!-- Header -->
         <div class="flex items-center gap-3 px-5 py-4 rounded-t-2xl" style="background:#00A884">
           <svg class="w-5 h-5 text-white flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
@@ -851,20 +889,62 @@ const canSubmit  = computed(() => fmSpri.No_MR.trim() && fmSpri.No_Reg.trim() &&
               <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0" style="background:#00A884">3</span>
               <p class="text-xs font-bold uppercase tracking-wider" style="color:#00A884">Data Klinis untuk ICU</p>
             </div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label class="mp-label">Diagnosis ICU <span style="color:#E74C3C">*</span></label>
-                <Icd10Search v-model="fmSpri.Diagnosis" placeholder="Cari kode / keterangan ICD-10" :required="true" :has-error="!!fmSpri.errors.Diagnosis"/>
-                <p v-if="fmSpri.errors.Diagnosis" class="text-xs mt-1" style="color:#E74C3C">{{ fmSpri.errors.Diagnosis }}</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <!-- Diagnosa - full width -->
+              <div class="sm:col-span-2">
+                <label class="mp-label">Diagnosa Rawat ICU <span style="color:#E74C3C">*</span></label>
+                <input
+                  v-model="fmSpri.Diagnosis"
+                  required
+                  placeholder="Tulis diagnosa pasien untuk rawat ICU..."
+                  class="mp-input w-full"
+                  :style="fmSpri.errors.Diagnosis ? 'border-color:#E74C3C' : ''"
+                />
+                <p v-if="fmSpri.errors.Diagnosis" class="text-xs mt-1" style="color:#E74C3C">
+                  {{ fmSpri.errors.Diagnosis }}
+                </p>
               </div>
+
+              <!-- Indikasi & ICD-10 - berdampingan di sm+, stack di mobile -->
               <div>
                 <label class="mp-label">Indikasi Rawat ICU <span style="color:#E74C3C">*</span></label>
-                <input v-model="fmSpri.IndikasiRI" required placeholder="Alasan klinis butuh ICU" class="mp-input"
-                  :style="fmSpri.errors.IndikasiRI ? 'border-color:#E74C3C' : ''"/>
+                <input
+                  v-model="fmSpri.IndikasiRI"
+                  required
+                  placeholder="Alasan klinis butuh ICU"
+                  class="mp-input w-full"
+                  :style="fmSpri.errors.IndikasiRI ? 'border-color:#E74C3C' : ''"
+                />
               </div>
+
+              <div>
+                <label class="mp-label">
+                  Kode ICD-10
+                  <span class="ml-1 normal-case font-normal text-xs px-2 py-0.5 rounded-full" style="background:rgba(14,165,233,.1);color:#0EA5E9">
+                    Untuk Klaim / Coding
+                  </span>
+                </label>
+                <Icd10Search
+                  v-model="fmSpri.Diagnosis_ICD"
+                  placeholder="Cari kode ICD-10 (opsional)..."
+                  :required="false"
+                  :has-error="false"
+                  class="w-full"
+                />
+                <p class="text-xs mt-1" style="color:var(--text-muted)">
+                  Opsional diisi untuk keperluan klaim BPJS
+                </p>
+              </div>
+
+              <!-- Keterangan - full width -->
               <div class="sm:col-span-2">
                 <label class="mp-label">Keterangan Tambahan</label>
-                <textarea v-model="fmSpri.Keterangan" rows="2" placeholder="Kondisi terkini, catatan penting..." class="mp-textarea"></textarea>
+                <textarea
+                  v-model="fmSpri.Keterangan"
+                  rows="2"
+                  placeholder="Kondisi terkini, catatan penting..."
+                  class="mp-textarea w-full resize-y"
+                ></textarea>
               </div>
             </div>
           </div>

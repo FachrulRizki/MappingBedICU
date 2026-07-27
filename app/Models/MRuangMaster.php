@@ -85,9 +85,20 @@ class MRuangMaster extends Model
 
     public static function jenisIcuTersedia(): \Illuminate\Support\Collection
     {
-        return static::bedIcuDenganStatus()
+        $semua   = static::bedIcuDenganStatus();
+        // Kumpulkan kode kelas yang PUNYA bed kosong
+        $kelasAdaBed = $semua
+            ->where('Status', 'KOSONG')
+            ->pluck('kelas_master')
+            ->merge($semua->where('Status', 'KOSONG')->pluck('Kode_Kelas'))
+            ->filter()
+            ->unique()
+            ->values();
+
+        return $semua
             ->whereNotNull('Nama_Kelas')
             ->unique('kelas_master')
+            ->filter(fn($row) => $kelasAdaBed->contains($row->kelas_master ?? $row->Kode_Kelas))
             ->map(fn($row) => [
                 'kode' => $row->kelas_master ?? $row->Kode_Kelas,
                 'nama' => $row->Nama_Kelas,

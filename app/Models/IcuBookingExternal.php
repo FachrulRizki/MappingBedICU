@@ -10,7 +10,7 @@ class IcuBookingExternal extends Model
 
     protected $fillable = [
         'nama_pasien', 'jenis_kelamin', 'no_identitas', 'asal_rujukan', 'no_telp_keluarga',
-        'diagnosa', 'rencana_tindakan', 'kebutuhan_bed',
+        'diagnosa', 'diagnosa_icd', 'rencana_tindakan', 'kebutuhan_bed',
         'jaminan', 'catatan_jaminan', 'keterangan',
         'No_MR', 'No_Reg',
         'allocated_bed_id', 'nama_bed',
@@ -49,6 +49,7 @@ class IcuBookingExternal extends Model
             'bed_confirmed'   => 'Bed Dikonfirmasi',
             'admisi_verified' => 'Terverifikasi',
             'ditolak'         => 'Ditolak',
+            'dibatalkan'      => 'Dibatalkan',
             default           => $this->status,
         };
     }
@@ -61,6 +62,7 @@ class IcuBookingExternal extends Model
             'bed_confirmed'   => 'blue',
             'admisi_verified' => 'teal',
             'ditolak'         => 'red',
+            'dibatalkan'      => 'gray',
             default           => 'gray',
         };
     }

@@ -305,14 +305,15 @@ class MenuPetugasController extends Controller
     public function storeSpri(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'No_MR'      => 'required|string|max:20',
-            'No_Reg'     => 'required|string|max:20',
-            'Diagnosis'  => 'required|string|max:255',
-            'IndikasiRI' => 'required|string|max:255',
-            'asal_ruang' => 'nullable|string|max:100',
-            'Dokter'     => 'nullable|string|max:100',
-            'spesialis'  => 'nullable|string|max:100',
-            'Keterangan' => 'nullable|string|max:500',
+            'No_MR'         => 'required|string|max:20',
+            'No_Reg'        => 'required|string|max:20',
+            'Diagnosis'     => 'required|string|max:255',
+            'Diagnosis_ICD' => 'nullable|string|max:255',
+            'IndikasiRI'    => 'required|string|max:255',
+            'asal_ruang'    => 'nullable|string|max:100',
+            'Dokter'        => 'nullable|string|max:100',
+            'spesialis'     => 'nullable|string|max:100',
+            'Keterangan'    => 'nullable|string|max:500',
         ]);
 
         $bu = IcuSpriInternal::create([
@@ -330,6 +331,107 @@ class MenuPetugasController extends Controller
         $this->activityLog->buatSpri($bu->id, $nama);
 
         return back()->with('success', "BU (Booking ICU) untuk {$nama} berhasil dikirim ke ICU.");
+    }
+
+    public function updateSpri(Request $request, int $id): RedirectResponse
+    {
+        $validated = $request->validate([
+            'No_MR'         => 'required|string|max:20',
+            'No_Reg'        => 'required|string|max:20',
+            'Diagnosis'     => 'required|string|max:255',
+            'Diagnosis_ICD' => 'nullable|string|max:255',
+            'IndikasiRI'    => 'required|string|max:255',
+            'asal_ruang'    => 'nullable|string|max:100',
+            'Dokter'        => 'nullable|string|max:100',
+            'spesialis'     => 'nullable|string|max:100',
+            'Keterangan'    => 'nullable|string|max:500',
+        ]);
+
+        $bu = IcuSpriInternal::findOrFail($id);
+
+        // Hanya bisa edit jika masih pending atau ditolak
+        if (!in_array($bu->status, ['pending_admisi', 'pending_icu', 'ditolak'])) {
+            return back()->with('error', 'BU tidak dapat diedit karena sudah diproses.');
+        }
+
+        $bu->update($validated);
+
+        $nama = $bu->No_MR;
+        try {
+            $pasien = RegistrasiPasien::where('No_MR', $bu->No_MR)->first();
+            if ($pasien) $nama = $pasien->Nama_Pasien . ' (' . $bu->No_MR . ')';
+        } catch (\Exception) {}
+
+        $this->activityLog->log(
+            'Edit BookingICU',
+            "Edit BookingICU {$nama}",
+            'spri_internal',
+            $bu->id,
+            'IcuSpriInternal'
+        );
+
+        return back()->with('success', "Booking ICU {$nama} berhasil diupdate.");
+    }
+
+    public function batalSpri(int $id): RedirectResponse
+    {
+        $bu = IcuSpriInternal::findOrFail($id);
+
+        // Hanya bisa batalkan jika masih pending atau waiting_list
+        if (!in_array($bu->status, ['pending_admisi', 'pending_icu', 'waiting_list'])) {
+            return back()->with('error', 'Booking ICU tidak dapat dibatalkan.');
+        }
+
+        $nama = $bu->No_MR;
+        try {
+            $pasien = RegistrasiPasien::where('No_MR', $bu->No_MR)->first();
+            if ($pasien) $nama = $pasien->Nama_Pasien . ' (' . $bu->No_MR . ')';
+        } catch (\Exception) {}
+
+        $oldStatus = $bu->status;
+
+        $bu->update([
+            'status' => 'dibatalkan',
+            'alasan_tolak' => 'Dibatalkan oleh ' . $this->actor(),
+        ]);
+
+        $this->activityLog->log(
+            'Batal BookingICU',
+            "Batalkan BookingICU {$nama} (status sebelumnya: {$oldStatus})",
+            'spri_internal',
+            $bu->id,
+            'IcuSpriInternal'
+        );
+
+        return back()->with('success', "Booking ICU {$nama} berhasil dibatalkan.");
+    }
+
+    public function deleteSpri(int $id): RedirectResponse
+    {
+        $bu = IcuSpriInternal::findOrFail($id);
+
+        // Hanya bisa hapus jika masih pending atau ditolak/dibatalkan
+        if (!in_array($bu->status, ['pending_admisi', 'pending_icu', 'ditolak', 'dibatalkan'])) {
+            return back()->with('error', 'Booking ICU tidak dapat dihapus karena sudah diproses.');
+        }
+
+        $nama = $bu->No_MR;
+        try {
+            $pasien = RegistrasiPasien::where('No_MR', $bu->No_MR)->first();
+            if ($pasien) $nama = $pasien->Nama_Pasien . ' (' . $bu->No_MR . ')';
+        } catch (\Exception) {}
+
+        $this->activityLog->log(
+            'Hapus BookingICU',
+            "Hapus BookingICU {$nama}",
+            'spri_internal',
+            $bu->id,
+            'IcuSpriInternal'
+        );
+
+        $bu->delete();
+
+        return back()->with('success', "Booking ICU {$nama} berhasil dihapus.");
     }
 
         private function hitungLamaProses($mulai, $selesai): ?string

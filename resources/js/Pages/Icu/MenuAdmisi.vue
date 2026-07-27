@@ -74,6 +74,7 @@ const SS = {
     bed_verified:    { bg: 'rgba(0,168,132,.15)',   color: '#00A884', dot: '#00A884' },
     admisi_verified: { bg: 'rgba(0,168,132,.15)',   color: '#00A884', dot: '#00A884' },
     ditolak:         { bg: 'rgba(231,76,60,.15)',   color: '#E74C3C', dot: '#E74C3C' },
+    dibatalkan:      { bg: 'rgba(120,120,120,.15)', color: '#6B7280', dot: '#6B7280' },
 };
 const ss = (s) => SS[s] ?? { bg: 'var(--bg-input)', color: 'var(--text-secondary)', dot: '#888' };
 
@@ -104,6 +105,8 @@ const CARDS = computed(() => [
       color:'#00A884', icon:'M5 13l4 4L19 7' },
     { key:'ditolak',         label:'Ditolak',         val: props.summary.ditolak ?? 0,
       color:'#E74C3C', icon:'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z' },
+    { key:'dibatalkan',      label:'Dibatalkan',      val: props.summary.dibatalkan ?? 0,
+      color:'#6B7280', icon:'M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636' },
 ]);
 
 // ── Aksi yang tersedia per item — setiap tombol dijaga permission sendiri ──
@@ -113,19 +116,34 @@ const actionsOf = (item) => {
     if (!canAct.value) return [];
     const acts = [];
     if (item.sumber === 'internal' && item.status === 'pending_admisi') {
-        // Approve — butuh booking_int:approve
         if (canApproveAdmisi.value || isAdmin.value) {
             acts.push({ id:'approve', label:'Setujui Booking ICU', color:'#00A884', bg:'rgba(0,168,132,.12)', border:'rgba(0,168,132,.3)' });
         }
-        // Tolak admisi — butuh booking_int:tolak_admisi
         if (canTolakAdmisi.value || isAdmin.value) {
             acts.push({ id:'tolak',   label:'Tolak Booking ICU',   color:'#E74C3C', bg:'rgba(231,76,60,.08)', border:'rgba(231,76,60,.25)' });
         }
     }
     if (item.sumber === 'external' && item.status === 'bed_confirmed') {
-        // Verifikasi pasien tiba — butuh booking_ext:verifikasi_pasien
         if (canVerifikasiAdmisiExt.value || isAdmin.value) {
             acts.push({ id:'verifikasi', label:'Verifikasi Pasien', color:'#00A884', bg:'rgba(0,168,132,.12)', border:'rgba(0,168,132,.3)' });
+        }
+    }
+    // Edit — hanya jika booking external masih pending atau ditolak
+    if (item.sumber === 'external' && ['pending_icu', 'ditolak'].includes(item.status)) {
+        if (canBuatBookingExternal.value || isAdmin.value) {
+            acts.push({ id:'edit', label:'Edit Booking', color:'#0EA5E9', bg:'rgba(14,165,233,.08)', border:'rgba(14,165,233,.25)' });
+        }
+    }
+    // Batal — hanya jika booking external masih bisa dibatalkan
+    if (item.sumber === 'external' && ['pending_icu', 'waiting_list', 'bed_confirmed'].includes(item.status)) {
+        if (canBuatBookingExternal.value || isAdmin.value) {
+            acts.push({ id:'batal', label:'Batal Booking', color:'#D97706', bg:'rgba(217,119,6,.08)', border:'rgba(217,119,6,.25)' });
+        }
+    }
+    // Hapus — hanya jika pending, ditolak, atau dibatalkan
+    if (item.sumber === 'external' && ['pending_icu', 'ditolak', 'dibatalkan'].includes(item.status)) {
+        if (canBuatBookingExternal.value || isAdmin.value) {
+            acts.push({ id:'hapus', label:'Hapus Booking', color:'#E74C3C', bg:'rgba(231,76,60,.05)', border:'rgba(231,76,60,.2)' });
         }
     }
     return acts;
@@ -145,6 +163,7 @@ const closeModal = () => {
         fmVerif.reset();
         fmApprove.reset();
         fmTolak.reset();
+        fmEdit.reset();
     }, 200);
 };
 
@@ -152,12 +171,56 @@ const closeModal = () => {
 const fmBooking = useForm({
     nama_pasien: '', jenis_kelamin: '', no_identitas: '',
     asal_rujukan: '', no_telp_keluarga: '',
-    diagnosa: '', rencana_tindakan: '',
+    diagnosa: '', diagnosa_icd: '', rencana_tindakan: '',
     jaminan: '', catatan_jaminan: '', keterangan: '',
 });
 const submitBooking = () => fmBooking.post(route('icu.menu_admisi.booking.store'), {
     onSuccess: () => { closeModal(); fmBooking.reset(); },
 });
+
+// ── Form: Edit Booking ─────────────────────────────────────
+const fmEdit = useForm({
+    nama_pasien: '', jenis_kelamin: '', no_identitas: '',
+    asal_rujukan: '', no_telp_keluarga: '',
+    diagnosa: '', diagnosa_icd: '', rencana_tindakan: '',
+    jaminan: '', catatan_jaminan: '', keterangan: '',
+});
+const openEditModal = (item) => {
+    fmEdit.nama_pasien      = item.nama_pasien_raw ?? item.nama_pasien ?? '';
+    fmEdit.jenis_kelamin    = item.jenis_kelamin   ?? '';
+    fmEdit.no_identitas     = item.no_identitas    ?? '';
+    fmEdit.asal_rujukan     = item.asal_rujukan    ?? '';
+    fmEdit.no_telp_keluarga = item.no_telp_keluarga?? '';
+    fmEdit.diagnosa         = item.diagnosa        ?? '';
+    fmEdit.diagnosa_icd     = item.diagnosa_icd    ?? '';
+    fmEdit.rencana_tindakan = item.rencana_tindakan?? '';
+    fmEdit.jaminan          = item.jaminan         ?? '';
+    fmEdit.catatan_jaminan  = item.catatan_jaminan ?? '';
+    fmEdit.keterangan       = item.keterangan      ?? '';
+    openModal('edit', item);
+};
+const submitEdit = () => {
+    if (!modal.value.item) return;
+    fmEdit.put(route('icu.menu_admisi.booking.update', modal.value.item.id), {
+        onSuccess: () => { closeModal(); fmEdit.reset(); },
+    });
+};
+
+// ── Aksi: Batal Booking ────────────────────────────────────
+const batalBooking = (item) => {
+    if (!confirm(`Batalkan booking untuk ${item.nama_pasien}?`)) return;
+    router.post(route('icu.menu_admisi.booking.batal', item.id), {}, {
+        onSuccess: closeModal,
+    });
+};
+
+// ── Aksi: Hapus Booking ────────────────────────────────────
+const hapusBooking = (item) => {
+    if (!confirm(`Hapus permanen booking untuk ${item.nama_pasien}? Tindakan tidak dapat dibatalkan.`)) return;
+    router.delete(route('icu.menu_admisi.booking.delete', item.id), {
+        onSuccess: closeModal,
+    });
+};
 
 // ── Form: Approve SPRI ─────────────────────────────────────
 const fmApprove = useForm({ catatan_admisi: '' });
@@ -241,6 +304,7 @@ const statusOptions = [
     { value:'bed_verified',    label:'Bed Terverifikasi' },
     { value:'admisi_verified', label:'Terverifikasi' },
     { value:'ditolak',         label:'Ditolak' },
+    { value:'dibatalkan',      label:'Dibatalkan' },
 ];
 const jenisOptions = [
     { value:'', label:'Semua Jenis' },
@@ -801,7 +865,7 @@ const jenisOptions = [
                         <p class="text-xs font-bold uppercase tracking-widest" style="color:var(--text-muted)">Tindakan Tersedia</p>
                         <div class="flex flex-col gap-2.5">
                             <template v-for="act in actionsOf(modal.item)" :key="act.id">
-                                <button @click="act.id==='verifikasi' ? openVerifModal(modal.item) : openModal(act.id, modal.item)"
+                                <button @click="act.id==='verifikasi' ? openVerifModal(modal.item) : act.id==='edit' ? openEditModal(modal.item) : act.id==='batal' ? batalBooking(modal.item) : act.id==='hapus' ? hapusBooking(modal.item) : openModal(act.id, modal.item)"
                                     class="w-full text-sm font-bold py-3 rounded-xl flex items-center justify-center transition-all duration-150 hover:-translate-y-px hover:brightness-105"
                                     :style="`background:${act.bg}; color:${act.color}; border:1.5px solid ${act.border}`">
                                     {{ act.label }}
@@ -864,24 +928,67 @@ const jenisOptions = [
                             </div>
                             <!-- Klinis -->
                             <div class="space-y-3">
-                                <p class="text-xs font-bold uppercase tracking-widest" style="color:var(--text-accent)">Data Klinis</p>
-                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <div class="space-y-1.5">
-                                        <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Diagnosa <span style="color:#E74C3C">*</span></label>
-                                        <Icd10Search v-model="fmBooking.diagnosa" placeholder="Cari kode ICD-10..." :required="true" :has-error="!!fmBooking.errors.diagnosa"/>
-                                        <p v-if="fmBooking.errors.diagnosa" class="text-xs" style="color:#E74C3C">{{ fmBooking.errors.diagnosa }}</p>
-                                    </div>
-                                    <div class="space-y-1.5">
-                                        <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Rencana Tindakan <span style="color:#E74C3C">*</span></label>
-                                        <input v-model="fmBooking.rencana_tindakan" required placeholder="Rencana tindakan ICU" class="w-full rounded-xl outline-none"
-                                            style="padding:10px 14px; font-size:13px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary)"/>
-                                    </div>
-                                    <div class="sm:col-span-2 space-y-1.5">
-                                        <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Keterangan Klinis</label>
-                                        <textarea v-model="fmBooking.keterangan" rows="2" placeholder="Kondisi, riwayat, catatan dokter pengirim..." class="w-full rounded-xl outline-none resize-none"
-                                            style="padding:10px 14px; font-size:13px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary); line-height:1.6"/>
-                                    </div>
+                            <p class="text-xs font-bold uppercase tracking-widest" style="color:var(--text-accent)">Data Klinis</p>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <!-- Diagnosa - full width -->
+                                <div class="sm:col-span-2 space-y-1.5">
+                                <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">
+                                    Diagnosa Rawat ICU <span style="color:#E74C3C">*</span>
+                                </label>
+                                <input
+                                    v-model="fmBooking.diagnosa"
+                                    required
+                                    placeholder="Tulis diagnosa pasien untuk rawat ICU..."
+                                    class="w-full rounded-xl outline-none"
+                                    style="padding:10px 14px; font-size:13px"
+                                    :style="`border:1.5px solid ${fmBooking.errors.diagnosa ? '#E74C3C' : 'var(--border-default)'}; background:var(--bg-input); color:var(--text-primary)`"
+                                />
+                                <p v-if="fmBooking.errors.diagnosa" class="text-xs" style="color:#E74C3C">{{ fmBooking.errors.diagnosa }}</p>
                                 </div>
+
+                                <!-- ICD-10 & Rencana Tindakan - berdampingan di sm+, stack di mobile -->
+                                <div class="space-y-1.5">
+                                <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">
+                                    Kode ICD-10
+                                    <span class="ml-1 normal-case font-normal text-xs px-2 py-0.5 rounded-full" style="background:rgba(14,165,233,.1);color:#0EA5E9">
+                                    Untuk Klaim / Coding
+                                    </span>
+                                </label>
+                                <Icd10Search
+                                    v-model="fmBooking.diagnosa_icd"
+                                    placeholder="Cari kode ICD-10 (opsional)..."
+                                    :required="false"
+                                    :has-error="false"
+                                />
+                                <p class="text-xs" style="color:var(--text-muted)">Opsional diisi untuk keperluan klaim BPJS</p>
+                                </div>
+
+                                <div class="space-y-1.5">
+                                <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">
+                                    Rencana Tindakan <span style="color:#E74C3C">*</span>
+                                </label>
+                                <input
+                                    v-model="fmBooking.rencana_tindakan"
+                                    required
+                                    placeholder="Rencana tindakan ICU"
+                                    class="w-full rounded-xl outline-none"
+                                    style="padding:10px 14px; font-size:13px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary)"
+                                />
+                                </div>
+
+                                <!-- Keterangan Klinis - full width -->
+                                <div class="sm:col-span-2 space-y-1.5">
+                                <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Keterangan Klinis</label>
+                                <textarea
+                                    v-model="fmBooking.keterangan"
+                                    rows="2"
+                                    placeholder="Kondisi, riwayat, catatan dokter pengirim..."
+                                    class="w-full rounded-xl outline-none resize-y"
+                                    style="padding:10px 14px; font-size:13px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary); line-height:1.6"
+                                ></textarea>
+                                </div>
+                            </div>
                             </div>
                             <!-- Jaminan -->
                             <div class="space-y-3">
@@ -918,7 +1025,121 @@ const jenisOptions = [
                 </div>
 
                 <!-- ── VIEW: APPROVE SPRI ───────────────────────────────────── -->
-                <div v-else-if="modal.type==='approve' && modal.item" key="approve" class="flex flex-col w-full" style="max-height:92vh">
+                <!-- ── VIEW: EDIT BOOKING ─────────────────────────────────────── -->
+                <div v-else-if="modal.type==='edit' && modal.item" key="edit" class="flex flex-col w-full" style="max-height:92vh">
+                    <div class="flex items-center justify-between px-6 py-5 flex-shrink-0" style="border-bottom:1px solid var(--border-default)">
+                        <div class="flex items-center gap-3">
+                            <button type="button" @click="openModal('detail', modal.item)" class="w-8 h-8 rounded-xl flex items-center justify-center transition-all hover:scale-110" style="background:var(--bg-input); color:var(--text-secondary)">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+                            </button>
+                            <div>
+                                <h2 class="text-base font-bold" style="color:var(--text-primary)">Edit Booking</h2>
+                                <p class="text-xs mt-0.5" style="color:var(--text-secondary)">{{ modal.item.nama_pasien }}</p>
+                            </div>
+                        </div>
+                        <button @click="closeModal" class="w-8 h-8 rounded-xl flex items-center justify-center transition-all hover:scale-110" style="background:var(--bg-input); color:var(--text-secondary)">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                    </div>
+                    <div class="overflow-y-auto flex-1">
+                        <form @submit.prevent="submitEdit" class="p-6 space-y-6">
+                            <!-- Identitas -->
+                            <div class="space-y-3">
+                                <p class="text-xs font-bold uppercase tracking-widest" style="color:var(--text-accent)">Identitas Pasien</p>
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    <div class="sm:col-span-2 space-y-1.5">
+                                        <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Nama Pasien <span style="color:#E74C3C">*</span></label>
+                                        <input v-model="fmEdit.nama_pasien" required placeholder="Nama lengkap" class="w-full rounded-xl outline-none"
+                                            style="padding:10px 14px; font-size:13px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary)"/>
+                                    </div>
+                                    <div class="space-y-1.5">
+                                        <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Jenis Kelamin <span style="color:#E74C3C">*</span></label>
+                                        <div class="flex gap-2">
+                                            <button type="button" @click="fmEdit.jenis_kelamin='L'" class="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors"
+                                                :style="fmEdit.jenis_kelamin==='L'?'background:#00A884;color:#fff;border:2px solid #00A884':'background:var(--bg-input);color:var(--text-secondary);border:2px solid var(--border-default)'">♂ Pria</button>
+                                            <button type="button" @click="fmEdit.jenis_kelamin='P'" class="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors"
+                                                :style="fmEdit.jenis_kelamin==='P'?'background:#8E44AD;color:#fff;border:2px solid #8E44AD':'background:var(--bg-input);color:var(--text-secondary);border:2px solid var(--border-default)'">♀ Wanita</button>
+                                        </div>
+                                    </div>
+                                    <div class="space-y-1.5">
+                                        <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">No. Identitas / NIK</label>
+                                        <input v-model="fmEdit.no_identitas" placeholder="NIK / sementara" class="w-full rounded-xl outline-none font-mono"
+                                            style="padding:10px 14px; font-size:13px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary)"/>
+                                    </div>
+                                    <div class="space-y-1.5">
+                                        <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Asal Rujukan</label>
+                                        <input v-model="fmEdit.asal_rujukan" placeholder="RS / klinik pengirim" class="w-full rounded-xl outline-none"
+                                            style="padding:10px 14px; font-size:13px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary)"/>
+                                    </div>
+                                    <div class="space-y-1.5">
+                                        <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">No. Telp Keluarga</label>
+                                        <input v-model="fmEdit.no_telp_keluarga" placeholder="08xx-xxxx" class="w-full rounded-xl outline-none font-mono"
+                                            style="padding:10px 14px; font-size:13px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary)"/>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Klinis -->
+                            <div class="space-y-3">
+                                <p class="text-xs font-bold uppercase tracking-widest" style="color:var(--text-accent)">Data Klinis</p>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div class="sm:col-span-2 space-y-1.5">
+                                        <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Diagnosa Rawat ICU <span style="color:#E74C3C">*</span></label>
+                                        <input v-model="fmEdit.diagnosa" required placeholder="Tulis diagnosa pasien untuk rawat ICU..." class="w-full rounded-xl outline-none"
+                                            style="padding:10px 14px; font-size:13px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary)"/>
+                                    </div>
+                                    <div class="sm:col-span-2 space-y-1.5">
+                                        <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">
+                                            Kode ICD-10
+                                            <span class="ml-1 normal-case font-normal text-xs px-2 py-0.5 rounded-full" style="background:rgba(14,165,233,.1);color:#0EA5E9">Untuk Klaim / Coding</span>
+                                        </label>
+                                        <Icd10Search v-model="fmEdit.diagnosa_icd" placeholder="Cari kode ICD-10 (opsional)..." :required="false" :has-error="false"/>
+                                        <p class="text-xs" style="color:var(--text-muted)">Opsional — diisi untuk keperluan klaim BPJS / asuransi</p>
+                                    </div>
+                                    <div class="space-y-1.5">
+                                        <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Rencana Tindakan <span style="color:#E74C3C">*</span></label>
+                                        <input v-model="fmEdit.rencana_tindakan" required placeholder="Rencana tindakan ICU" class="w-full rounded-xl outline-none"
+                                            style="padding:10px 14px; font-size:13px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary)"/>
+                                    </div>
+                                    <div class="sm:col-span-2 space-y-1.5">
+                                        <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Keterangan Klinis</label>
+                                        <textarea v-model="fmEdit.keterangan" rows="2" placeholder="Kondisi, riwayat, catatan dokter pengirim..." class="w-full rounded-xl outline-none resize-none"
+                                            style="padding:10px 14px; font-size:13px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary); line-height:1.6"/>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Jaminan -->
+                            <div class="space-y-3">
+                                <p class="text-xs font-bold uppercase tracking-widest" style="color:var(--text-accent)">Jaminan</p>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div class="space-y-1.5">
+                                        <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Jenis Jaminan <span style="color:#E74C3C">*</span></label>
+                                        <select v-model="fmEdit.jaminan" required class="w-full rounded-xl outline-none"
+                                            style="padding:10px 14px; font-size:13px"
+                                            :style="`border:1.5px solid var(--border-default); background:var(--bg-input); color:${fmEdit.jaminan?'var(--text-primary)':'var(--text-muted)'}`">
+                                            <option value="" disabled>— Pilih Jaminan —</option>
+                                            <option v-for="cb in caraBayar" :key="cb.kode" :value="cb.kode">{{ cb.nama }}</option>
+                                        </select>
+                                    </div>
+                                    <div class="space-y-1.5">
+                                        <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Catatan Jaminan</label>
+                                        <input v-model="fmEdit.catatan_jaminan" placeholder="No. BPJS / No. Polis..." class="w-full rounded-xl outline-none"
+                                            style="padding:10px 14px; font-size:13px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary)"/>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-3 pt-2" style="border-top:1px solid var(--border-default)">
+                                <button type="submit" :disabled="fmEdit.processing || !fmEdit.jenis_kelamin || !fmEdit.jaminan"
+                                    class="flex items-center gap-2 font-bold px-6 py-3 rounded-xl transition-all duration-150 disabled:opacity-50 hover:-translate-y-px"
+                                    style="background:#0EA5E9; color:#fff; font-size:14px">
+                                    <svg v-if="fmEdit.processing" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                                    {{ fmEdit.processing ? 'Menyimpan...' : 'Simpan Perubahan' }}
+                                </button>
+                                <button type="button" @click="openModal('detail', modal.item)" class="px-6 py-3 rounded-xl font-medium"
+                                    style="background:var(--bg-input); color:var(--text-secondary); border:1.5px solid var(--border-default); font-size:14px">Kembali</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>                <div v-else-if="modal.type==='approve' && modal.item" key="approve" class="flex flex-col w-full" style="max-height:92vh">
                     <div class="flex items-center justify-between px-6 py-5 flex-shrink-0" style="border-bottom:1px solid var(--border-default)">
                         <div class="flex items-center gap-3">
                             <button type="button" @click="openModal('detail', modal.item)" class="w-8 h-8 rounded-xl flex items-center justify-center transition-all hover:scale-110" style="background:var(--bg-input); color:var(--text-secondary)">

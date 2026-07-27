@@ -10,7 +10,7 @@ class IcuSpriInternal extends Model
 
     protected $fillable = [
         'No_MR', 'No_Reg',
-        'Diagnosis', 'IndikasiRI', 'kebutuhan_bed',
+        'Diagnosis', 'Diagnosis_ICD', 'IndikasiRI', 'kebutuhan_bed',
         'asal_ruang', 'Dokter', 'spesialis', 'Keterangan',
         'NameUser',
         'catatan_admisi',
@@ -50,6 +50,7 @@ class IcuSpriInternal extends Model
             'waiting_list'   => 'Waiting List',
             'bed_verified'   => 'Bed Terverifikasi',
             'ditolak'        => 'Ditolak',
+            'dibatalkan'     => 'Dibatalkan',
             default          => $this->status,
         };
     }
@@ -62,6 +63,7 @@ class IcuSpriInternal extends Model
             'waiting_list'   => 'orange',
             'bed_verified'   => 'teal',
             'ditolak'        => 'red',
+            'dibatalkan'     => 'gray',
             default          => 'gray',
         };
     }
