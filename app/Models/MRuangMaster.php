@@ -72,8 +72,23 @@ class MRuangMaster extends Model
 
     public static function bedKosong(): \Illuminate\Support\Collection
     {
+        // Ambil semua kode bed yang sudah di-booking di tabel lokal (double-check)
+        $bedSudahDialokasi = collect();
+        try {
+            $extBeds = \App\Models\IcuBookingExternal::whereIn('status', ['bed_confirmed', 'admisi_verified'])
+                ->whereNotNull('allocated_bed_id')
+                ->pluck('allocated_bed_id');
+            $intBeds = \App\Models\IcuSpriInternal::where('status', 'bed_verified')
+                ->whereNotNull('allocated_bed_id')
+                ->pluck('allocated_bed_id');
+            $bedSudahDialokasi = $extBeds->merge($intBeds)->filter()->unique();
+        } catch (\Exception $e) {
+            Log::warning('[MRuangMaster::bedKosong] Gagal cek alokasi lokal: ' . $e->getMessage());
+        }
+
         return static::bedIcuDenganStatus()
             ->where('Status', 'KOSONG')
+            ->filter(fn($row) => ! $bedSudahDialokasi->contains($row->Kode_RuangM))
             ->map(fn($row) => [
                 'Kode_Ruang' => $row->Kode_RuangM,
                 'nama_ruang' => $row->Nama_RuangM,
@@ -85,12 +100,13 @@ class MRuangMaster extends Model
 
     public static function jenisIcuTersedia(): \Illuminate\Support\Collection
     {
-        $semua   = static::bedIcuDenganStatus();
-        // Kumpulkan kode kelas yang PUNYA bed kosong
+        $semua = static::bedIcuDenganStatus();
+
+        // Kumpulkan kode kelas yang punya bed KOSONG atau BOOKING (untuk konfirmasi ICU)
         $kelasAdaBed = $semua
-            ->where('Status', 'KOSONG')
+            ->whereIn('Status', ['KOSONG', 'BOOKING'])
             ->pluck('kelas_master')
-            ->merge($semua->where('Status', 'KOSONG')->pluck('Kode_Kelas'))
+            ->merge($semua->whereIn('Status', ['KOSONG', 'BOOKING'])->pluck('Kode_Kelas'))
             ->filter()
             ->unique()
             ->values();
@@ -103,6 +119,47 @@ class MRuangMaster extends Model
                 'kode' => $row->kelas_master ?? $row->Kode_Kelas,
                 'nama' => $row->Nama_Kelas,
             ])
+            ->values();
+    }
+
+    /**
+     * Bed KOSONG + BOOKING (untuk konfirmasi ICU dengan fitur preempt).
+     * Bed ISI tidak dimasukkan — pasien sudah fisik di bed.
+     * Field `status_bed` ditambahkan agar Vue bisa menampilkan label peringatan.
+     */
+    public static function bedTersediaUntukKonfirmasi(): \Illuminate\Support\Collection
+    {
+        // Cari pasien yang saat ini memegang booking bed (untuk label di dropdown)
+        $pemegangExt = \App\Models\IcuBookingExternal::whereIn('status', ['bed_confirmed', 'admisi_verified'])
+            ->whereNotNull('allocated_bed_id')
+            ->get(['allocated_bed_id', 'nama_pasien'])
+            ->keyBy('allocated_bed_id');
+
+        $pemegangInt = \App\Models\IcuSpriInternal::where('status', 'bed_verified')
+            ->whereNotNull('allocated_bed_id')
+            ->get(['allocated_bed_id', 'No_MR'])
+            ->keyBy('allocated_bed_id');
+
+        return static::bedIcuDenganStatus()
+            ->whereIn('Status', ['KOSONG', 'BOOKING'])
+            ->map(function ($row) use ($pemegangExt, $pemegangInt) {
+                $kode       = $row->Kode_RuangM;
+                $isBooking  = strtoupper($row->Status) === 'BOOKING';
+                $pemegang   = $pemegangExt->get($kode) ?? $pemegangInt->get($kode);
+                $namaPasienPemegang = null;
+                if ($pemegang) {
+                    $namaPasienPemegang = $pemegang->nama_pasien ?? $pemegang->No_MR ?? null;
+                }
+
+                return [
+                    'Kode_Ruang'         => $kode,
+                    'nama_ruang'         => $row->Nama_RuangM,
+                    'kode_kelas'         => $row->kelas_master ?? $row->Kode_Kelas,
+                    'nama_kelas'         => $row->Nama_Kelas,
+                    'status_bed'         => strtoupper($row->Status), // 'KOSONG' | 'BOOKING'
+                    'pasien_pemegang'    => $namaPasienPemegang,       // nama pasien yang akan di-preempt
+                ];
+            })
             ->values();
     }
 }

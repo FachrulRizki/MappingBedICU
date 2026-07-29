@@ -4,7 +4,7 @@ import { router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { useAuth } from '@/composables/useAuth.js';
 
-const { canKonfirmasiIcu, canTolakBookingExt, canWaitingListExt, canTolakIcu, canWaitingListInt, canVerifikasiIcuInt, isAdmin } = useAuth();
+const { canKonfirmasiIcu, canTolakBookingExt, canWaitingListExt, canTolakIcu, canWaitingListInt, canVerifikasiIcuInt, canPindahBedExt, canPindahBedInt, isAdmin } = useAuth();
 const logoUrl = '/images/logo-urip.png';
 const doctorImgUrl = '/images/welcome-doctors.svg';
 
@@ -14,6 +14,7 @@ const props = defineProps({
   filters: { type: Object, default: () => ({}) },
   caraBayar: { type: Array, default: () => [] },
   kamarKosong: { type: Array, default: () => [] },
+  kamarTersedia: { type: Array, default: () => [] },
   masterKelas: { type: Array, default: () => [] },
   flash: { type: Object, default: () => ({}) },
 });
@@ -72,6 +73,7 @@ const SS = {
   bed_verified: { bg: '#EBF9F1', color: '#27AE60', dot: '#27AE60' },
   admisi_verified: { bg: '#EBF9F1', color: '#27AE60', dot: '#27AE60' },
   ditolak: { bg: '#FDEDEC', color: '#E74C3C', dot: '#E74C3C' },
+  pindah_bed: { bg: '#EDE9FE', color: '#7C3AED', dot: '#7C3AED' },
 };
 const ss = (s) => SS[s] ?? { bg: 'var(--bg-input)', color: 'var(--text-secondary)', dot: '#888' };
 const SRC = {
@@ -90,6 +92,22 @@ const gColor = (g) => g === 'L' ? '#00A884' : g === 'P' ? '#8E44AD' : 'var(--tex
 // ── Aksi yang tersedia per item — setiap tombol dijaga permission sendiri ──
 const actionsOf = (item) => {
   const acts = [];
+
+  // ── Pindah Bed: tersedia untuk bed_confirmed (ext) atau bed_verified (int) ──
+  if (item.status === 'bed_confirmed' && item.sumber === 'external') {
+    if (canPindahBedExt.value || isAdmin.value) {
+      acts.push({ id: 'pindah_bed', label: 'Pindah Bed', bg: 'rgba(139,92,246,.1)', color: '#7C3AED', border: 'rgba(139,92,246,.3)' });
+    }
+    return acts;
+  }
+
+  if (item.status === 'bed_verified' && item.sumber === 'internal') {
+    if (canPindahBedInt.value || isAdmin.value) {
+      acts.push({ id: 'pindah_bed', label: 'Pindah Bed', bg: 'rgba(139,92,246,.1)', color: '#7C3AED', border: 'rgba(139,92,246,.3)' });
+    }
+    return acts;
+  }
+
   if (!['pending_icu', 'waiting_list'].includes(item.status)) return acts;
 
   const isWaiting = item.status === 'waiting_list';
@@ -145,7 +163,7 @@ const clickCard = (key) => {
 // ── Modal ──────────────────────────────────────────────────
 const modal = ref({ open: false, type: '', item: null });
 const openModal = (type, item) => {
-  fmKonfirmasi.reset(); fmTolak.reset(); fmWaiting.reset();
+  fmKonfirmasi.reset(); fmTolak.reset(); fmWaiting.reset(); fmPindahBed.reset();
   modal.value = { open: true, type, item };
 };
 const closeModal = () => { modal.value.open = false; setTimeout(() => modal.value = { open: false, type: '', item: null }, 300); };
@@ -154,8 +172,14 @@ const closeModal = () => { modal.value.open = false; setTimeout(() => modal.valu
 const fmKonfirmasi = useForm({ Kode_Ruang: '', kebutuhan_bed: '' });
 const bedCocok = computed(() =>
   fmKonfirmasi.kebutuhan_bed
-    ? props.kamarKosong.filter(b => b.nama_kelas === fmKonfirmasi.kebutuhan_bed)
-    : props.kamarKosong
+    ? props.kamarTersedia.filter(b => b.nama_kelas === fmKonfirmasi.kebutuhan_bed)
+    : props.kamarTersedia
+);
+// Info bed yang dipilih — untuk warning preempt
+const bedDipilihInfo = computed(() =>
+  fmKonfirmasi.Kode_Ruang
+    ? props.kamarTersedia.find(b => b.Kode_Ruang === fmKonfirmasi.Kode_Ruang)
+    : null
 );
 const submitKonfirmasi = () => {
   const route_name = modal.value.item?.sumber === 'external'
@@ -192,6 +216,27 @@ const minEstimasi = computed(() => {
   const d = new Date(); d.setHours(d.getHours() + 1);
   return d.toISOString().slice(0, 16);
 });
+
+// ── Form: Pindah Bed ───────────────────────────────────────────────────────
+const fmPindahBed = useForm({ Kode_Ruang: '', kebutuhan_bed: '', pindah_alasan: '' });
+const bedCocokPindah = computed(() =>
+  fmPindahBed.kebutuhan_bed
+    ? props.kamarTersedia.filter(b => b.nama_kelas === fmPindahBed.kebutuhan_bed && b.Kode_Ruang !== modal.value.item?.allocated_bed_id)
+    : props.kamarTersedia.filter(b => b.Kode_Ruang !== modal.value.item?.allocated_bed_id)
+);
+const bedDipilihInfoPindah = computed(() =>
+  fmPindahBed.Kode_Ruang
+    ? props.kamarTersedia.find(b => b.Kode_Ruang === fmPindahBed.Kode_Ruang)
+    : null
+);
+const submitPindahBed = () => {
+  const route_name = modal.value.item?.sumber === 'external'
+    ? 'icu.menu_icu.ext.pindah_bed'
+    : 'icu.menu_icu.int.pindah_bed';
+  fmPindahBed.post(route(route_name, modal.value.item.id), {
+    onSuccess: closeModal,
+  });
+};
 
 const statusOptions = [
   { value: '', label: 'Semua Status' },
@@ -786,6 +831,22 @@ const jenisOptions = [
                           modal.item.verified_by }}</p>
                       </div>
                     </div>
+                    <!-- Pindah bed (jika ada riwayat pindah) -->
+                    <div v-if="modal.item.pindah_at_fmt" class="flex items-start gap-3">
+                      <div class="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style="background:#7C3AED"></div>
+                      <div class="flex-1 min-w-0">
+                        <p class="text-xs font-semibold" style="color:var(--text-primary)">Pindah Bed</p>
+                        <p class="text-xs" style="color:var(--text-muted)">
+                          {{ modal.item.pindah_bed_lama }} → <strong style="color:#7C3AED">{{ modal.item.nama_bed }}</strong>
+                        </p>
+                        <p class="text-xs font-mono" style="color:var(--text-muted)">{{ modal.item.pindah_at_fmt }}</p>
+                        <p v-if="modal.item.pindah_by" class="text-xs" style="color:var(--text-muted)">oleh {{ modal.item.pindah_by }}</p>
+                        <p v-if="modal.item.pindah_alasan" class="text-xs mt-0.5 italic" style="color:#6D28D9">
+                          "{{ modal.item.pindah_alasan }}"
+                        </p>
+                      </div>
+                    </div>
+
                     <!-- Durasi total -->
                     <div class="pt-1 border-t" style="border-color:var(--border-default)">
                       <p class="text-xs" style="color:var(--text-muted)">
@@ -793,6 +854,28 @@ const jenisOptions = [
                         <strong style="color:var(--text-primary)">
                           {{ modal.item.lama_proses || '—' }}
                         </strong>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Banner pindah bed (jika status bed_confirmed/bed_verified dan punya histori pindah) -->
+                <div v-if="modal.item.pindah_at_fmt && ['bed_confirmed','bed_verified'].includes(modal.item.status)"
+                  class="rounded-xl overflow-hidden"
+                  style="border:2px solid rgba(139,92,246,.3)">
+                  <div class="flex items-center gap-3 px-4 py-3" style="background:#EDE9FE">
+                    <div class="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+                      style="background:#DDD6FE">
+                      <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="#7C3AED" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p class="text-xs font-black uppercase tracking-wide" style="color:#7C3AED">Riwayat Pindah Bed</p>
+                      <p class="text-xs" style="color:#5B21B6">
+                        {{ modal.item.pindah_bed_lama }} → {{ modal.item.nama_bed }}
+                        <span class="font-mono ml-1">{{ modal.item.pindah_at_fmt }}</span>
                       </p>
                     </div>
                   </div>
@@ -1019,22 +1102,67 @@ const jenisOptions = [
                       Pilih Bed <span style="color:#E74C3C">*</span>
                       <span class="normal-case font-normal ml-1.5 px-2 py-0.5 rounded-full text-xs"
                         style="background:rgba(0,168,132,.12); color:#00A884">
-                        {{ bedCocok.length }} tersedia
+                        {{ bedCocok.filter(b => b.status_bed === 'KOSONG').length }} kosong
+                      </span>
+                      <span v-if="bedCocok.filter(b => b.status_bed === 'BOOKING').length > 0"
+                        class="normal-case font-normal ml-1 px-2 py-0.5 rounded-full text-xs"
+                        style="background:rgba(245,158,11,.15); color:#D97706">
+                        {{ bedCocok.filter(b => b.status_bed === 'BOOKING').length }} bisa direbut
                       </span>
                     </label>
                     <select v-model="fmKonfirmasi.Kode_Ruang" required :disabled="!bedCocok.length"
                       class="w-full rounded-xl outline-none transition-all disabled:opacity-40"
                       style="padding:11px 14px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary); font-size:13px">
                       <option value="" disabled>— Pilih Bed —</option>
-                      <option v-for="bed in bedCocok" :key="bed.Kode_Ruang" :value="bed.Kode_Ruang">{{ bed.nama_ruang }}
-                      </option>
+                      <!-- Kalau ada campuran KOSONG+BOOKING: tampilkan dengan grup -->
+                      <template v-if="bedCocok.some(b => b.status_bed === 'BOOKING')">
+                        <optgroup label="✅ Tersedia">
+                          <option v-for="bed in bedCocok.filter(b => b.status_bed === 'KOSONG')"
+                            :key="bed.Kode_Ruang" :value="bed.Kode_Ruang">
+                            {{ bed.nama_ruang }}
+                          </option>
+                        </optgroup>
+                        <optgroup label="⚠️ Sudah Dibooking (bisa diambil alih)">
+                          <option v-for="bed in bedCocok.filter(b => b.status_bed === 'BOOKING')"
+                            :key="bed.Kode_Ruang" :value="bed.Kode_Ruang">
+                            {{ bed.nama_ruang }}{{ bed.pasien_pemegang ? ` — saat ini: ${bed.pasien_pemegang}` : '' }}
+                          </option>
+                        </optgroup>
+                      </template>
+                      <!-- Kalau semua KOSONG: tampil flat tanpa label grup -->
+                      <template v-else>
+                        <option v-for="bed in bedCocok" :key="bed.Kode_Ruang" :value="bed.Kode_Ruang">
+                          {{ bed.nama_ruang }}
+                        </option>
+                      </template>
                     </select>
-                    <p v-if="!kamarKosong.length" class="text-xs flex items-center gap-1.5" style="color:#E67E22">
+                    <!-- Warning preempt: tampil saat bed yang dipilih berstatus BOOKING -->
+                    <div v-if="bedDipilihInfo?.status_bed === 'BOOKING'"
+                      class="rounded-xl p-3.5 flex items-start gap-3"
+                      style="background:#FEF3C7; border:1.5px solid #FCD34D">
+                      <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="#D97706" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M12 8v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                      </svg>
+                      <div>
+                        <p class="text-xs font-bold" style="color:#D97706">Bed Akan Diambil Alih</p>
+                        <p class="text-xs mt-0.5 leading-relaxed" style="color:#92400E">
+                          <template v-if="bedDipilihInfo.pasien_pemegang">
+                            <strong>{{ bedDipilihInfo.pasien_pemegang }}</strong> akan dikembalikan ke antrian
+                            (status: Menunggu ICU) untuk mendapat konfirmasi bed baru.
+                          </template>
+                          <template v-else>
+                            Pasien yang memegang booking bed ini akan dikembalikan ke antrian Menunggu ICU.
+                          </template>
+                        </p>
+                      </div>
+                    </div>
+                    <p v-if="!kamarTersedia.length" class="text-xs flex items-center gap-1.5" style="color:#E67E22">
                       <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round"
                           d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
                       </svg>
-                      Tidak ada bed kosong saat ini
+                      Tidak ada bed tersedia saat ini
                     </p>
                   </div>
                   <button type="submit"
@@ -1045,7 +1173,7 @@ const jenisOptions = [
                       stroke="currentColor" stroke-width="2.5">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
-                    {{ fmKonfirmasi.processing ? 'Menyimpan...' : 'Simpan Alokasi Bed' }}
+                    {{ fmKonfirmasi.processing ? 'Menyimpan...' : (bedDipilihInfo?.status_bed === 'BOOKING' ? 'Ambil Alih & Konfirmasi Bed' : 'Simpan Alokasi Bed') }}
                   </button>
                 </form>
               </div>
@@ -1117,6 +1245,165 @@ const jenisOptions = [
                       <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                     </svg>
                     {{ fmTolak.processing ? 'Menyimpan...' : 'Proses Penolakan' }}
+                  </button>
+                </form>
+              </div>
+            </div>
+
+            <!-- ── VIEW 5: PINDAH BED ─────────────────────────────────────── -->
+            <div v-else-if="modal.type === 'pindah_bed' && modal.item" key="pindah_bed" class="flex flex-col w-full"
+              style="max-height:92vh">
+              <!-- Header with Back -->
+              <div class="flex items-center justify-between px-6 py-5 flex-shrink-0"
+                style="border-bottom:1px solid var(--border-default)">
+                <div class="flex items-center gap-3">
+                  <button type="button" @click="openModal('detail', modal.item)"
+                    class="w-8 h-8 rounded-xl flex items-center justify-center transition-all hover:scale-110"
+                    style="background:var(--bg-input); color:var(--text-secondary)">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <div>
+                    <h2 class="text-base font-bold" style="color:#7C3AED">Pindah Bed</h2>
+                    <p class="text-xs mt-0.5" style="color:var(--text-secondary)">{{ modal.item?.nama_pasien }}</p>
+                  </div>
+                </div>
+                <button @click="closeModal"
+                  class="w-8 h-8 rounded-xl flex items-center justify-center transition-all hover:scale-110"
+                  style="background:var(--bg-input); color:var(--text-secondary)">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <!-- Info bed saat ini -->
+              <div class="px-6 py-4 flex-shrink-0"
+                style="border-bottom:1px solid var(--border-default); background:var(--bg-surface-2)">
+                <div class="rounded-xl p-3.5 flex items-start gap-3"
+                  style="background:#EDE9FE; border:1.5px solid rgba(139,92,246,.3)">
+                  <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="#7C3AED"
+                    stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                      d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                  </svg>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-xs font-bold" style="color:#7C3AED">Pindah dari bed saat ini</p>
+                    <p class="text-sm font-semibold mt-0.5" style="color:#5B21B6">
+                      {{ modal.item?.nama_bed ?? '—' }}
+                      <span v-if="modal.item?.kebutuhan_bed" class="text-xs font-normal ml-1"
+                        style="color:#7C3AED">({{ modal.item.kebutuhan_bed }})</span>
+                    </p>
+                    <p class="text-xs mt-1" style="color:#6D28D9">
+                      Pasien A ({{ modal.item?.nama_pasien }}) akan dipindahkan karena pasien lain lebih membutuhkan bed
+                      ini.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Form Body -->
+              <div class="overflow-y-auto flex-1">
+                <form @submit.prevent="submitPindahBed" class="px-6 py-5 space-y-5">
+                  <div class="space-y-2">
+                    <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">
+                      Jenis ICU Baru <span style="color:#E74C3C">*</span>
+                    </label>
+                    <select v-model="fmPindahBed.kebutuhan_bed" required
+                      class="w-full rounded-xl outline-none transition-all"
+                      style="padding:11px 14px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary); font-size:13px">
+                      <option value="" disabled>— Pilih Jenis ICU —</option>
+                      <option v-for="k in masterKelas" :key="k.kode" :value="k.nama">{{ k.nama }}</option>
+                    </select>
+                  </div>
+
+                  <div class="space-y-2">
+                    <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">
+                      Pilih Bed Baru <span style="color:#E74C3C">*</span>
+                      <span class="normal-case font-normal ml-1.5 px-2 py-0.5 rounded-full text-xs"
+                        style="background:rgba(139,92,246,.12); color:#7C3AED">
+                        {{ bedCocokPindah.filter(b => b.status_bed === 'KOSONG').length }} kosong
+                      </span>
+                      <span v-if="bedCocokPindah.filter(b => b.status_bed === 'BOOKING').length > 0"
+                        class="normal-case font-normal ml-1 px-2 py-0.5 rounded-full text-xs"
+                        style="background:rgba(245,158,11,.15); color:#D97706">
+                        {{ bedCocokPindah.filter(b => b.status_bed === 'BOOKING').length }} bisa direbut
+                      </span>
+                    </label>
+                    <select v-model="fmPindahBed.Kode_Ruang" required :disabled="!bedCocokPindah.length"
+                      class="w-full rounded-xl outline-none transition-all disabled:opacity-40"
+                      style="padding:11px 14px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary); font-size:13px">
+                      <option value="" disabled>— Pilih Bed Baru —</option>
+                      <template v-if="bedCocokPindah.some(b => b.status_bed === 'BOOKING')">
+                        <optgroup label="✅ Tersedia">
+                          <option v-for="bed in bedCocokPindah.filter(b => b.status_bed === 'KOSONG')"
+                            :key="bed.Kode_Ruang" :value="bed.Kode_Ruang">
+                            {{ bed.nama_ruang }}
+                          </option>
+                        </optgroup>
+                        <optgroup label="⚠️ Sudah Dibooking (bisa diambil alih)">
+                          <option v-for="bed in bedCocokPindah.filter(b => b.status_bed === 'BOOKING')"
+                            :key="bed.Kode_Ruang" :value="bed.Kode_Ruang">
+                            {{ bed.nama_ruang }}{{ bed.pasien_pemegang ? ` — saat ini: ${bed.pasien_pemegang}` : '' }}
+                          </option>
+                        </optgroup>
+                      </template>
+                      <template v-else>
+                        <option v-for="bed in bedCocokPindah" :key="bed.Kode_Ruang" :value="bed.Kode_Ruang">
+                          {{ bed.nama_ruang }}
+                        </option>
+                      </template>
+                    </select>
+                    <!-- Warning preempt untuk pindah bed -->
+                    <div v-if="bedDipilihInfoPindah?.status_bed === 'BOOKING'"
+                      class="rounded-xl p-3.5 flex items-start gap-3"
+                      style="background:#FEF3C7; border:1.5px solid #FCD34D">
+                      <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="#D97706" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M12 8v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                      </svg>
+                      <div>
+                        <p class="text-xs font-bold" style="color:#D97706">Bed Akan Diambil Alih</p>
+                        <p class="text-xs mt-0.5 leading-relaxed" style="color:#92400E">
+                          <strong v-if="bedDipilihInfoPindah.pasien_pemegang">{{ bedDipilihInfoPindah.pasien_pemegang }}</strong>
+                          <span v-else>Pasien pemegang</span>
+                          akan dikembalikan ke antrian Menunggu ICU.
+                        </p>
+                      </div>
+                    </div>
+                    <p v-if="!bedCocokPindah.length" class="text-xs flex items-center gap-1.5" style="color:#E67E22">
+                      <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                      </svg>
+                      Tidak ada bed tersedia saat ini
+                    </p>
+                  </div>
+
+                  <div class="space-y-2">
+                    <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">
+                      Alasan Pindah Bed <span class="normal-case font-normal" style="color:var(--text-muted)">(opsional)</span>
+                    </label>
+                    <textarea v-model="fmPindahBed.pindah_alasan" rows="3"
+                      placeholder="Contoh: Pasien B lebih kritis membutuhkan bed ICU ini. Pasien A dipindah ke bed yang sesuai kondisinya..."
+                      class="w-full rounded-xl outline-none resize-none transition-all"
+                      style="padding:11px 14px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary); font-size:13px; line-height:1.6" />
+                    <p class="text-xs" style="color:var(--text-muted)">
+                      Catatan akan tersimpan di histori dan terlihat pada detail pasien.
+                    </p>
+                  </div>
+
+                  <button type="submit"
+                    :disabled="fmPindahBed.processing || !fmPindahBed.Kode_Ruang || !fmPindahBed.kebutuhan_bed"
+                    class="w-full text-sm font-bold py-3.5 rounded-xl transition-all duration-150 hover:-translate-y-px disabled:opacity-40 disabled:hover:translate-y-0 flex items-center justify-center gap-2"
+                    style="background:rgba(139,92,246,.15); color:#7C3AED; border:1.5px solid rgba(139,92,246,.4)">
+                    <svg v-if="!fmPindahBed.processing" class="w-4 h-4" fill="none" viewBox="0 0 24 24"
+                      stroke="currentColor" stroke-width="2.5">
+                      <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                    </svg>
+                    {{ fmPindahBed.processing ? 'Memproses...' : (bedDipilihInfoPindah?.status_bed === 'BOOKING' ? 'Ambil Alih & Pindah Bed' : 'Konfirmasi Pindah Bed') }}
                   </button>
                 </form>
               </div>

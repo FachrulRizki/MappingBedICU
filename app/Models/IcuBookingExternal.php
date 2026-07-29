@@ -16,6 +16,7 @@ class IcuBookingExternal extends Model
         'allocated_bed_id', 'nama_bed',
         'status', 'alasan_tolak',
         'waiting_alasan', 'waiting_estimasi', 'waiting_by',
+        'pindah_alasan', 'pindah_bed_lama', 'pindah_by', 'pindah_at',
         'created_by', 'confirmed_by', 'confirmed_at',
         'verified_by', 'verified_at',
     ];
@@ -24,6 +25,7 @@ class IcuBookingExternal extends Model
         'waiting_estimasi' => 'datetime',
         'confirmed_at'     => 'datetime',
         'verified_at'      => 'datetime',
+        'pindah_at'        => 'datetime',
     ];
 
     public function pasien()

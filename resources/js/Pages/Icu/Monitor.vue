@@ -91,7 +91,9 @@ const sortByOldest = (arr) =>
 const booking = computed(() =>
     sortByOldest(antrian.value.filter(a => ['pending_icu','pending_admisi'].includes(a.status))))
 const terverifikasi = computed(() =>
-    sortByOldest(antrian.value.filter(a => ['bed_confirmed','bed_verified','admisi_verified'].includes(a.status))))
+    // Tampilkan bed_confirmed dan bed_verified saja.
+    // admisi_verified = pasien sudah menempatkan bed (tidak perlu lagi di kolom ini).
+    sortByOldest(antrian.value.filter(a => ['bed_confirmed','bed_verified'].includes(a.status))))
 const waitingList = computed(() =>
     sortByOldest(antrian.value.filter(a => a.status === 'waiting_list')))
 

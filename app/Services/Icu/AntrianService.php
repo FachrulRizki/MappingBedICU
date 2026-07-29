@@ -94,7 +94,12 @@ class AntrianService
         }
 
         if ($fTglDari && $fTglAkh) {
-            $q->whereBetween('created_at', [$fTglDari . ' 00:00:00', $fTglAkh . ' 23:59:59']);
+            // bed_confirmed / admisi_verified: tetap tampil walau di luar range tanggal
+            // supaya informasi booking jelas (tidak hilang karena filter tanggal)
+            $q->where(function ($qq) use ($fTglDari, $fTglAkh) {
+                $qq->whereBetween('created_at', [$fTglDari . ' 00:00:00', $fTglAkh . ' 23:59:59'])
+                   ->orWhereIn('status', ['pending_icu', 'waiting_list', 'bed_confirmed']);
+            });
         }
 
         // Oldest first — siapa booking duluan, prioritas duluan
@@ -103,8 +108,8 @@ class AntrianService
 
     private function queryInternal(string $fStatus, string $fNama, string $fTglDari, string $fTglAkh): Collection
     {
-        // Hanya tampilkan yang masih perlu tindakan - exclude bed_verified, waiting_list
-        $activeStatuses = ['pending_admisi', 'pending_icu'];
+        // Tampilkan semua yang masih perlu tindakan ATAU sudah bed_verified (pindah bed)
+        $activeStatuses = ['pending_admisi', 'pending_icu', 'bed_verified', 'waiting_list'];
         $q = IcuSpriInternal::query();
 
         if ($fStatus) {
@@ -123,7 +128,11 @@ class AntrianService
         }
 
         if ($fTglDari && $fTglAkh) {
-            $q->whereBetween('created_at', [$fTglDari . ' 00:00:00', $fTglAkh . ' 23:59:59']);
+            // bed_verified: tetap tampil walau di luar range tanggal (untuk pindah bed)
+            $q->where(function ($qq) use ($fTglDari, $fTglAkh) {
+                $qq->whereBetween('created_at', [$fTglDari . ' 00:00:00', $fTglAkh . ' 23:59:59'])
+                   ->orWhereIn('status', ['pending_icu', 'waiting_list', 'bed_verified']);
+            });
         }
 
         // Oldest first
@@ -256,6 +265,12 @@ class AntrianService
             'waiting_estimasi' => $b->waiting_estimasi?->format('Y-m-d H:i'),
             'waiting_estimasi_fmt' => $b->waiting_estimasi?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
             'waiting_by'       => $b->waiting_by,
+            // pindah bed
+            'pindah_alasan'    => $b->pindah_alasan,
+            'pindah_bed_lama'  => $b->pindah_bed_lama,
+            'pindah_by'        => $b->pindah_by,
+            'pindah_at'        => $b->pindah_at?->format('Y-m-d H:i'),
+            'pindah_at_fmt'    => $b->pindah_at?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
             'created_at'       => $b->created_at?->format('Y-m-d H:i'),
             'created_at_fmt'   => $b->created_at?->format('d/m/Y H:i'),
             'created_by'       => $b->created_by,
@@ -301,6 +316,12 @@ class AntrianService
             'waiting_estimasi' => $s->waiting_estimasi?->format('Y-m-d H:i'),
             'waiting_estimasi_fmt' => $s->waiting_estimasi?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
             'waiting_by'       => $s->waiting_by,
+            // pindah bed
+            'pindah_alasan'    => $s->pindah_alasan,
+            'pindah_bed_lama'  => $s->pindah_bed_lama,
+            'pindah_by'        => $s->pindah_by,
+            'pindah_at'        => $s->pindah_at?->format('Y-m-d H:i'),
+            'pindah_at_fmt'    => $s->pindah_at?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
             'created_at'     => $s->created_at?->format('Y-m-d H:i'),
             'created_at_fmt' => $s->created_at?->format('d/m/Y H:i'),
             'created_by'     => $s->NameUser ?? '-',

@@ -36,6 +36,10 @@ export function useAuth() {
     const canTolakIcu               = computed(() => can('booking_int:tolak_icu'));
     const canWaitingListInt         = computed(() => can('booking_int:waiting_list'));
 
+    // ── Pindah Bed (Menu ICU) ─────────────────────────────────────────────────
+    const canPindahBedExt           = computed(() => can('booking_ext:konfirmasi_bed'));
+    const canPindahBedInt           = computed(() => can('booking_int:verifikasi_bed'));
+
     // ── Settings ─────────────────────────────────────────────────────────────
     // Kelola User & Role dikelola penuh oleh Keycloak SSO.
     // Tidak ada permission settings_users / settings_roles di aplikasi ini.
@@ -89,6 +93,10 @@ export function useAuth() {
         canVerifikasiIcuInt,
         canTolakIcu,
         canWaitingListInt,
+
+        // Pindah Bed
+        canPindahBedExt,
+        canPindahBedInt,
 
         // Activity Log
         canViewActivityLog,

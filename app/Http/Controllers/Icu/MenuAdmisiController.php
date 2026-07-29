@@ -126,6 +126,11 @@ class MenuAdmisiController extends Controller
         $namaPasien = $booking->nama_pasien;
         $oldStatus = $booking->status;
 
+        // Release bed jika sudah dialokasikan
+        if ($booking->allocated_bed_id) {
+            \App\Models\StatusKamar::releaseBooking($booking->allocated_bed_id);
+        }
+
         $booking->update([
             'status' => 'dibatalkan',
             'alasan_tolak' => 'Dibatalkan oleh ' . $this->actor(),

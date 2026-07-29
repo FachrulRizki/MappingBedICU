@@ -50,6 +50,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/icu/menu-icu/int/{id}/verifikasi',   [MenuIcuController::class, 'verifikasiInt'])->name('icu.menu_icu.int.verifikasi')->middleware('permission:booking_int:verifikasi_bed');
     Route::post('/icu/menu-icu/int/{id}/tolak',        [MenuIcuController::class, 'tolakInt'])->name('icu.menu_icu.int.tolak')->middleware('permission:booking_int:tolak_icu');
     Route::post('/icu/menu-icu/int/{id}/waiting-list', [MenuIcuController::class, 'waitingListInt'])->name('icu.menu_icu.int.waiting_list')->middleware('permission:booking_int:waiting_list');
+    Route::post('/icu/menu-icu/ext/{id}/pindah-bed',   [MenuIcuController::class, 'pindahBedExt'])->name('icu.menu_icu.ext.pindah_bed')->middleware('permission:booking_ext:konfirmasi_bed');
+    Route::post('/icu/menu-icu/int/{id}/pindah-bed',   [MenuIcuController::class, 'pindahBedInt'])->name('icu.menu_icu.int.pindah_bed')->middleware('permission:booking_int:verifikasi_bed');
 
     // ── Menu Admisi ───────────────────────────────────────────────────────────
     Route::get('/icu/menu-admision', [MenuAdmisiController::class, 'index'])->name('icu.menu_admisi');

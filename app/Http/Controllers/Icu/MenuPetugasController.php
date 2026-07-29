@@ -390,6 +390,11 @@ class MenuPetugasController extends Controller
 
         $oldStatus = $bu->status;
 
+        // Release bed jika sudah dialokasikan
+        if ($bu->allocated_bed_id) {
+            \App\Models\StatusKamar::releaseBooking($bu->allocated_bed_id);
+        }
+
         $bu->update([
             'status' => 'dibatalkan',
             'alasan_tolak' => 'Dibatalkan oleh ' . $this->actor(),

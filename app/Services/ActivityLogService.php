@@ -96,6 +96,16 @@ class ActivityLogService
         $this->log('Tolak Data', "Menolak BU SPRI {$namaPasien} oleh ICU: {$alasan}", 'spri_internal', $id, 'IcuSpriInternal');
     }
 
+    public function pindahBedExt(int $id, string $namaPasien, string $bedLama, string $bedBaru): void
+    {
+        $this->log('Pindah Bed', "Pindah bed {$namaPasien}: {$bedLama} → {$bedBaru}", 'booking_external', $id, 'IcuBookingExternal');
+    }
+
+    public function pindahBedInt(int $id, string $namaPasien, string $bedLama, string $bedBaru): void
+    {
+        $this->log('Pindah Bed', "Pindah bed {$namaPasien}: {$bedLama} → {$bedBaru}", 'spri_internal', $id, 'IcuSpriInternal');
+    }
+
     // ── Petugas Ruang ─────────────────────────────────────────────────────────
 
     public function buatSpri(int $id, string $namaPasien): void
