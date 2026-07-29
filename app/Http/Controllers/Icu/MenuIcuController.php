@@ -39,7 +39,7 @@ class MenuIcuController extends Controller
             'summary'        => $data['summary'],
             'filters'        => $data['filters'],
             'kamarKosong'    => MRuangMaster::bedKosong(),
-            'kamarTersedia'  => MRuangMaster::bedTersediaUntukKonfirmasi(), // KOSONG + BOOKING
+            'kamarTersedia'  => MRuangMaster::bedTersediaUntukKonfirmasi(),
             'masterKelas'    => MRuangMaster::jenisIcuTersedia(),
             'caraBayar'      => \App\Models\MCaraBayar::list(),
             'flash'          => [

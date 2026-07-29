@@ -12,6 +12,7 @@ use App\Http\Controllers\Icu\MenuIcuController;
 use App\Http\Controllers\Icu\MenuAdmisiController;
 use App\Http\Controllers\Icu\MenuPetugasController;
 use App\Http\Controllers\Icu\MonitorController;
+use App\Http\Controllers\Icu\MenuYanmedController;
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 Route::middleware('guest')->group(function () {
@@ -71,6 +72,11 @@ Route::middleware('auth')->group(function () {
     Route::put('/icu/menu-petugas/spri/{id}',    [MenuPetugasController::class, 'updateSpri'])->name('icu.menu_petugas.spri.update')->middleware('permission:booking_int:create');
     Route::post('/icu/menu-petugas/spri/{id}/batal', [MenuPetugasController::class, 'batalSpri'])->name('icu.menu_petugas.spri.batal')->middleware('permission:booking_int:create');
     Route::delete('/icu/menu-petugas/spri/{id}', [MenuPetugasController::class, 'deleteSpri'])->name('icu.menu_petugas.spri.delete')->middleware('permission:booking_int:create');
+
+    // ── Menu Yanmed ───────────────────────────────────────────────────────────
+    Route::get('/icu/menu-yanmed', [MenuYanmedController::class, 'index'])
+        ->name('icu.menu_yanmed')
+        ->middleware('permission:yanmed:view');
 
     // ── Settings ──────────────────────────────────────────────────────────────
     // Kelola User & Role dikelola penuh oleh Keycloak SSO — tidak ada di aplikasi.

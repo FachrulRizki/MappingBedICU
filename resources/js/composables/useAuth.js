@@ -40,6 +40,9 @@ export function useAuth() {
     const canPindahBedExt           = computed(() => can('booking_ext:konfirmasi_bed'));
     const canPindahBedInt           = computed(() => can('booking_int:verifikasi_bed'));
 
+    // ── Yanmed ────────────────────────────────────────────────────────────────
+    const canViewYanmed             = computed(() => can('yanmed:view'));
+
     // ── Settings ─────────────────────────────────────────────────────────────
     // Kelola User & Role dikelola penuh oleh Keycloak SSO.
     // Tidak ada permission settings_users / settings_roles di aplikasi ini.
@@ -97,6 +100,9 @@ export function useAuth() {
         // Pindah Bed
         canPindahBedExt,
         canPindahBedInt,
+
+        // Yanmed
+        canViewYanmed,
 
         // Activity Log
         canViewActivityLog,
