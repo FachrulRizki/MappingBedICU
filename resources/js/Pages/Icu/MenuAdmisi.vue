@@ -22,26 +22,28 @@ const props = defineProps({
 // Flash ditangani oleh FlashMessage global di AppLayout — tidak perlu toast lokal
 
 // ── Filters ────────────────────────────────────────────────
-const fStatus = ref(props.filters.filterStatus ?? '');
+// fStatus hanya client-side (tidak dikirim ke server)
+const fStatus = ref('');
 const fJenis  = ref(props.filters.filterJenis  ?? '');
 const fNama   = ref(props.filters.filterNama   ?? '');
-const fTgl    = ref(props.filters.filterTgl    ?? '');
-
-// Helper tanggal lokal (bukan UTC)
-const localDate = (offsetDays = 0) => {
-    const d = new Date(); d.setDate(d.getDate() + offsetDays);
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-};
-
-const fTglDari = ref(props.filters.filterTglDari || localDate(0));
-const fTglAkh  = ref(props.filters.filterTglAkh  || localDate(0));
 const sortBy  = ref(props.filters.sortBy       ?? 'created_at');
 const sortDir = ref(props.filters.sortDir      ?? 'asc');
 
+const localDate = (n = 0) => {
+    const d = new Date(); d.setDate(d.getDate() + n);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+};
+const fTglDari = ref(props.filters.filterTglDari || '');
+const fTglAkh  = ref(props.filters.filterTglAkh  || '');
+const today     = localDate(0);
+const yesterday = localDate(-1);
+const week7     = localDate(-6);
+const setPreset = (d, s) => { fTglDari.value=d; fTglAkh.value=s; applyFilters(); };
+
 let searchTimer = null;
+// Server hanya terima: jenis, nama, tanggal, sort — TIDAK status (status filter client-side)
 const applyFilters = () => router.get(route('icu.menu_admisi'), {
-    status: fStatus.value, jenis: fJenis.value,
-    nama: fNama.value,
+    jenis: fJenis.value, nama: fNama.value,
     tgl_dari: fTglDari.value, tgl_sampai: fTglAkh.value,
     sort: sortBy.value, dir: sortDir.value,
 }, { preserveState: true, replace: true, preserveScroll: true });
@@ -49,21 +51,24 @@ const applyFilters = () => router.get(route('icu.menu_admisi'), {
 const onNamaInput = () => { clearTimeout(searchTimer); searchTimer = setTimeout(applyFilters, 400); };
 const toggleSort  = (col) => {
     sortDir.value = sortBy.value === col ? (sortDir.value === 'asc' ? 'desc' : 'asc') : 'asc';
-    sortBy.value  = col;
-    applyFilters();
+    sortBy.value  = col; applyFilters();
 };
 const resetFilter = () => {
-    fStatus.value=''; fJenis.value=''; fNama.value=''; fTgl.value='';
-    fTglDari.value=localDate(0); fTglAkh.value=localDate(0);
+    fStatus.value=''; fJenis.value=''; fNama.value=''; fTglDari.value=''; fTglAkh.value='';
+    activeCardKey.value='';
     applyFilters();
 };
 const sortIcon = (col) => sortBy.value !== col ? '↕' : sortDir.value === 'asc' ? '↑' : '↓';
 
-// Date preset helpers (lokal)
-const today     = localDate(0);
-const yesterday = localDate(-1);
-const week7     = localDate(-6);
-const setPreset = (dari, sampai) => { fTglDari.value=dari; fTglAkh.value=sampai; applyFilters(); };
+// ── Filter antrian client-side (status + jenis) ────────────
+const antrianFiltered = computed(() => {
+    let list = props.antrian;
+    // filter jenis duplikat kalau sudah server-filter, tapi tetap handle
+    if (fJenis.value) list = list.filter(i => i.sumber === fJenis.value);
+    if (!fStatus.value) return list;
+    if (fStatus.value === '__bed') return list.filter(i => ['bed_confirmed','bed_verified'].includes(i.status));
+    return list.filter(i => i.status === fStatus.value);
+});
 
 // ── Style helpers ──────────────────────────────────────────
 const SS = {
@@ -92,22 +97,32 @@ const gIcon  = (g) => g === 'L' ? '♂' : g === 'P' ? '♀' : '·';
 const gColor = (g) => g === 'L' ? '#00A884' : g === 'P' ? '#8E44AD' : 'var(--text-secondary)';
 
 // ── Summary cards ──────────────────────────────────────────
+// Key '__bed' dipakai sebagai penanda khusus (multi-status filter di clickCard)
 const CARDS = computed(() => [
-    { key:'',                label:'Total',           val: props.summary.total ?? 0,
+    { key:'',         label:'Total',           val: props.summary.total ?? 0,
       color:'#5A6B7C', icon:'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
-    { key:'pending_admisi',  label:'Menunggu Admisi', val: props.antrian.filter(a=>a.status==='pending_admisi').length,
+    { key:'pending_admisi', label:'Menunggu Admisi', val: props.summary.pending_admisi ?? 0,
       color:'#E67E22', icon:'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
-    { key:'waiting_list',    label:'Waiting List',    val: props.summary.waiting_list ?? 0,
+    { key:'waiting_list',   label:'Waiting List',    val: props.summary.waiting_list ?? 0,
       color:'#D97706', icon:'M12 8v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z' },
-    { key:'bed_confirmed',   label:'Perlu Verifikasi',val: props.antrian.filter(a=>['bed_confirmed','bed_verified'].includes(a.status)).length,
+    { key:'__bed',          label:'Terverifikasi ICU',val: props.summary.bed_aktif ?? 0,
       color:'#0EA5E9', icon:'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
-    { key:'admisi_verified', label:'Terverifikasi',   val: props.antrian.filter(a=>['admisi_verified','bed_verified'].includes(a.status)).length,
+    { key:'admisi_verified',label:'Perlu Verif Admisi',   val: props.summary.admisi_verified ?? 0,
       color:'#00A884', icon:'M5 13l4 4L19 7' },
-    { key:'ditolak',         label:'Ditolak',         val: props.summary.ditolak ?? 0,
+    { key:'ditolak',        label:'Ditolak',         val: props.summary.ditolak ?? 0,
       color:'#E74C3C', icon:'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z' },
-    { key:'dibatalkan',      label:'Dibatalkan',      val: props.summary.dibatalkan ?? 0,
+    { key:'dibatalkan',     label:'Dibatalkan',      val: props.summary.dibatalkan ?? 0,
       color:'#6B7280', icon:'M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636' },
 ]);
+
+// Card yang aktif untuk styling (bisa multi-status)
+const activeCardKey = ref('');
+
+const clickCard = (key) => {
+    activeCardKey.value = key;
+    fStatus.value = key === '__bed' ? '__bed' : key;
+    // TIDAK memanggil applyFilters() — filter dilakukan client-side oleh antrianFiltered
+};
 
 // ── Aksi yang tersedia per item — setiap tombol dijaga permission sendiri ──
 const canAct = computed(() => canVerifikasiAdmisiExt.value || canApproveAdmisi.value || canTolakAdmisi.value || isAdmin.value);
@@ -394,27 +409,22 @@ const jenisOptions = [
         </div>
 
         <!-- ═══ KPI SUMMARY CARDS ═══════════════════════════════════════ -->
-        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div class="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-2 sm:gap-3">
             <button v-for="c in CARDS" :key="c.key"
-                @click="fStatus=c.key; applyFilters()"
-                class="group relative flex items-center gap-4 p-4 rounded-2xl text-left transition-all duration-200 hover:-translate-y-1 hover:shadow-lg"
-                style="background:var(--bg-card); border:1px solid var(--border-default); box-shadow:var(--shadow-card); min-height:88px; width:100%"
-                :style="fStatus===c.key ? `border:2.5px solid ${c.color}; box-shadow:0 0 0 3px ${c.color}15; background:var(--bg-surface)` : ''">
-                <div class="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110"
+                @click="clickCard(c.key)"
+                class="group relative flex items-center gap-2.5 p-3 rounded-2xl text-left transition-all duration-200 hover:-translate-y-1 hover:shadow-lg"
+                style="background:var(--bg-card); border:1px solid var(--border-default); box-shadow:var(--shadow-card); min-height:72px; width:100%"
+                :style="activeCardKey===c.key ? `border:2.5px solid ${c.color}; box-shadow:0 0 0 3px ${c.color}15; background:var(--bg-surface)` : ''">
+                <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110"
                     :style="`background:${c.color}12`">
-                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" :style="`color:${c.color}`">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" :style="`color:${c.color}`">
                         <path stroke-linecap="round" stroke-linejoin="round" :d="c.icon" />
                     </svg>
                 </div>
                 <div class="min-w-0 flex-1">
-                    <p class="text-2xl font-black tracking-tight" :style="`color:${c.color}`" style="font-family:'DM Mono',monospace; line-height:1.1">{{ c.val }}</p>
-                    <p class="text-xs font-semibold mt-1" style="color:var(--text-secondary); line-height:1.2">{{ c.label }}</p>
+                    <p class="text-xl font-black tracking-tight" :style="`color:${c.color}`" style="font-family:'DM Mono',monospace; line-height:1.1">{{ c.val }}</p>
+                    <p class="text-xs font-semibold mt-0.5 leading-tight" style="color:var(--text-secondary)">{{ c.label }}</p>
                 </div>
-                <span class="opacity-0 group-hover:opacity-100 transition-opacity absolute right-3 top-3">
-                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" :style="`color:${c.color}`">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
-                    </svg>
-                </span>
             </button>
         </div>
 
@@ -439,7 +449,7 @@ const jenisOptions = [
             <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
                 <div class="space-y-1.5">
                     <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Status</label>
-                    <select v-model="fStatus" @change="applyFilters" class="w-full rounded-xl outline-none"
+                    <select v-model="fStatus" class="w-full rounded-xl outline-none"
                         style="padding:10px 14px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary); font-size:13px">
                         <option v-for="o in statusOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
                     </select>
@@ -467,9 +477,8 @@ const jenisOptions = [
                         style="padding:10px 14px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary); font-size:13px"/>
                 </div>
             </div>
-            <!-- Row 2: tgl akhir + presets + sort -->
+            <!-- Row 2: sort + reset -->
             <div class="flex flex-wrap items-center gap-3">
-                <!-- Presets -->
                 <div class="flex gap-1 p-1 rounded-xl" style="background:var(--bg-input)">
                     <button v-for="p in [{l:'Hari ini',d:today,s:today},{l:'Kemarin',d:yesterday,s:yesterday},{l:'7 Hari',d:week7,s:today}]"
                         :key="p.l" @click="setPreset(p.d,p.s)"
@@ -487,7 +496,7 @@ const jenisOptions = [
                         : 'background:var(--bg-input); color:var(--text-secondary); border:1.5px solid var(--border-default)'">
                     {{ col.label }} {{ sortIcon(col.key) }}
                 </button>
-                <button v-if="fStatus||fJenis||fNama||fTgl||fTglDari||fTglAkh" @click="resetFilter"
+                <button v-if="fStatus||fJenis||fNama||fTglDari||fTglAkh" @click="resetFilter"
                     class="ml-auto text-xs font-semibold px-3 py-1.5 rounded-xl flex items-center gap-1.5"
                     style="background:rgba(231,76,60,.1); color:#E74C3C; border:1.5px solid rgba(231,76,60,.25)">
                     <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
@@ -500,7 +509,7 @@ const jenisOptions = [
 
 
         <!-- Empty state -->
-        <div v-if="!antrian.length" class="card-dark text-center py-16">
+        <div v-if="!antrianFiltered.length" class="card-dark text-center py-16">
             <div class="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4" style="background:var(--bg-input)">
                 <svg class="w-7 h-7" style="color:var(--text-muted)" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
@@ -538,7 +547,7 @@ const jenisOptions = [
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="(item, idx) in antrian" :key="`${item.sumber}-${item.id}`"
+                        <tr v-for="(item, idx) in antrianFiltered" :key="`${item.sumber}-${item.id}`"
                             @click="openModal('detail', item)"
                             class="cursor-pointer group"
                             style="border-bottom:1px solid var(--border-row); transition:background .15s ease, transform .15s ease, box-shadow .15s ease"
@@ -640,7 +649,7 @@ const jenisOptions = [
 
             <!-- TAMPILAN MOBILE — Kartu vertikal -->
             <div class="block md:hidden divide-y" style="border-color:var(--border-default)">
-                <div v-for="(item, idx) in antrian" :key="`mob-${item.sumber}-${item.id}`"
+                <div v-for="(item, idx) in antrianFiltered" :key="`mob-${item.sumber}-${item.id}`"
                     @click="openModal('detail', item)"
                     class="p-5 cursor-pointer relative"
                     style="border-left:4px solid transparent; transition:background .15s ease"
@@ -693,7 +702,7 @@ const jenisOptions = [
             <!-- Footer -->
             <div class="px-5 py-3.5 flex items-center justify-between" style="border-top:1px solid var(--border-default); background:var(--bg-surface-2)">
                 <p class="text-xs" style="color:var(--text-secondary)">
-                    Menampilkan <strong style="color:var(--text-primary)">{{ antrian.length }}</strong> data
+                    Menampilkan <strong style="color:var(--text-primary)">{{ antrianFiltered.length }}</strong> data
                 </p>
             </div>
         </div>
@@ -1247,11 +1256,6 @@ const jenisOptions = [
                                     <div class="space-y-1.5">
                                         <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Dokter DPJP</label>
                                         <input v-model="fmEditInternal.Dokter" placeholder="Nama dokter" class="w-full rounded-xl outline-none"
-                                            style="padding:10px 14px; font-size:13px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary)"/>
-                                    </div>
-                                    <div class="space-y-1.5">
-                                        <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Spesialis</label>
-                                        <input v-model="fmEditInternal.spesialis" placeholder="Sp. Anak / Sp. PD / ..." class="w-full rounded-xl outline-none"
                                             style="padding:10px 14px; font-size:13px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary)"/>
                                     </div>
                                     <div class="sm:col-span-2 space-y-1.5">

@@ -10,15 +10,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 
-/**
- * Controller untuk polling notifikasi real-time.
- *
- * Strategi:
- * - Setiap role mempunyai kebutuhan notifikasi berbeda.
- * - Kita simpan "last_seen_at" di cache per user, lalu cek apakah ada
- *   data baru sejak timestamp tersebut.
- * - Client polling setiap 15 detik.
- */
 class NotifikasiController extends Controller
 {
     /**

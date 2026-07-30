@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { router, usePage } from '@inertiajs/vue3';
+import { router, usePage, Link } from '@inertiajs/vue3';
 import FlashMessage from '@/Components/FlashMessage.vue';
 import { useTheme } from '@/composables/useTheme.js';
 import { useNotifikasi } from '@/composables/useNotifikasi.js';
@@ -13,6 +13,22 @@ defineProps({
 const page     = usePage();
 const authUser = computed(() => page.props.auth?.user ?? null);
 const userRole = computed(() => authUser.value?.role ?? '');
+
+// ── Loading modal — hanya untuk navigasi halaman penuh (bukan filter/action) ──
+const isNavigating = ref(false);
+let navTimer = null;
+router.on('start', (event) => {
+    // Hanya tampilkan loading untuk navigasi halaman penuh
+    // preserveState = true artinya filter/action di halaman yang sama → tidak perlu loading
+    const isPageNav = !event.detail?.visit?.preserveState;
+    if (isPageNav) {
+        navTimer = setTimeout(() => { isNavigating.value = true; }, 80);
+    }
+});
+router.on('finish', () => {
+    clearTimeout(navTimer);
+    isNavigating.value = false;
+});
 
 // Gunakan role_label & role_color dari server (di-sync dari Keycloak via HandleInertiaRequests)
 // Tidak perlu hardcode di sini — role baru apapun dari Keycloak otomatis punya label & warna
@@ -64,22 +80,14 @@ const formattedDate = computed(() =>
     now.value.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 );
 
-const countdown = ref(30);
-let refreshTimer = null;
-
 onMounted(() => {
     window.addEventListener('resize', onResize);
     initTheme();
     clockTimer = setInterval(() => now.value = new Date(), 1000);
-    refreshTimer = setInterval(() => {
-        countdown.value--;
-        if (countdown.value <= 0) { router.reload(); countdown.value = 30; }
-    }, 1000);
 });
 onUnmounted(() => {
     window.removeEventListener('resize', onResize);
     clearInterval(clockTimer);
-    clearInterval(refreshTimer);
 });
 
 const navItems = [
@@ -110,6 +118,19 @@ const iconMoon = 'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003
 <template>
 <div class="flex h-screen overflow-hidden" style="background:var(--bg-main); font-family:'Inter','Plus Jakarta Sans',sans-serif">
     <FlashMessage :flash="flash" />
+
+    <!-- ── Navigation Loading Modal ───────────────────────────────────── -->
+    <Transition name="nav-overlay">
+        <div v-if="isNavigating" class="nav-loading-modal" aria-hidden="true">
+            <div class="nav-loading-card">
+                <svg class="nav-loading-icon" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                </svg>
+                <span class="nav-loading-text">Memuat halaman...</span>
+            </div>
+        </div>
+    </Transition>
 
     <!-- ── Notifikasi Suara Toast ──────────────────────────────────────────── -->
     <Teleport to="body">
@@ -193,7 +214,7 @@ const iconMoon = 'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003
         <nav class="flex-1 overflow-y-auto sidebar-scroll py-4 px-3 space-y-0.5">
             <p class="px-3 mb-2 text-xs font-bold tracking-widest uppercase" style="color:var(--text-muted); font-size:10px">Menu Utama</p>
 
-            <a v-for="item in visibleNavItems" :key="item.href" :href="item.href"
+            <Link v-for="item in visibleNavItems" :key="item.href" :href="item.href"
                 :class="['nav-item', isActive(item.href) ? 'active' : '']">
                 <div :class="['nav-icon-wrap', isActive(item.href) ? 'active' : '']">
                     <svg class="flex-shrink-0 w-4 h-4" fill="none" viewBox="0 0 24 24"
@@ -203,12 +224,12 @@ const iconMoon = 'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003
                 </div>
                 <span>{{ item.label }}</span>
                 <span v-if="isActive(item.href)" class="nav-active-dot"></span>
-            </a>
+            </Link>
 
             <template v-if="visibleMoreItems.length">
                 <hr class="divider my-3">
                 <p class="px-3 mb-2 text-xs font-bold tracking-widest uppercase" style="color:var(--text-muted); font-size:10px">Pengaturan</p>
-                <a v-for="item in visibleMoreItems" :key="item.href" :href="item.href"
+                <Link v-for="item in visibleMoreItems" :key="item.href" :href="item.href"
                     :class="['nav-item', isActive(item.href) ? 'active' : '']">
                     <div :class="['nav-icon-wrap', isActive(item.href) ? 'active' : '']">
                         <svg class="flex-shrink-0 w-4 h-4" fill="none" viewBox="0 0 24 24"
@@ -217,7 +238,7 @@ const iconMoon = 'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003
                         </svg>
                     </div>
                     <span>{{ item.label }}</span>
-                </a>
+                </Link>
             </template>
         </nav>
 
@@ -453,6 +474,45 @@ const iconMoon = 'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003
 /* Sidebar transition */
 .sidebar-enter-active, .sidebar-leave-active { transition: opacity 0.3s ease; }
 .sidebar-enter-from, .sidebar-leave-to { opacity: 0; }
+
+/* ── Navigation Loading Modal ── */
+.nav-loading-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+.nav-loading-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 18px 28px;
+    border-radius: 16px;
+    background: var(--bg-surface);
+    border: 1.5px solid var(--border-default);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+}
+.nav-loading-icon {
+    width: 22px;
+    height: 22px;
+    color: #00A884;
+    animation: spin 0.8s linear infinite;
+    flex-shrink: 0;
+}
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.nav-loading-text {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+.nav-overlay-enter-active { transition: opacity 0.2s ease; }
+.nav-overlay-leave-active { transition: opacity 0.15s ease; }
+.nav-overlay-enter-from, .nav-overlay-leave-to { opacity: 0; }
 
 /* ── Notifikasi Stack ── */
 .notif-stack {

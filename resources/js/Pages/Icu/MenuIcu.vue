@@ -24,25 +24,25 @@ const props = defineProps({
 
 // ── Filters ────────────────────────────────────────────────
 const fStatus = ref(props.filters.filterStatus ?? '');
-const fJenis = ref(props.filters.filterJenis ?? '');
-const fNama = ref(props.filters.filterNama ?? '');
-const fTgl = ref(props.filters.filterTgl ?? '');
+const fJenis  = ref(props.filters.filterJenis  ?? '');
+const fNama   = ref(props.filters.filterNama   ?? '');
+const sortBy  = ref(props.filters.sortBy       ?? 'created_at');
+const sortDir = ref(props.filters.sortDir      ?? 'asc');
 
-// Helper tanggal lokal
-const localDate = (offsetDays = 0) => {
-  const d = new Date(); d.setDate(d.getDate() + offsetDays);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const localDate = (n = 0) => {
+  const d = new Date(); d.setDate(d.getDate() + n);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 };
-
-const fTglDari = ref(props.filters.filterTglDari || localDate(0));
-const fTglAkh = ref(props.filters.filterTglAkh || localDate(0));
-const sortBy = ref(props.filters.sortBy ?? 'created_at');
-const sortDir = ref(props.filters.sortDir ?? 'asc');
+const fTglDari = ref(props.filters.filterTglDari || '');
+const fTglAkh  = ref(props.filters.filterTglAkh  || '');
+const today     = localDate(0);
+const yesterday = localDate(-1);
+const week7     = localDate(-6);
+const setPreset = (d, s) => { fTglDari.value = d; fTglAkh.value = s; applyFilters(); };
 
 let st = null;
 const applyFilters = () => router.get(route('icu.menu_icu'), {
-  status: fStatus.value, jenis: fJenis.value,
-  nama: fNama.value,
+  status: fStatus.value, jenis: fJenis.value, nama: fNama.value,
   tgl_dari: fTglDari.value, tgl_sampai: fTglAkh.value,
   sort: sortBy.value, dir: sortDir.value,
 }, { preserveState: true, replace: true, preserveScroll: true });
@@ -52,17 +52,11 @@ const toggleSort = (col) => {
   sortBy.value = col; applyFilters();
 };
 const resetFilter = () => {
-  fStatus.value = ''; fJenis.value = ''; fNama.value = ''; fTgl.value = '';
-  fTglDari.value = localDate(0); fTglAkh.value = localDate(0);
+  fStatus.value = ''; fJenis.value = ''; fNama.value = '';
+  fTglDari.value = ''; fTglAkh.value = '';
   applyFilters();
 };
 const sortIcon = (col) => sortBy.value !== col ? '↕' : sortDir.value === 'asc' ? '↑' : '↓';
-
-// Date preset helpers
-const today = localDate(0);
-const yesterday = localDate(-1);
-const week7 = localDate(-6);
-const setPreset = (dari, sampai) => { fTglDari.value = dari; fTglAkh.value = sampai; applyFilters(); };
 
 // ── Styles ─────────────────────────────────────────────────
 const SS = {
@@ -148,16 +142,46 @@ const actionsOf = (item) => {
 
 // ── Summary ────────────────────────────────────────────────
 const CARDS = computed(() => [
-  { key: '', label: 'Total', val: props.summary.total ?? 0, color: '#5A6B7C', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
-  { key: 'pending_icu', label: 'Menunggu ICU', val: props.antrian.filter(a => a.status === 'pending_icu').length, color: '#E67E22', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
-  { key: 'waiting_list', label: 'Waiting List', val: props.summary.waiting_list ?? 0, color: '#D97706', icon: 'M12 8v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z' },
-  { key: 'bed_confirmed', label: 'Dikonfirmasi', val: props.summary.bed_confirmed ?? 0, color: '#00A884', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
-  { key: 'ditolak', label: 'Ditolak', val: props.summary.ditolak ?? 0, color: '#E74C3C', icon: 'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z' },
+  { key: '',            label: 'Total',            val: props.summary.total ?? 0,        color: '#5A6B7C', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
+  { key: 'pending_icu', label: 'Menunggu ICU',     val: props.summary.pending_icu ?? 0,  color: '#E67E22', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
+  { key: 'waiting_list',label: 'Waiting List',     val: props.summary.waiting_list ?? 0, color: '#D97706', icon: 'M12 8v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z' },
+  { key: '__bed_aktif', label: 'Bed Terverifikasi',val: props.summary.bed_aktif ?? 0,    color: '#00A884', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
+  { key: 'ditolak',     label: 'Ditolak',          val: props.summary.ditolak ?? 0,      color: '#E74C3C', icon: 'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z' },
 ]);
 
+// ── Tab view: "antrian" (pending/waiting) vs "bed_terverifikasi" (konfirmasi/verifikasi) ──
+const viewTab = ref('antrian'); // 'antrian' | 'bed_terverifikasi'
+
+const antrianView = computed(() =>
+  props.antrian.filter(i => {
+    const inAntrian = ['pending_icu', 'waiting_list'].includes(i.status);
+    const inDitolak = fStatus.value === 'ditolak' && i.status === 'ditolak';
+    if (fStatus.value === 'ditolak') return inDitolak;
+    if (fStatus.value === 'pending_icu') return i.status === 'pending_icu';
+    if (fStatus.value === 'waiting_list') return i.status === 'waiting_list';
+    return inAntrian; // default: semua pending+waiting
+  })
+);
+const bedTerverifikasiView = computed(() =>
+  props.antrian.filter(i => ['bed_confirmed', 'bed_verified'].includes(i.status))
+);
+const currentView = computed(() => {
+  if (viewTab.value === 'bed_terverifikasi') return bedTerverifikasiView.value;
+  // Tab antrian — filter berdasarkan fStatus
+  if (!fStatus.value) return antrianView.value;
+  if (fStatus.value === 'ditolak') return props.antrian.filter(i => i.status === 'ditolak');
+  return antrianView.value;
+});
+
 const clickCard = (key) => {
-  fStatus.value = key.includes(',') ? '' : key;
-  applyFilters();
+  if (key === '__bed_aktif') {
+    viewTab.value = 'bed_terverifikasi';
+    fStatus.value = '';
+    return;
+  }
+  // Semua card lain tetap di tab antrian dengan filter status
+  viewTab.value = 'antrian';
+  fStatus.value = key; // '' untuk total, 'pending_icu', 'waiting_list', 'ditolak', dll
 };
 
 // ── Modal ──────────────────────────────────────────────────
@@ -288,30 +312,23 @@ const jenisOptions = [
       </div>
 
       <!-- ═══ 2. KPI SUMMARY CARDS ════════════════════════════════════════ -->
-      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
         <button v-for="c in CARDS" :key="c.key" @click="clickCard(c.key)"
-          class="group relative flex items-center gap-4 p-4 rounded-2xl text-left transition-all duration-200 hover:-translate-y-1 hover:shadow-lg"
-          style="background:var(--bg-card); border:1px solid var(--border-default); box-shadow:var(--shadow-card); min-height:88px; width:100%"
-          :style="fStatus === c.key ? `border:2px solid ${c.color}; box-shadow:0 0 0 3px ${c.color}15; background:var(--bg-surface)` : ''">
-          <div
-            class="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110"
+          class="group relative flex items-center gap-2.5 p-3 rounded-2xl text-left transition-all duration-200 hover:-translate-y-1 hover:shadow-lg"
+          style="background:var(--bg-card); border:1px solid var(--border-default); box-shadow:var(--shadow-card); min-height:72px; width:100%"
+          :style="(c.key === '__bed_aktif' ? viewTab === 'bed_terverifikasi' : fStatus === c.key)
+            ? `border:2px solid ${c.color}; box-shadow:0 0 0 3px ${c.color}15; background:var(--bg-surface)` : ''">
+          <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110"
             :style="`background:${c.color}12`">
-            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
-              :style="`color:${c.color}`">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" :style="`color:${c.color}`">
               <path stroke-linecap="round" stroke-linejoin="round" :d="c.icon" />
             </svg>
           </div>
           <div class="min-w-0 flex-1">
-            <p class="text-2xl font-black tracking-tight" :style="`color:${c.color}`"
+            <p class="text-xl font-black tracking-tight" :style="`color:${c.color}`"
               style="font-family:'DM Mono',monospace; line-height:1.1">{{ c.val }}</p>
-            <p class="text-xs font-semibold mt-1" style="color:var(--text-secondary); line-height:1.2">{{ c.label }}</p>
+            <p class="text-xs font-semibold mt-0.5 leading-tight" style="color:var(--text-secondary)">{{ c.label }}</p>
           </div>
-          <span class="opacity-0 group-hover:opacity-100 transition-opacity absolute right-3 top-3">
-            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"
-              :style="`color:${c.color}`">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
-            </svg>
-          </span>
         </button>
       </div>
 
@@ -334,67 +351,55 @@ const jenisOptions = [
       <!-- ═══ 4. FILTER BAR ════════════════════════════════════════════════ -->
       <div class="rounded-2xl p-5 sm:p-6 space-y-4"
         style="background:var(--bg-surface); border:1px solid var(--border-default); box-shadow:var(--shadow-card)">
-        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4">
           <div class="space-y-1.5">
-            <label class="block text-xs font-semibold uppercase tracking-wide"
-              style="color:var(--text-muted)">Status</label>
+            <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Status</label>
             <select v-model="fStatus" @change="applyFilters" class="w-full rounded-xl outline-none transition-all"
               style="padding:10px 14px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary); font-size:13px">
               <option v-for="o in statusOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
             </select>
           </div>
           <div class="space-y-1.5">
-            <label class="block text-xs font-semibold uppercase tracking-wide"
-              style="color:var(--text-muted)">Jenis</label>
+            <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Jenis</label>
             <select v-model="fJenis" @change="applyFilters" class="w-full rounded-xl outline-none transition-all"
               style="padding:10px 14px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary); font-size:13px">
               <option v-for="o in jenisOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
             </select>
           </div>
           <div class="space-y-1.5">
-            <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Nama /
-              No. MR</label>
+            <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Nama / No. MR</label>
             <input v-model="fNama" @input="onNamaInput" placeholder="Cari pasien..."
               class="w-full rounded-xl outline-none transition-all"
               style="padding:10px 14px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary); font-size:13px" />
           </div>
           <div class="space-y-1.5">
-            <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Tgl
-              Mulai</label>
-            <input v-model="fTglDari" @change="applyFilters" type="date"
-              class="w-full rounded-xl outline-none transition-all"
+            <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Tgl Mulai</label>
+            <input v-model="fTglDari" @change="applyFilters" type="date" class="w-full rounded-xl outline-none transition-all"
               style="padding:10px 14px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary); font-size:13px" />
           </div>
-
           <div class="space-y-1.5">
-            <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Tgl
-              Selesai</label>
-            <input v-model="fTglAkh" @change="applyFilters" type="date" :min="fTglDari"
-              class="w-full rounded-xl outline-none transition-all"
+            <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Tgl Selesai</label>
+            <input v-model="fTglAkh" @change="applyFilters" type="date" :min="fTglDari" class="w-full rounded-xl outline-none transition-all"
               style="padding:10px 14px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary); font-size:13px" />
           </div>
         </div>
-        <!-- Row 2: tgl akhir + presets + sort -->
         <div class="flex flex-wrap items-center gap-3">
-          <!-- Preset buttons -->
           <div class="flex gap-1 p-1 rounded-xl" style="background:var(--bg-input)">
-            <button
-              v-for="p in [{ l: 'Hari ini', d: today, s: today }, { l: 'Kemarin', d: yesterday, s: yesterday }, { l: '7 Hari', d: week7, s: today }]"
-              :key="p.l" @click="setPreset(p.d, p.s)" class="px-3 py-1 rounded-lg text-xs font-semibold transition-all"
-              :style="fTglDari === p.d && fTglAkh === p.s ? 'background:#fff;color:#00A884;box-shadow:0 1px 4px rgba(0,0,0,0.08)' : 'color:var(--text-muted)'">
+            <button v-for="p in [{l:'Hari ini',d:today,s:today},{l:'Kemarin',d:yesterday,s:yesterday},{l:'7 Hari',d:week7,s:today}]"
+              :key="p.l" @click="setPreset(p.d,p.s)"
+              class="px-3 py-1 rounded-lg text-xs font-semibold transition-all"
+              :style="fTglDari===p.d&&fTglAkh===p.s ? 'background:#fff;color:#00A884;box-shadow:0 1px 4px rgba(0,0,0,0.08)' : 'color:var(--text-muted)'">
               {{ p.l }}
             </button>
           </div>
-          <!-- Sort -->
           <span class="text-xs font-semibold" style="color:var(--text-muted)">Urutkan:</span>
-          <button
-            v-for="col in [{ key: 'created_at', label: 'Waktu' }, { key: 'nama_pasien', label: 'Nama' }, { key: 'status', label: 'Status' }]"
+          <button v-for="col in [{ key: 'created_at', label: 'Waktu' }, { key: 'nama_pasien', label: 'Nama' }, { key: 'status', label: 'Status' }]"
             :key="col.key" @click="toggleSort(col.key)"
             class="text-xs font-semibold px-3 py-1.5 rounded-xl transition-all"
             :style="sortBy === col.key ? 'background:rgba(0,168,132,.15);color:#00A884;border:1.5px solid rgba(0,168,132,.35)' : 'background:var(--bg-input);color:var(--text-secondary);border:1.5px solid var(--border-default)'">
             {{ col.label }} {{ sortIcon(col.key) }}
           </button>
-          <button v-if="fStatus || fJenis || fNama || fTgl || fTglDari || fTglAkh" @click="resetFilter"
+          <button v-if="fStatus || fJenis || fNama || fTglDari || fTglAkh" @click="resetFilter"
             class="ml-auto text-xs font-semibold px-3 py-1.5 rounded-xl flex items-center gap-1.5"
             style="background:rgba(231,76,60,.1); color:#E74C3C; border:1.5px solid rgba(231,76,60,.25)">
             <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
@@ -405,8 +410,40 @@ const jenisOptions = [
         </div>
       </div>
 
-      <!-- ═══ 5. EMPTY STATE ═══════════════════════════════════════════════ -->
-      <div v-if="!antrian.length" class="rounded-2xl flex flex-col items-center justify-center py-20 px-8 text-center"
+      <!-- ═══ 5. TAB VIEW: Antrian vs Bed Aktif ══════════════════════════ -->
+      <div class="flex items-center gap-2 flex-wrap">
+        <div class="flex gap-1 p-1 rounded-xl" style="background:var(--bg-surface); border:1px solid var(--border-default)">
+          <button @click="viewTab='antrian'"
+            class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+            :style="viewTab==='antrian' ? 'background:#E67E22;color:#fff;box-shadow:0 2px 8px rgba(230,126,34,.3)' : 'color:var(--text-secondary)'">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            Antrian Menunggu
+            <span class="px-1.5 py-0.5 rounded-full text-xs font-bold"
+              :style="viewTab==='antrian' ? 'background:rgba(255,255,255,.25);color:#fff' : 'background:rgba(230,126,34,.15);color:#E67E22'">
+              {{ antrianView.length }}
+            </span>
+          </button>
+        <button @click="viewTab='bed_terverifikasi'"
+            class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+            :style="viewTab==='bed_terverifikasi' ? 'background:#00A884;color:#fff;box-shadow:0 2px 8px rgba(0,168,132,.3)' : 'color:var(--text-secondary)'">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+            </svg>
+            Bed Terverifikasi
+            <span class="px-1.5 py-0.5 rounded-full text-xs font-bold"
+              :style="viewTab==='bed_terverifikasi' ? 'background:rgba(255,255,255,.25);color:#fff' : 'background:rgba(0,168,132,.15);color:#00A884'">
+              {{ bedTerverifikasiView.length }}
+            </span>
+          </button>
+        </div>
+        <p v-if="viewTab==='antrian'" class="text-xs" style="color:var(--text-muted)">Permintaan menunggu konfirmasi bed · semua tanggal</p>
+        <p v-else class="text-xs" style="color:var(--text-muted)">Pasien dengan bed terverifikasi · bisa Pindah Bed jika perlu</p>
+      </div>
+
+      <!-- ═══ 6. EMPTY STATE ═══════════════════════════════════════════════ -->
+      <div v-if="!currentView.length" class="rounded-2xl flex flex-col items-center justify-center py-20 px-8 text-center"
         style="background:var(--bg-surface); border:1px solid var(--border-default); box-shadow:var(--shadow-card)">
         <div class="w-20 h-20 rounded-3xl flex items-center justify-center mb-5"
           style="background:rgba(0,168,132,.1); border:1.5px dashed rgba(0,168,132,.3)">
@@ -415,16 +452,17 @@ const jenisOptions = [
               d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
           </svg>
         </div>
-        <p class="text-base font-bold mb-1.5" style="color:var(--text-primary)">Tidak Ada Antrian Ditemukan</p>
-        <p class="text-sm max-w-xs" style="color:var(--text-muted)">Belum ada data antrian yang sesuai dengan filter
-          yang dipilih. Coba ubah kriteria pencarian.</p>
+        <p class="text-base font-bold mb-1.5" style="color:var(--text-primary)">Tidak Ada Data</p>
+        <p class="text-sm max-w-xs" style="color:var(--text-muted)">
+          {{ viewTab === 'bed_terverifikasi' ? 'Belum ada pasien dengan bed terverifikasi.' : 'Belum ada antrian yang menunggu konfirmasi ICU.' }}
+        </p>
       </div>
 
-      <!-- ═══ 6 & 7. CONTENT AREA ══════════════════════════════════════════ -->
+      <!-- ═══ 7. CONTENT AREA ═══════════════════════════════════════════════ -->
       <div v-else class="rounded-2xl overflow-hidden"
         style="background:var(--bg-surface); border:1px solid var(--border-default); box-shadow:var(--shadow-card)">
 
-        <!-- ── 6. TABEL DESKTOP ──────────────────────────────────────────── -->
+        <!-- ── TABEL DESKTOP ──────────────────────────────────────────── -->
         <div class="hidden overflow-x-auto" style="display:none" :class="''" v-show="true">
           <!-- wrapper untuk media query via inline, gunakan class hidden/block -->
         </div>
@@ -469,7 +507,7 @@ const jenisOptions = [
               </tr>
             </thead>
             <tbody>
-              <tr v-for="(item, idx) in antrian" :key="`${item.sumber}-${item.id}`" @click="openModal('detail', item)"
+              <tr v-for="(item, idx) in currentView" :key="`${item.sumber}-${item.id}`" @click="openModal('detail', item)"
                 class="group cursor-pointer transition-all duration-150"
                 style="border-bottom:1px solid var(--border-row)"
                 :style="`border-left:4px solid ${ss(item.status).dot}`"
@@ -486,6 +524,7 @@ const jenisOptions = [
                       <p class="font-semibold truncate" style="color:var(--text-primary); max-width:140px">{{
                         item.nama_pasien }}</p>
                       <p class="font-mono text-xs mt-0.5" style="color:var(--text-muted)">{{ item.No_MR ?? '—' }}</p>
+                      <p v-if="item.No_Reg" class="font-mono text-xs" style="color:var(--text-accent); opacity:.8">Reg: {{ item.No_Reg }}</p>
                     </div>
                   </div>
                 </td>
@@ -573,7 +612,7 @@ const jenisOptions = [
 
         <!-- ── 7. MOBILE CARDS ───────────────────────────────────────────── -->
         <div class="block md:hidden divide-y" style="border-color:var(--border-row)">
-          <div v-for="(item, idx) in antrian" :key="`mob-${item.sumber}-${item.id}`" @click="openModal('detail', item)"
+          <div v-for="(item, idx) in currentView" :key="`mob-${item.sumber}-${item.id}`" @click="openModal('detail', item)"
             class="p-5 cursor-pointer group relative transition-all duration-150 hover:bg-[var(--bg-row-hover)]"
             :style="`border-left:4px solid ${ss(item.status).dot}`">
 
@@ -602,8 +641,8 @@ const jenisOptions = [
               </div>
               <div class="min-w-0 flex-1">
                 <p class="font-semibold text-sm truncate" style="color:var(--text-primary)">{{ item.nama_pasien }}</p>
-                <p class="font-mono text-xs mt-0.5" style="color:var(--text-muted)">{{ item.No_MR ?? 'Belum ada MR' }}
-                </p>
+                <p class="font-mono text-xs mt-0.5" style="color:var(--text-muted)">{{ item.No_MR ?? 'Belum ada MR' }}</p>
+                <p v-if="item.No_Reg" class="font-mono text-xs" style="color:var(--text-accent); opacity:.8">Reg: {{ item.No_Reg }}</p>
               </div>
             </div>
 
@@ -710,8 +749,11 @@ const jenisOptions = [
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div class="space-y-0.5">
                     <p class="text-xs font-medium" style="color:var(--text-muted)">No. MR</p>
-                    <p class="text-sm font-bold font-mono" style="color:var(--text-primary)">{{ modal.item.No_MR ?? '—'
-                      }}</p>
+                    <p class="text-sm font-bold font-mono" style="color:var(--text-primary)">{{ modal.item.No_MR ?? '—' }}</p>
+                  </div>
+                  <div class="space-y-0.5">
+                    <p class="text-xs font-medium" style="color:var(--text-muted)">No. Registrasi</p>
+                    <p class="text-sm font-bold font-mono" style="color:var(--text-accent)">{{ modal.item.No_Reg ?? '—' }}</p>
                   </div>
                   <div class="space-y-0.5">
                     <p class="text-xs font-medium" style="color:var(--text-muted)">Jenis Kelamin</p>
@@ -1055,8 +1097,11 @@ const jenisOptions = [
                 style="border-bottom:1px solid var(--border-default); background:var(--bg-surface-2)">
                 <div class="rounded-xl p-3 space-y-0.5" style="background:var(--bg-input)">
                   <p class="text-xs" style="color:var(--text-muted)">No. MR</p>
-                  <p class="text-sm font-bold font-mono" style="color:var(--text-primary)">{{ modal.item?.No_MR ?? '—'
-                    }}</p>
+                  <p class="text-sm font-bold font-mono" style="color:var(--text-primary)">{{ modal.item?.No_MR ?? '—' }}</p>
+                </div>
+                <div class="rounded-xl p-3 space-y-0.5" style="background:var(--bg-input)">
+                  <p class="text-xs" style="color:var(--text-muted)">No. Registrasi</p>
+                  <p class="text-sm font-bold font-mono" style="color:var(--text-accent)">{{ modal.item?.No_Reg ?? '—' }}</p>
                 </div>
                 <div class="rounded-xl p-3 space-y-0.5" style="background:var(--bg-input)">
                   <p class="text-xs" style="color:var(--text-muted)">Asal Rujukan</p>

@@ -13,35 +13,30 @@ class AntrianService
 {
     private const SORT_ALLOWED = ['created_at', 'nama_pasien', 'status'];
 
-    /**
-     * Bangun merged collection External + Internal beserta summary.
-     */
     public function build(Request $request): array
     {
-        // Default sort: oldest first (created_at ASC) — siapa duluan, prioritas duluan
         $sortBy  = in_array($request->query('sort', 'created_at'), self::SORT_ALLOWED)
                    ? $request->query('sort') : 'created_at';
         $sortDir = $request->query('dir', 'asc') === 'desc' ? 'desc' : 'asc';
 
-        $fStatus  = $request->query('status', '');
         $fJenis   = $request->query('jenis', '');
         $fNama    = trim($request->query('nama', ''));
         $today    = now()->format('Y-m-d');
-        $fTgl     = $request->query('tgl', '');
-        $fTglDari = $request->query('tgl_dari', $fTgl ?: $today);
-        $fTglAkh  = $request->query('tgl_sampai', $fTgl ?: $today);
+        $fTglDari = $request->query('tgl_dari', '');
+        $fTglAkh  = $request->query('tgl_sampai', '');
 
+        // ── Antrian — server hanya filter nama & tanggal (untuk external), TIDAK filter status ──
         $externals = $fJenis !== 'internal'
-            ? $this->queryExternal($fStatus, $fNama, $fTglDari, $fTglAkh)
+            ? $this->queryExternal($fNama, $fTglDari, $fTglAkh)
             : collect();
 
         $internals = $fJenis !== 'external'
-            ? $this->queryInternal($fStatus, $fNama, $fTglDari, $fTglAkh)
+            ? $this->queryInternal($fNama, $fTglDari, $fTglAkh)
             : collect();
 
         $merged = collect($externals)->concat($internals)->values();
 
-        // ── Inject dokter kolab ──────────────────────────────────
+        // ── Inject dokter kolab ──────────────────────────────────────────────
         $noRegs = $merged->pluck('No_Reg')->filter()->unique()->values()->toArray();
         $dokterKolabMap = $this->fetchDokterKolab($noRegs);
 
@@ -51,21 +46,29 @@ class AntrianService
             return $item;
         })->values();
 
-        // Sorting: default oldest first (terlama = prioritas tertinggi)
         $merged = $merged->sortBy(
             fn ($item) => strtolower((string) ($item[$sortBy] ?? '')),
             SORT_REGULAR,
             $sortDir === 'desc'
         )->values();
 
+        // ── Summary ALL data (tidak difilter sama sekali) ────────────────────
+        $allExternal = IcuBookingExternal::whereIn('status', [
+            'pending_icu', 'waiting_list', 'bed_confirmed', 'ditolak', 'admisi_verified', 'dibatalkan',
+        ])->get()->map(fn ($b) => ['status' => $b->status, 'sumber' => 'external']);
+
+        $allInternal = IcuSpriInternal::whereIn('status', [
+            'pending_admisi', 'pending_icu', 'bed_verified', 'waiting_list', 'ditolak', 'dibatalkan',
+        ])->get()->map(fn ($s) => ['status' => $s->status, 'sumber' => 'internal']);
+
+        $allData = $allExternal->concat($allInternal);
+
         return [
             'antrian' => $merged,
-            'summary' => $this->summary($merged),
+            'summary' => $this->summary($allData),
             'filters' => [
-                'filterStatus' => $fStatus,
                 'filterJenis'  => $fJenis,
                 'filterNama'   => $fNama,
-                'filterTgl'    => $fTgl,
                 'filterTglDari'=> $fTglDari,
                 'filterTglAkh' => $fTglAkh,
                 'sortBy'       => $sortBy,
@@ -74,17 +77,10 @@ class AntrianService
         ];
     }
 
-    private function queryExternal(string $fStatus, string $fNama, string $fTglDari, string $fTglAkh): Collection
+    private function queryExternal(string $fNama, string $fTglDari = '', string $fTglAkh = ''): Collection
     {
-        // Tampilkan semua status aktif termasuk dibatalkan (agar data tidak hilang dari list)
         $activeStatuses = ['pending_icu', 'waiting_list', 'bed_confirmed', 'ditolak', 'admisi_verified', 'dibatalkan'];
-        $q = IcuBookingExternal::with('pasien');
-
-        if ($fStatus) {
-            $q->where('status', $fStatus);
-        } else {
-            $q->whereIn('status', $activeStatuses);
-        }
+        $q = IcuBookingExternal::with('pasien')->whereIn('status', $activeStatuses);
 
         if ($fNama) {
             $q->where(function ($qq) use ($fNama) {
@@ -94,29 +90,20 @@ class AntrianService
         }
 
         if ($fTglDari && $fTglAkh) {
-            // bed_confirmed / admisi_verified: tetap tampil walau di luar range tanggal
-            // supaya informasi booking jelas (tidak hilang karena filter tanggal)
             $q->where(function ($qq) use ($fTglDari, $fTglAkh) {
                 $qq->whereBetween('created_at', [$fTglDari . ' 00:00:00', $fTglAkh . ' 23:59:59'])
-                   ->orWhereIn('status', ['pending_icu', 'waiting_list', 'bed_confirmed']);
+                   ->orWhereBetween('confirmed_at', [$fTglDari . ' 00:00:00', $fTglAkh . ' 23:59:59'])
+                   ->orWhereBetween('verified_at',  [$fTglDari . ' 00:00:00', $fTglAkh . ' 23:59:59']);
             });
         }
 
-        // Oldest first — siapa booking duluan, prioritas duluan
         return $q->oldest()->get()->map(fn ($b) => $this->fmtExt($b));
     }
 
-    private function queryInternal(string $fStatus, string $fNama, string $fTglDari, string $fTglAkh): Collection
+    private function queryInternal(string $fNama, string $fTglDari = '', string $fTglAkh = ''): Collection
     {
-        // Tampilkan semua yang masih perlu tindakan ATAU sudah bed_verified (pindah bed)
-        $activeStatuses = ['pending_admisi', 'pending_icu', 'bed_verified', 'waiting_list'];
-        $q = IcuSpriInternal::query();
-
-        if ($fStatus) {
-            $q->where('status', $fStatus);
-        } else {
-            $q->whereIn('status', $activeStatuses);
-        }
+        $activeStatuses = ['pending_admisi', 'pending_icu', 'bed_verified', 'waiting_list', 'ditolak', 'dibatalkan'];
+        $q = IcuSpriInternal::whereIn('status', $activeStatuses);
 
         if ($fNama) {
             $pasienIds = RegistrasiPasien::where('Nama_Pasien', 'like', "%{$fNama}%")
@@ -126,16 +113,15 @@ class AntrianService
                    ->orWhere('No_MR', 'like', "%{$fNama}%");
             });
         }
-
+        
         if ($fTglDari && $fTglAkh) {
-            // bed_verified: tetap tampil walau di luar range tanggal (untuk pindah bed)
             $q->where(function ($qq) use ($fTglDari, $fTglAkh) {
                 $qq->whereBetween('created_at', [$fTglDari . ' 00:00:00', $fTglAkh . ' 23:59:59'])
-                   ->orWhereIn('status', ['pending_icu', 'waiting_list', 'bed_verified']);
+                   ->orWhereBetween('approved_at', [$fTglDari . ' 00:00:00', $fTglAkh . ' 23:59:59'])
+                   ->orWhereBetween('verified_at',  [$fTglDari . ' 00:00:00', $fTglAkh . ' 23:59:59']);
             });
         }
 
-        // Oldest first
         $results    = $q->oldest()->get();
         $jaminanMap = $this->buildJaminanMap($results->pluck('No_Reg')->filter()->unique()->values()->toArray());
 
@@ -219,17 +205,25 @@ class AntrianService
 
     private function summary(Collection $data): array
     {
+        $st = fn ($item) => is_array($item) ? ($item['status'] ?? '') : ($item->status ?? '');
+        $sr = fn ($item) => is_array($item) ? ($item['sumber'] ?? '') : ($item->sumber ?? '');
+
         return [
-            'total'         => $data->count(),
-            'pending'       => $data->filter(fn ($i) => in_array($i['status'] ?? '', ['pending_icu', 'pending_admisi']))->count(),
-            'waiting_list'  => $data->filter(fn ($i) => ($i['status'] ?? '') === 'waiting_list')->count(),
-            'bed_confirmed' => $data->filter(fn ($i) => in_array($i['status'] ?? '', ['bed_confirmed', 'bed_verified']))->count(),
-            'verified'      => $data->filter(fn ($i) => in_array($i['status'] ?? '', ['admisi_verified', 'bed_verified']))->count(),
-            'ditolak'       => $data->filter(fn ($i) => ($i['status'] ?? '') === 'ditolak')->count(),
-            'dibatalkan'    => $data->filter(fn ($i) => ($i['status'] ?? '') === 'dibatalkan')->count(),
-            'by_sumber'     => [
-                'external' => $data->filter(fn ($i) => ($i['sumber'] ?? '') === 'external')->count(),
-                'internal' => $data->filter(fn ($i) => ($i['sumber'] ?? '') === 'internal')->count(),
+            'total'          => $data->count(),
+            'pending_admisi' => $data->filter(fn ($i) => $st($i) === 'pending_admisi')->count(),
+            'pending_icu'    => $data->filter(fn ($i) => $st($i) === 'pending_icu')->count(),
+            'pending'        => $data->filter(fn ($i) => in_array($st($i), ['pending_icu', 'pending_admisi']))->count(),
+            'waiting_list'   => $data->filter(fn ($i) => $st($i) === 'waiting_list')->count(),
+            'bed_confirmed'  => $data->filter(fn ($i) => $st($i) === 'bed_confirmed')->count(),
+            'bed_verified'   => $data->filter(fn ($i) => $st($i) === 'bed_verified')->count(),
+            'bed_aktif'      => $data->filter(fn ($i) => in_array($st($i), ['bed_confirmed', 'bed_verified']))->count(),
+            'admisi_verified'=> $data->filter(fn ($i) => $st($i) === 'admisi_verified')->count(),
+            'verified'       => $data->filter(fn ($i) => in_array($st($i), ['admisi_verified', 'bed_verified']))->count(),
+            'ditolak'        => $data->filter(fn ($i) => $st($i) === 'ditolak')->count(),
+            'dibatalkan'     => $data->filter(fn ($i) => $st($i) === 'dibatalkan')->count(),
+            'by_sumber'      => [
+                'external' => $data->filter(fn ($i) => $sr($i) === 'external')->count(),
+                'internal' => $data->filter(fn ($i) => $sr($i) === 'internal')->count(),
             ],
         ];
     }
