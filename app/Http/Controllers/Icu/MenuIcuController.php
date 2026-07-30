@@ -148,7 +148,7 @@ class MenuIcuController extends Controller
             $msg .= ' ' . implode(', ', $preempted) . ' dikembalikan ke antrian untuk mendapat bed baru.';
         }
 
-        return back()->with('success', $msg);
+        return redirect()->route('icu.menu_icu')->with('success', $msg);
     }
 
     // ACTION — Booking External: tolak (pending_icu -> ditolak)
@@ -177,7 +177,7 @@ class MenuIcuController extends Controller
 
         $this->activityLog->tolakBookingIcu($booking->id, $booking->nama_pasien, $v['alasan_tolak']);
 
-        return back()->with('success', "Booking {$booking->nama_pasien} ditolak.");
+        return redirect()->route('icu.menu_icu')->with('success', "Booking {$booking->nama_pasien} ditolak.");
     }
 
     // ACTION — BU Internal: pending_icu -> bed_verified
@@ -226,7 +226,7 @@ class MenuIcuController extends Controller
             $msg .= ' ' . implode(', ', $preempted) . ' dikembalikan ke antrian untuk mendapat bed baru.';
         }
 
-        return back()->with('success', $msg);
+        return redirect()->route('icu.menu_icu')->with('success', $msg);
     }
     
     // ACTION — BU Internal: tolak (pending_icu -> ditolak)
@@ -255,7 +255,7 @@ class MenuIcuController extends Controller
 
         $this->activityLog->tolakSpriIcu($bu->id, (string) ($bu->pasien?->Nama_Pasien ?? $bu->No_MR), $v['alasan_tolak']);
 
-        return back()->with('success', "BU {$bu->pasien?->Nama_Pasien} ditolak oleh ICU.");
+        return redirect()->route('icu.menu_icu')->with('success', "BU {$bu->pasien?->Nama_Pasien} ditolak oleh ICU.");
     }
 
     // ACTION — Booking External: masuk waiting list (pending_icu -> waiting_list)
@@ -289,7 +289,7 @@ class MenuIcuController extends Controller
             'IcuBookingExternal'
         );
 
-        return back()->with('success', "{$booking->nama_pasien} masuk Waiting List ICU.");
+        return redirect()->route('icu.menu_icu')->with('success', "{$booking->nama_pasien} masuk Waiting List ICU.");
     }
 
     // ACTION — BU Internal: masuk waiting list (pending_icu -> waiting_list)
@@ -324,7 +324,7 @@ class MenuIcuController extends Controller
             'IcuSpriInternal'
         );
 
-        return back()->with('success', "{$namaPasien} masuk Waiting List ICU.");
+        return redirect()->route('icu.menu_icu')->with('success', "{$namaPasien} masuk Waiting List ICU.");
     }
 
     // ACTION — Booking External: pindah bed (bed_confirmed -> bed baru, status tetap bed_confirmed)
@@ -384,7 +384,7 @@ class MenuIcuController extends Controller
 
         $this->activityLog->pindahBedExt($booking->id, $booking->nama_pasien, $bedLama, $namaBed);
 
-        return back()->with('success', "Bed pasien {$booking->nama_pasien} dipindahkan: {$bedLama} → {$namaBed}.");
+        return redirect()->route('icu.menu_icu')->with('success', "Bed pasien {$booking->nama_pasien} dipindahkan: {$bedLama} → {$namaBed}.");
     }
 
     // ACTION — BU Internal: pindah bed (bed_verified -> bed baru, status tetap bed_verified)
@@ -444,6 +444,6 @@ class MenuIcuController extends Controller
 
         $this->activityLog->pindahBedInt($bu->id, $namaPasien, $bedLama, $namaBed);
 
-        return back()->with('success', "Bed pasien {$namaPasien} dipindahkan: {$bedLama} → {$namaBed}.");
+        return redirect()->route('icu.menu_icu')->with('success', "Bed pasien {$namaPasien} dipindahkan: {$bedLama} → {$namaBed}.");
     }
 }
