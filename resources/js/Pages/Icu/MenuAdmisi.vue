@@ -123,6 +123,18 @@ const actionsOf = (item) => {
             acts.push({ id:'tolak',   label:'Tolak Booking ICU',   color:'#E74C3C', bg:'rgba(231,76,60,.08)', border:'rgba(231,76,60,.25)' });
         }
     }
+    // Edit internal — hanya jika masih pending_admisi atau pending_icu atau ditolak
+    if (item.sumber === 'internal' && ['pending_admisi', 'pending_icu', 'ditolak'].includes(item.status)) {
+        if (canApproveAdmisi.value || isAdmin.value) {
+            acts.push({ id:'edit_internal', label:'Edit Booking', color:'#0EA5E9', bg:'rgba(14,165,233,.08)', border:'rgba(14,165,233,.25)' });
+        }
+    }
+    // Batal internal — hanya jika masih bisa dibatalkan
+    if (item.sumber === 'internal' && ['pending_admisi', 'pending_icu', 'waiting_list'].includes(item.status)) {
+        if (canApproveAdmisi.value || isAdmin.value) {
+            acts.push({ id:'batal_internal', label:'Batal Booking', color:'#D97706', bg:'rgba(217,119,6,.08)', border:'rgba(217,119,6,.25)' });
+        }
+    }
     if (item.sumber === 'external' && item.status === 'bed_confirmed') {
         if (canVerifikasiAdmisiExt.value || isAdmin.value) {
             acts.push({ id:'verifikasi', label:'Verifikasi Pasien', color:'#00A884', bg:'rgba(0,168,132,.12)', border:'rgba(0,168,132,.3)' });
@@ -164,6 +176,7 @@ const closeModal = () => {
         fmApprove.reset();
         fmTolak.reset();
         fmEdit.reset();
+        fmEditInternal.reset();
     }, 200);
 };
 
@@ -214,6 +227,38 @@ const batalBooking = (item) => {
     });
 };
 
+// ── Form: Edit Booking Internal (SPRI) ────────────────────
+const fmEditInternal = useForm({
+    No_MR: '', No_Reg: '',
+    Diagnosis: '', Diagnosis_ICD: '', IndikasiRI: '',
+    asal_ruang: '', Dokter: '', spesialis: '', Keterangan: '',
+});
+const openEditInternalModal = (item) => {
+    fmEditInternal.No_MR         = item.No_MR        ?? '';
+    fmEditInternal.No_Reg        = item.No_Reg       ?? '';
+    fmEditInternal.Diagnosis     = item.diagnosa     ?? item.Diagnosis   ?? '';
+    fmEditInternal.Diagnosis_ICD = item.diagnosa_icd ?? item.Diagnosis_ICD ?? '';
+    fmEditInternal.IndikasiRI    = item.IndikasiRI   ?? '';
+    fmEditInternal.asal_ruang    = item.asal_ruang   ?? '';
+    fmEditInternal.Dokter        = item.Dokter       ?? '';
+    fmEditInternal.spesialis     = item.spesialis    ?? '';
+    fmEditInternal.Keterangan    = item.Keterangan   ?? item.keterangan  ?? '';
+    openModal('edit_internal', item);
+};
+const submitEditInternal = () => {
+    if (!modal.value.item) return;
+    fmEditInternal.put(route('icu.menu_admisi.int.edit', modal.value.item.id), {
+        onSuccess: () => { closeModal(); fmEditInternal.reset(); },
+    });
+};
+
+// ── Aksi: Batal Booking Internal ──────────────────────────
+const batalBookingInternal = (item) => {
+    if (!confirm(`Batalkan booking ICU untuk ${item.nama_pasien}?`)) return;
+    router.post(route('icu.menu_admisi.int.batal', item.id), {}, {
+        onSuccess: closeModal,
+    });
+};
 // ── Aksi: Hapus Booking ────────────────────────────────────
 const hapusBooking = (item) => {
     if (!confirm(`Hapus permanen booking untuk ${item.nama_pasien}? Tindakan tidak dapat dibatalkan.`)) return;
@@ -865,7 +910,7 @@ const jenisOptions = [
                         <p class="text-xs font-bold uppercase tracking-widest" style="color:var(--text-muted)">Tindakan Tersedia</p>
                         <div class="flex flex-col gap-2.5">
                             <template v-for="act in actionsOf(modal.item)" :key="act.id">
-                                <button @click="act.id==='verifikasi' ? openVerifModal(modal.item) : act.id==='edit' ? openEditModal(modal.item) : act.id==='batal' ? batalBooking(modal.item) : act.id==='hapus' ? hapusBooking(modal.item) : openModal(act.id, modal.item)"
+                                <button @click="act.id==='verifikasi' ? openVerifModal(modal.item) : act.id==='edit' ? openEditModal(modal.item) : act.id==='batal' ? batalBooking(modal.item) : act.id==='hapus' ? hapusBooking(modal.item) : act.id==='edit_internal' ? openEditInternalModal(modal.item) : act.id==='batal_internal' ? batalBookingInternal(modal.item) : openModal(act.id, modal.item)"
                                     class="w-full text-sm font-bold py-3 rounded-xl flex items-center justify-center transition-all duration-150 hover:-translate-y-px hover:brightness-105"
                                     :style="`background:${act.bg}; color:${act.color}; border:1.5px solid ${act.border}`">
                                     {{ act.label }}
@@ -1139,7 +1184,97 @@ const jenisOptions = [
                             </div>
                         </form>
                     </div>
-                </div>                <div v-else-if="modal.type==='approve' && modal.item" key="approve" class="flex flex-col w-full" style="max-height:92vh">
+                </div>                <!-- ══ MODAL: EDIT BOOKING INTERNAL ══════════════════════════════ -->
+                <div v-else-if="modal.type==='edit_internal' && modal.item" key="edit_internal" class="flex flex-col w-full" style="max-height:92vh">
+                    <div class="flex items-center justify-between px-6 py-5 flex-shrink-0" style="border-bottom:1px solid var(--border-default)">
+                        <div class="flex items-center gap-3">
+                            <button type="button" @click="openModal('detail', modal.item)" class="w-8 h-8 rounded-xl flex items-center justify-center transition-all hover:scale-110" style="background:var(--bg-input); color:var(--text-secondary)">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+                            </button>
+                            <div>
+                                <h2 class="text-base font-bold" style="color:var(--text-primary)">Edit Booking Internal</h2>
+                                <p class="text-xs mt-0.5" style="color:var(--text-secondary)">{{ modal.item.nama_pasien }}</p>
+                            </div>
+                        </div>
+                        <button @click="closeModal" class="w-8 h-8 rounded-xl flex items-center justify-center transition-all hover:scale-110" style="background:var(--bg-input); color:var(--text-secondary)">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                    </div>
+                    <div class="overflow-y-auto flex-1">
+                        <form @submit.prevent="submitEditInternal" class="p-6 space-y-6">
+                            <!-- Data Pasien -->
+                            <div class="space-y-3">
+                                <p class="text-xs font-bold uppercase tracking-widest" style="color:var(--text-accent)">Data Pasien</p>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div class="space-y-1.5">
+                                        <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">No. MR <span style="color:#E74C3C">*</span></label>
+                                        <input v-model="fmEditInternal.No_MR" required placeholder="No. MR" class="w-full rounded-xl outline-none font-mono"
+                                            style="padding:10px 14px; font-size:13px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary)"/>
+                                    </div>
+                                    <div class="space-y-1.5">
+                                        <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">No. Reg <span style="color:#E74C3C">*</span></label>
+                                        <input v-model="fmEditInternal.No_Reg" required placeholder="No. Registrasi" class="w-full rounded-xl outline-none font-mono"
+                                            style="padding:10px 14px; font-size:13px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary)"/>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Data Klinis -->
+                            <div class="space-y-3">
+                                <p class="text-xs font-bold uppercase tracking-widest" style="color:var(--text-accent)">Data Klinis</p>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div class="sm:col-span-2 space-y-1.5">
+                                        <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Diagnosis <span style="color:#E74C3C">*</span></label>
+                                        <input v-model="fmEditInternal.Diagnosis" required placeholder="Diagnosis pasien" class="w-full rounded-xl outline-none"
+                                            style="padding:10px 14px; font-size:13px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary)"/>
+                                    </div>
+                                    <div class="sm:col-span-2 space-y-1.5">
+                                        <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">
+                                            Kode ICD-10
+                                            <span class="ml-1 normal-case font-normal text-xs px-2 py-0.5 rounded-full" style="background:rgba(14,165,233,.1);color:#0EA5E9">Opsional</span>
+                                        </label>
+                                        <Icd10Search v-model="fmEditInternal.Diagnosis_ICD" placeholder="Cari kode ICD-10 (opsional)..." :required="false" :has-error="false"/>
+                                    </div>
+                                    <div class="sm:col-span-2 space-y-1.5">
+                                        <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Indikasi Rawat Inap <span style="color:#E74C3C">*</span></label>
+                                        <textarea v-model="fmEditInternal.IndikasiRI" required rows="2" placeholder="Indikasi pasien perlu dirawat di ICU..." class="w-full rounded-xl outline-none resize-none"
+                                            style="padding:10px 14px; font-size:13px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary); line-height:1.6"/>
+                                    </div>
+                                    <div class="space-y-1.5">
+                                        <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Asal Ruang</label>
+                                        <input v-model="fmEditInternal.asal_ruang" placeholder="Ruang asal pasien" class="w-full rounded-xl outline-none"
+                                            style="padding:10px 14px; font-size:13px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary)"/>
+                                    </div>
+                                    <div class="space-y-1.5">
+                                        <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Dokter DPJP</label>
+                                        <input v-model="fmEditInternal.Dokter" placeholder="Nama dokter" class="w-full rounded-xl outline-none"
+                                            style="padding:10px 14px; font-size:13px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary)"/>
+                                    </div>
+                                    <div class="space-y-1.5">
+                                        <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Spesialis</label>
+                                        <input v-model="fmEditInternal.spesialis" placeholder="Sp. Anak / Sp. PD / ..." class="w-full rounded-xl outline-none"
+                                            style="padding:10px 14px; font-size:13px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary)"/>
+                                    </div>
+                                    <div class="sm:col-span-2 space-y-1.5">
+                                        <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">Keterangan</label>
+                                        <textarea v-model="fmEditInternal.Keterangan" rows="2" placeholder="Catatan tambahan..." class="w-full rounded-xl outline-none resize-none"
+                                            style="padding:10px 14px; font-size:13px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary); line-height:1.6"/>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-3 pt-2" style="border-top:1px solid var(--border-default)">
+                                <button type="submit" :disabled="fmEditInternal.processing || !fmEditInternal.No_MR || !fmEditInternal.No_Reg || !fmEditInternal.Diagnosis || !fmEditInternal.IndikasiRI"
+                                    class="flex items-center gap-2 font-bold px-6 py-3 rounded-xl transition-all duration-150 disabled:opacity-50 hover:-translate-y-px"
+                                    style="background:#0EA5E9; color:#fff; font-size:14px">
+                                    <svg v-if="fmEditInternal.processing" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                                    {{ fmEditInternal.processing ? 'Menyimpan...' : 'Simpan Perubahan' }}
+                                </button>
+                                <button type="button" @click="openModal('detail', modal.item)" class="px-6 py-3 rounded-xl font-medium"
+                                    style="background:var(--bg-input); color:var(--text-secondary); border:1.5px solid var(--border-default); font-size:14px">Kembali</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                <div v-else-if="modal.type==='approve' && modal.item" key="approve" class="flex flex-col w-full" style="max-height:92vh">
                     <div class="flex items-center justify-between px-6 py-5 flex-shrink-0" style="border-bottom:1px solid var(--border-default)">
                         <div class="flex items-center gap-3">
                             <button type="button" @click="openModal('detail', modal.item)" class="w-8 h-8 rounded-xl flex items-center justify-center transition-all hover:scale-110" style="background:var(--bg-input); color:var(--text-secondary)">

@@ -171,6 +171,75 @@ class MenuAdmisiController extends Controller
         return back()->with('success', "Booking {$namaPasien} berhasil dihapus.");
     }
 
+    public function editInt(Request $request, int $id): RedirectResponse
+    {
+        $validated = $request->validate([
+            'No_MR'         => 'required|string|max:20',
+            'No_Reg'        => 'required|string|max:20',
+            'Diagnosis'     => 'required|string|max:255',
+            'Diagnosis_ICD' => 'nullable|string|max:255',
+            'IndikasiRI'    => 'required|string|max:255',
+            'asal_ruang'    => 'nullable|string|max:100',
+            'Dokter'        => 'nullable|string|max:100',
+            'spesialis'     => 'nullable|string|max:100',
+            'Keterangan'    => 'nullable|string|max:500',
+        ]);
+
+        $bu = IcuSpriInternal::findOrFail($id);
+
+        // Hanya bisa edit jika masih pending atau ditolak
+        if (!in_array($bu->status, ['pending_admisi', 'pending_icu', 'ditolak'])) {
+            return back()->with('error', 'Booking ICU tidak dapat diedit karena sudah diproses lebih lanjut.');
+        }
+
+        $bu->update($validated);
+
+        $namaPasien = (string) ($bu->pasien?->Nama_Pasien ?? $bu->No_MR);
+
+        $this->activityLog->log(
+            'Edit Booking Internal',
+            "Edit booking internal {$namaPasien} oleh admisi",
+            'spri_internal',
+            $bu->id,
+            'IcuSpriInternal'
+        );
+
+        return back()->with('success', "Booking ICU {$namaPasien} berhasil diupdate.");
+    }
+
+    public function batalInt(int $id): RedirectResponse
+    {
+        $bu = IcuSpriInternal::findOrFail($id);
+
+        // Hanya bisa batalkan jika belum terlalu jauh diproses
+        if (!in_array($bu->status, ['pending_admisi', 'pending_icu', 'waiting_list'])) {
+            return back()->with('error', 'Booking ICU tidak dapat dibatalkan.');
+        }
+
+        $namaPasien = (string) ($bu->pasien?->Nama_Pasien ?? $bu->No_MR);
+        $oldStatus  = $bu->status;
+
+        // Release bed jika sudah dialokasikan
+        if ($bu->allocated_bed_id) {
+            \App\Models\StatusKamar::releaseBooking($bu->allocated_bed_id);
+        }
+
+        $bu->update([
+            'status'       => 'dibatalkan',
+            'alasan_tolak' => 'Dibatalkan oleh admisi: ' . $this->actor(),
+        ]);
+
+        $this->activityLog->log(
+            'Batal Booking Internal',
+            "Batalkan booking internal {$namaPasien} oleh admisi (status sebelumnya: {$oldStatus})",
+            'spri_internal',
+            $bu->id,
+            'IcuSpriInternal'
+        );
+
+        return back()->with('success', "Booking ICU {$namaPasien} berhasil dibatalkan.");
+    }
+
     public function approveInt(Request $request, int $id): RedirectResponse
     {
         $v = $request->validate([

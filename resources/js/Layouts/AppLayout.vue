@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
 import FlashMessage from '@/Components/FlashMessage.vue';
 import { useTheme } from '@/composables/useTheme.js';
+import { useNotifikasi } from '@/composables/useNotifikasi.js';
 
 defineProps({
     flash:     { type: Object, default: () => ({}) },
@@ -44,6 +45,12 @@ const doLogout = () => {
 
 const { theme, toggle, init: initTheme } = useTheme();
 const isDark = computed(() => theme.value === 'dark');
+
+// ── Notifikasi suara (polling) ─────────────────────────────────────────────
+const { notifList, dismissNotif, _debug } = useNotifikasi();
+
+// Debug helper — bisa akses dari browser console: window.__notif.test()
+if (typeof window !== 'undefined') window.__notif = _debug;
 
 const mobileOpen = ref(false);
 const onResize   = () => { if (window.innerWidth >= 1024) mobileOpen.value = false; };
@@ -103,6 +110,55 @@ const iconMoon = 'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003
 <template>
 <div class="flex h-screen overflow-hidden" style="background:var(--bg-main); font-family:'Inter','Plus Jakarta Sans',sans-serif">
     <FlashMessage :flash="flash" />
+
+    <!-- ── Notifikasi Suara Toast ──────────────────────────────────────────── -->
+    <Teleport to="body">
+        <div class="notif-stack" aria-live="polite">
+            <Transition
+                v-for="n in notifList" :key="n.id"
+                name="notif-slide"
+                appear
+            >
+                <div class="notif-toast" :class="`notif-toast--${n.sound}`">
+                    <!-- Icon -->
+                    <div class="notif-icon-wrap">
+                        <!-- ningnong: ikon bed -->
+                        <svg v-if="n.sound === 'ningnong'" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+                        </svg>
+                        <!-- noning_internal: ikon clipboard -->
+                        <svg v-else-if="n.sound === 'noning_internal'" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                        </svg>
+                        <!-- noning_external: ikon user-add -->
+                        <svg v-else class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
+                        </svg>
+                    </div>
+
+                    <!-- Konten -->
+                    <div class="notif-body">
+                        <p class="notif-title">
+                            <span v-if="n.sound === 'ningnong'">🔔 Bed Tersedia!</span>
+                            <span v-else-if="n.sound === 'noning_internal'">🔔 Booking Internal Baru!</span>
+                            <span v-else>🔔 Booking Eksternal Baru!</span>
+                        </p>
+                        <p class="notif-msg">{{ n.message }}</p>
+                    </div>
+
+                    <!-- Tutup -->
+                    <button @click="dismissNotif(n.id)" class="notif-close" aria-label="Tutup notifikasi">
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+
+                    <!-- Progress bar auto-dismiss -->
+                    <div class="notif-progress" :class="`notif-progress--${n.sound}`"></div>
+                </div>
+            </Transition>
+        </div>
+    </Teleport>
 
     <!-- Mobile overlay -->
     <Transition name="sidebar">
@@ -397,4 +453,128 @@ const iconMoon = 'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003
 /* Sidebar transition */
 .sidebar-enter-active, .sidebar-leave-active { transition: opacity 0.3s ease; }
 .sidebar-enter-from, .sidebar-leave-to { opacity: 0; }
+
+/* ── Notifikasi Stack ── */
+.notif-stack {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 10px;
+    max-width: 360px;
+    width: calc(100vw - 48px);
+    pointer-events: none;
+}
+.notif-toast {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 14px 18px 14px;
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.1);
+    overflow: hidden;
+    pointer-events: all;
+    cursor: default;
+    border: 1.5px solid transparent;
+    backdrop-filter: blur(8px);
+    animation: notif-pulse 0.4s ease;
+}
+@keyframes notif-pulse {
+    0%   { transform: scale(0.95); }
+    50%  { transform: scale(1.02); }
+    100% { transform: scale(1); }
+}
+/* ICU — booking internal: hijau */
+.notif-toast--noning_internal {
+    background: rgba(0, 168, 132, 0.92);
+    border-color: rgba(0, 200, 160, 0.5);
+    color: #fff;
+}
+/* ICU — booking external: biru */
+.notif-toast--noning_external {
+    background: rgba(14, 120, 200, 0.92);
+    border-color: rgba(14, 165, 233, 0.5);
+    color: #fff;
+}
+/* Admisi/Petugas — bed tersedia: ungu/teal */
+.notif-toast--ningnong {
+    background: rgba(124, 58, 237, 0.92);
+    border-color: rgba(167, 139, 250, 0.5);
+    color: #fff;
+}
+.notif-icon-wrap {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.notif-body {
+    flex: 1;
+    min-width: 0;
+}
+.notif-title {
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 2px;
+    line-height: 1.3;
+}
+.notif-msg {
+    font-size: 12px;
+    opacity: 0.9;
+    line-height: 1.4;
+}
+.notif-close {
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.2);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    transition: background 0.15s;
+    margin-top: -2px;
+}
+.notif-close:hover { background: rgba(255,255,255,0.35); }
+/* Progress bar berjalan habis dalam 8 detik */
+.notif-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    border-radius: 0 0 16px 16px;
+    background: rgba(255,255,255,0.5);
+    width: 100%;
+    transform-origin: left;
+    animation: notif-progress-bar 8s linear forwards;
+}
+@keyframes notif-progress-bar {
+    from { transform: scaleX(1); }
+    to   { transform: scaleX(0); }
+}
+/* Slide in/out transition */
+.notif-slide-enter-active {
+    transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.notif-slide-leave-active {
+    transition: all 0.25s ease-in;
+}
+.notif-slide-enter-from {
+    opacity: 0;
+    transform: translateX(60px) scale(0.9);
+}
+.notif-slide-leave-to {
+    opacity: 0;
+    transform: translateX(60px) scale(0.9);
+}
 </style>

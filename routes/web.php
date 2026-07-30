@@ -13,6 +13,7 @@ use App\Http\Controllers\Icu\MenuAdmisiController;
 use App\Http\Controllers\Icu\MenuPetugasController;
 use App\Http\Controllers\Icu\MonitorController;
 use App\Http\Controllers\Icu\MenuYanmedController;
+use App\Http\Controllers\Icu\NotifikasiController;
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 Route::middleware('guest')->group(function () {
@@ -62,6 +63,8 @@ Route::middleware('auth')->group(function () {
     Route::delete('/icu/menu-admisi/booking/{id}',      [MenuAdmisiController::class, 'deleteBooking'])->name('icu.menu_admisi.booking.delete')->middleware('permission:booking_ext:create');
     Route::post('/icu/menu-admisi/int/{id}/approve',    [MenuAdmisiController::class, 'approveInt'])->name('icu.menu_admisi.int.approve')->middleware('permission:booking_int:approve');
     Route::post('/icu/menu-admisi/int/{id}/tolak',      [MenuAdmisiController::class, 'tolakInt'])->name('icu.menu_admisi.int.tolak')->middleware('permission:booking_int:tolak_admisi');
+    Route::put('/icu/menu-admisi/int/{id}/edit',        [MenuAdmisiController::class, 'editInt'])->name('icu.menu_admisi.int.edit')->middleware('permission:booking_int:approve');
+    Route::post('/icu/menu-admisi/int/{id}/batal',      [MenuAdmisiController::class, 'batalInt'])->name('icu.menu_admisi.int.batal')->middleware('permission:booking_int:approve');
     Route::post('/icu/menu-admisi/ext/{id}/verifikasi', [MenuAdmisiController::class, 'verifikasiExt'])->name('icu.menu_admisi.ext.verifikasi')->middleware('permission:booking_ext:verifikasi_pasien');
 
     // ── Menu Petugas Ruang ────────────────────────────────────────────────────
@@ -77,6 +80,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/icu/menu-yanmed', [MenuYanmedController::class, 'index'])
         ->name('icu.menu_yanmed')
         ->middleware('permission:yanmed:view');
+
+    // ── Notifikasi polling (semua user login bisa akses) ─────────────────────
+    Route::get('/icu/notifikasi/poll', [NotifikasiController::class, 'poll'])->name('icu.notifikasi.poll');
 
     // ── Settings ──────────────────────────────────────────────────────────────
     // Kelola User & Role dikelola penuh oleh Keycloak SSO — tidak ada di aplikasi.
