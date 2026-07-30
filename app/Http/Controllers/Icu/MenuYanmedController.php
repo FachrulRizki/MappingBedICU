@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Icu;
 use App\Http\Controllers\Controller;
 use App\Models\IcuBookingExternal;
 use App\Models\IcuSpriInternal;
+use App\Models\MCaraBayar;
 use App\Models\MRuangMaster;
 use App\Models\RegistrasiPasien;
 use Illuminate\Http\Request;
@@ -178,9 +179,9 @@ class MenuYanmedController extends Controller
         ];
 
         return Inertia::render('Icu/MenuYanmed', [
-            'pasien'  => $semua->values(),
-            'summary' => $summary,
-            'filters' => [
+            'pasien'   => $semua->values(),
+            'summary'  => $summary,
+            'filters'  => [
                 'jenis'      => $fJenis,
                 'status'     => $fStatus,
                 'asal'       => $fAsal,
@@ -188,6 +189,7 @@ class MenuYanmedController extends Controller
                 'tgl_dari'   => $fTglDari,
                 'tgl_sampai' => $fTglAkh,
             ],
+            'caraBayar' => MCaraBayar::list(),
             'flash' => [
                 'success' => session('success'),
                 'error'   => session('error'),
