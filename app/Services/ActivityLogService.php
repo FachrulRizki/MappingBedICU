@@ -106,6 +106,19 @@ class ActivityLogService
         $this->log('Pindah Bed', "Pindah bed {$namaPasien}: {$bedLama} → {$bedBaru}", 'spri_internal', $id, 'IcuSpriInternal');
     }
 
+    // ── Auto-detect masuk ICU (via STATUS_KAMAR ISI) ──────────────────────────
+
+    public function masukIcu(int $id, string $namaPasien, string $namaBed, string $module, string $subjectType): void
+    {
+        $this->log(
+            'Pasien Masuk ICU',
+            "Pasien {$namaPasien} terdeteksi sudah menempati bed {$namaBed} (STATUS_KAMAR = ISI)",
+            $module,
+            $id,
+            $subjectType
+        );
+    }
+
     // ── Petugas Ruang ─────────────────────────────────────────────────────────
 
     public function buatSpri(int $id, string $namaPasien): void

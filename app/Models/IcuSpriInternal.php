@@ -20,6 +20,7 @@ class IcuSpriInternal extends Model
         'pindah_alasan', 'pindah_bed_lama', 'pindah_by', 'pindah_at',
         'approved_by', 'approved_at',
         'verified_by', 'verified_at',
+        'masuk_at', 'masuk_by',
     ];
 
     protected $casts = [
@@ -27,6 +28,7 @@ class IcuSpriInternal extends Model
         'approved_at'      => 'datetime',
         'verified_at'      => 'datetime',
         'pindah_at'        => 'datetime',
+        'masuk_at'         => 'datetime',
     ];
 
     public function pasien()
@@ -51,6 +53,7 @@ class IcuSpriInternal extends Model
             'pending_icu'    => 'Menunggu ICU',
             'waiting_list'   => 'Waiting List',
             'bed_verified'   => 'Bed Terverifikasi',
+            'masuk_icu'      => 'Sudah Masuk ICU',
             'ditolak'        => 'Ditolak',
             'dibatalkan'     => 'Dibatalkan',
             default          => $this->status,
@@ -64,6 +67,7 @@ class IcuSpriInternal extends Model
             'pending_icu'    => 'amber',
             'waiting_list'   => 'orange',
             'bed_verified'   => 'teal',
+            'masuk_icu'      => 'green',
             'ditolak'        => 'red',
             'dibatalkan'     => 'gray',
             default          => 'gray',

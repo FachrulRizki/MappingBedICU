@@ -17,16 +17,8 @@ class StatusKamar extends Model
     protected $keyType    = 'string';
     public    $timestamps = false;
 
-    protected $fillable = [
-        'Kode_Ruang',
-        'Kode_Bangsal',
-        'Status',
-        'Keterangan',
-        'NamaUser',
-        'KelasBPJS',
-        'No_MR',
-        'Oksigen',
-    ];
+    // Read-only: tidak ada $fillable karena tidak ada operasi write
+    protected $guarded = ['*'];
 
     public function ruang()
     {
@@ -48,79 +40,18 @@ class StatusKamar extends Model
         return strtoupper($this->Status) === 'KOSONG';
     }
 
+    public function isIsi(): bool
+    {
+        return strtoupper($this->Status) === 'ISI';
+    }
+
     public function statusLabel(): string
     {
-        return match (strtoupper($this->Status)) {
+        return match (strtoupper($this->Status ?? '')) {
             'KOSONG'  => 'Tersedia',
             'BOOKING' => 'Booking',
             'ISI'     => 'Terisi',
-            default   => $this->Status,
+            default   => $this->Status ?? '-',
         };
-    }
-
-    /**
-     * Set status bed ke BOOKING saat ICU mengalokasikan bed ke pasien.
-     * Tidak mempengaruhi bed yang sudah ISI.
-     */
-    public static function setBooking(string $kodeRuang, string $namaUser = 'ICU'): bool
-    {
-        try {
-            $updated = \Illuminate\Support\Facades\DB::connection('sqlsrv_rsus')
-                ->table((new static())->getTable())
-                ->where('Kode_Ruang', $kodeRuang)
-                ->where('Status', 'KOSONG')
-                ->update([
-                    'Status'    => 'BOOKING',
-                    'NamaUser'  => $namaUser,
-                ]);
-            return $updated > 0;
-        } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::warning("[StatusKamar::setBooking] {$kodeRuang}: " . $e->getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * Force set ke BOOKING tanpa peduli status sebelumnya — dipakai saat preempt.
-     * Tetap tidak menyentuh bed yang statusnya ISI.
-     */
-    public static function setBookingForce(string $kodeRuang, string $namaUser = 'ICU'): bool
-    {
-        try {
-            $updated = \Illuminate\Support\Facades\DB::connection('sqlsrv_rsus')
-                ->table((new static())->getTable())
-                ->where('Kode_Ruang', $kodeRuang)
-                ->whereIn('Status', ['KOSONG', 'BOOKING'])
-                ->update([
-                    'Status'   => 'BOOKING',
-                    'NamaUser' => $namaUser,
-                ]);
-            return $updated > 0;
-        } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::warning("[StatusKamar::setBookingForce] {$kodeRuang}: " . $e->getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * Release bed kembali ke KOSONG saat booking dibatalkan / pasien pindah bed.
-     * Tidak mempengaruhi bed yang sudah ISI (pasien sudah masuk fisik).
-     */
-    public static function releaseBooking(string $kodeRuang): bool
-    {
-        try {
-            $updated = \Illuminate\Support\Facades\DB::connection('sqlsrv_rsus')
-                ->table((new static())->getTable())
-                ->where('Kode_Ruang', $kodeRuang)
-                ->where('Status', 'BOOKING') // hanya release jika statusnya masih BOOKING
-                ->update([
-                    'Status'   => 'KOSONG',
-                    'NamaUser' => null,
-                ]);
-            return $updated > 0;
-        } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::warning("[StatusKamar::releaseBooking] {$kodeRuang}: " . $e->getMessage());
-            return false;
-        }
     }
 }
