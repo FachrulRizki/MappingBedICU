@@ -85,8 +85,16 @@ class NotifikasiController extends Controller
                    || in_array('booking_int:approve', $permissions);
         $isPetugas = in_array('booking_int:create', $permissions);
 
+        // Identitas petugas — bisa punya beberapa alias (name, keycloak_username, username)
+        $petugasNames = array_unique(array_filter([
+            $user->name,
+            $user->keycloak_username ?? null,
+            $user->username          ?? null,
+        ]));
+
         if ($isAdmisi || $isPetugas) {
             // External: bed_confirmed baru (ICU konfirmasi bed → admisi perlu update di Bed Management)
+            // Admisi menerima SEMUA notif booking external karena mereka handle semua pasien external
             if ($isAdmisi) {
                 $newBedConfirmed = IcuBookingExternal::where('status', 'bed_confirmed')
                     ->where('confirmed_at', '>', $lastSeen)
@@ -104,10 +112,18 @@ class NotifikasiController extends Controller
                 }
             }
 
-            // Internal: bed_verified baru
-            $newBedVerified = IcuSpriInternal::where('status', 'bed_verified')
-                ->where('verified_at', '>', $lastSeen)
-                ->count();
+            // Internal: bed_verified — petugas HANYA notif untuk BU milik mereka sendiri
+            // Admisi tetap terima semua (mereka handle approve semua ruangan)
+            $qBedVerified = IcuSpriInternal::where('status', 'bed_verified')
+                ->where('verified_at', '>', $lastSeen);
+
+            if ($isPetugas && ! $isAdmisi) {
+                // Murni petugas ruang — filter hanya BU yang dibuat oleh user ini
+                $qBedVerified->whereIn('NameUser', $petugasNames);
+            }
+            // Jika $isAdmisi → tidak difilter, admisi terima semua
+
+            $newBedVerified = $qBedVerified->count();
 
             if ($newBedVerified > 0) {
                 $notifs[] = [
@@ -115,21 +131,25 @@ class NotifikasiController extends Controller
                     'sound'   => 'ningnong',
                     'count'   => $newBedVerified,
                     'message' => $newBedVerified === 1
-                        ? 'Ningnong! ICU sudah verifikasi bed, segera update di Bed Management!'
-                        : "Ningnong! {$newBedVerified} bed diverifikasi ICU, segera update di Bed Management!",
+                        ? 'Ningnong! ICU sudah verifikasi bed untuk pasien Anda!'
+                        : "Ningnong! {$newBedVerified} bed diverifikasi ICU untuk pasien Anda!",
                 ];
             }
 
-            // Notif pasien sudah masuk ICU (terdeteksi via STATUS_KAMAR ISI oleh monitor)
-            $newMasukExt = IcuBookingExternal::where('status', 'masuk_icu')
-                ->where('masuk_at', '>', $lastSeen)
-                ->count();
+            // Notif pasien sudah masuk ICU — petugas hanya untuk pasiennya sendiri, admisi semua
+            $qMasukInt = IcuSpriInternal::where('status', 'masuk_icu')
+                ->where('masuk_at', '>', $lastSeen);
 
-            $newMasukInt = IcuSpriInternal::where('status', 'masuk_icu')
-                ->where('masuk_at', '>', $lastSeen)
-                ->count();
+            if ($isPetugas && ! $isAdmisi) {
+                $qMasukInt->whereIn('NameUser', $petugasNames);
+            }
 
-            $totalMasuk = $newMasukExt + $newMasukInt;
+            $newMasukExt = $isAdmisi
+                ? IcuBookingExternal::where('status', 'masuk_icu')->where('masuk_at', '>', $lastSeen)->count()
+                : 0; // petugas ruang tidak handle external
+
+            $newMasukInt  = $qMasukInt->count();
+            $totalMasuk   = $newMasukExt + $newMasukInt;
 
             if ($totalMasuk > 0) {
                 $notifs[] = [

@@ -248,7 +248,6 @@ class MenuIcuController extends Controller
     }
 
     // ACTION — Booking External: pindah bed (bed_confirmed -> bed baru, status tetap bed_confirmed)
-    // Hanya mengubah rekomendasi bed di tabel lokal — TIDAK menyentuh STATUS_KAMAR
     public function pindahBedExt(Request $request, int $id): RedirectResponse
     {
         $v = $request->validate([
@@ -297,7 +296,6 @@ class MenuIcuController extends Controller
     }
 
     // ACTION — BU Internal: pindah bed (bed_verified -> bed baru, status tetap bed_verified)
-    // Hanya mengubah rekomendasi bed di tabel lokal — TIDAK menyentuh STATUS_KAMAR
     public function pindahBedInt(Request $request, int $id): RedirectResponse
     {
         $v = $request->validate([
