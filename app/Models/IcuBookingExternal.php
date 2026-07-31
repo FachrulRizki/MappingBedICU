@@ -19,6 +19,7 @@ class IcuBookingExternal extends Model
         'pindah_alasan', 'pindah_bed_lama', 'pindah_by', 'pindah_at',
         'created_by', 'confirmed_by', 'confirmed_at',
         'verified_by', 'verified_at',
+        'masuk_at', 'masuk_by',
     ];
 
     protected $casts = [
@@ -26,6 +27,7 @@ class IcuBookingExternal extends Model
         'confirmed_at'     => 'datetime',
         'verified_at'      => 'datetime',
         'pindah_at'        => 'datetime',
+        'masuk_at'         => 'datetime',
     ];
 
     public function pasien()
@@ -50,6 +52,7 @@ class IcuBookingExternal extends Model
             'waiting_list'    => 'Waiting List',
             'bed_confirmed'   => 'Bed Dikonfirmasi',
             'admisi_verified' => 'Terverifikasi',
+            'masuk_icu'       => 'Sudah Masuk ICU',
             'ditolak'         => 'Ditolak',
             'dibatalkan'      => 'Dibatalkan',
             default           => $this->status,
@@ -63,6 +66,7 @@ class IcuBookingExternal extends Model
             'waiting_list'    => 'orange',
             'bed_confirmed'   => 'blue',
             'admisi_verified' => 'teal',
+            'masuk_icu'       => 'green',
             'ditolak'         => 'red',
             'dibatalkan'      => 'gray',
             default           => 'gray',

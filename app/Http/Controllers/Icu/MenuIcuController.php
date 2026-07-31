@@ -35,76 +35,21 @@ class MenuIcuController extends Controller
         $data = $this->service->build($request);
 
         return Inertia::render('Icu/MenuIcu', [
-            'antrian'        => $data['antrian'],
-            'summary'        => $data['summary'],
-            'filters'        => $data['filters'],
-            'kamarKosong'    => MRuangMaster::bedKosong(),
-            'kamarTersedia'  => MRuangMaster::bedTersediaUntukKonfirmasi(),
-            'masterKelas'    => MRuangMaster::jenisIcuTersedia(),
-            'caraBayar'      => \App\Models\MCaraBayar::list(),
-            'flash'          => [
+            'antrian'       => $data['antrian'],
+            'summary'       => $data['summary'],
+            'filters'       => $data['filters'],
+            'kamarKosong'   => MRuangMaster::bedKosong(),
+            'kamarTersedia' => MRuangMaster::bedTersediaUntukKonfirmasi(),
+            'masterKelas'   => MRuangMaster::jenisIcuTersedia(),
+            'caraBayar'     => \App\Models\MCaraBayar::list(),
+            'flash'         => [
                 'success' => session('success'),
                 'error'   => session('error'),
             ],
         ]);
     }
 
-    /**
-     * Helper terpusat: reset SEMUA pasien yang saat ini memegang bed tertentu
-     */
-    private function releaseAllHoldersOf(string $kodeRuang, string $namaBed, string $namaPasienBaru, ?int $excludeExtId = null, ?int $excludeIntId = null): array
-    {
-        $preempted = [];
-
-        // Reset semua External yang memegang bed ini
-        $holdersExt = IcuBookingExternal::where('allocated_bed_id', $kodeRuang)
-            ->whereIn('status', ['bed_confirmed', 'admisi_verified'])
-            ->when($excludeExtId, fn($q) => $q->where('id', '!=', $excludeExtId))
-            ->get();
-
-        foreach ($holdersExt as $h) {
-            $preempted[] = $h->nama_pasien;
-            $h->update([
-                'status'           => 'pending_icu',
-                'allocated_bed_id' => null,
-                'nama_bed'         => null,
-                'confirmed_by'     => null,
-                'confirmed_at'     => null,
-                'pindah_alasan'    => "Bed {$namaBed} diambil alih untuk {$namaPasienBaru} oleh {$this->actor()}",
-                'pindah_bed_lama'  => $namaBed,
-                'pindah_by'        => $this->actor(),
-                'pindah_at'        => now(),
-            ]);
-            $this->activityLog->log('Preempt Bed', "Bed {$namaBed} diambil alih dari {$h->nama_pasien} untuk {$namaPasienBaru}", 'booking_external', $h->id, 'IcuBookingExternal');
-        }
-
-        // Reset semua Internal yang memegang bed ini
-        $holdersInt = IcuSpriInternal::where('allocated_bed_id', $kodeRuang)
-            ->where('status', 'bed_verified')
-            ->when($excludeIntId, fn($q) => $q->where('id', '!=', $excludeIntId))
-            ->get();
-
-        foreach ($holdersInt as $h) {
-            $namaPasienInt = (string) ($h->pasien?->Nama_Pasien ?? $h->No_MR);
-            $preempted[] = $namaPasienInt;
-            $h->update([
-                'status'           => 'pending_icu',
-                'allocated_bed_id' => null,
-                'nama_bed'         => null,
-                'verified_by'      => null,
-                'verified_at'      => null,
-                'pindah_alasan'    => "Bed {$namaBed} diambil alih untuk {$namaPasienBaru} oleh {$this->actor()}",
-                'pindah_bed_lama'  => $namaBed,
-                'pindah_by'        => $this->actor(),
-                'pindah_at'        => now(),
-            ]);
-            $this->activityLog->log('Preempt Bed', "Bed {$namaBed} diambil alih dari {$namaPasienInt} untuk {$namaPasienBaru}", 'spri_internal', $h->id, 'IcuSpriInternal');
-        }
-
-        return $preempted;
-    }
-
-    // ACTION — Booking External: pending_icu -> bed_confirmed
+    // ACTION — Booking External: pending_icu / waiting_list -> bed_confirmed
     public function konfirmasiExt(Request $request, int $id): RedirectResponse
     {
         $v = $request->validate([
@@ -118,20 +63,15 @@ class MenuIcuController extends Controller
             return back()->with('error', 'Booking tidak bisa dikonfirmasi dari status ini.');
         }
 
+        // Cek bed ISI (sudah ada pasien fisik) — tidak bisa direkomendasikan
         $bed     = StatusKamar::with('ruang')->where('Kode_Ruang', $v['Kode_Ruang'])->first();
         $namaBed = $bed?->ruang?->Nama_RuangM ?? $v['Kode_Ruang'];
 
-        // Bed ISI fisik — tidak bisa dipakai
-        if ($bed && strtoupper($bed->Status) === 'ISI') {
+        if ($bed && $bed->isIsi()) {
             return back()->with('error', "Bed {$namaBed} sudah terisi pasien aktif. Tidak bisa digunakan.");
         }
 
-        // Reset SEMUA pemegang bed ini dari tabel lokal (tanpa syarat status STATUS_KAMAR)
-        $preempted = $this->releaseAllHoldersOf($v['Kode_Ruang'], $namaBed, $booking->nama_pasien, $booking->id, null);
-
-        // Force STATUS_KAMAR → BOOKING
-        StatusKamar::setBookingForce($v['Kode_Ruang'], $this->actor());
-
+        // Catat rekomendasi bed — TANPA menyentuh STATUS_KAMAR
         $booking->update([
             'status'           => 'bed_confirmed',
             'kebutuhan_bed'    => $v['kebutuhan_bed'],
@@ -143,15 +83,11 @@ class MenuIcuController extends Controller
 
         $this->activityLog->konfirmasibed($booking->id, $booking->nama_pasien, $namaBed);
 
-        $msg = "Bed {$namaBed} ({$v['kebutuhan_bed']}) dikonfirmasi untuk {$booking->nama_pasien}.";
-        if ($preempted) {
-            $msg .= ' ' . implode(', ', $preempted) . ' dikembalikan ke antrian untuk mendapat bed baru.';
-        }
-
-        return redirect()->route('icu.menu_icu')->with('success', $msg);
+        return redirect()->route('icu.menu_icu')
+            ->with('success', "Bed {$namaBed} ({$v['kebutuhan_bed']}) dikonfirmasi untuk {$booking->nama_pasien}. Admisi akan memproses melalui Bed Management.");
     }
 
-    // ACTION — Booking External: tolak (pending_icu -> ditolak)
+    // ACTION — Booking External: tolak (pending_icu / waiting_list -> ditolak)
     public function tolakExt(Request $request, int $id): RedirectResponse
     {
         $v = $request->validate([
@@ -164,11 +100,6 @@ class MenuIcuController extends Controller
             return back()->with('error', 'Booking tidak bisa ditolak dari status ini.');
         }
 
-        // Release bed jika sudah sempat dialokasikan (misal dari waiting list yang punya bed)
-        if ($booking->allocated_bed_id) {
-            StatusKamar::releaseBooking($booking->allocated_bed_id);
-        }
-
         $booking->update([
             'status'       => 'ditolak',
             'alasan_tolak' => $v['alasan_tolak'],
@@ -177,10 +108,11 @@ class MenuIcuController extends Controller
 
         $this->activityLog->tolakBookingIcu($booking->id, $booking->nama_pasien, $v['alasan_tolak']);
 
-        return redirect()->route('icu.menu_icu')->with('success', "Booking {$booking->nama_pasien} ditolak.");
+        return redirect()->route('icu.menu_icu')
+            ->with('success', "Booking {$booking->nama_pasien} ditolak.");
     }
 
-    // ACTION — BU Internal: pending_icu -> bed_verified
+    // ACTION — BU Internal: pending_icu / waiting_list -> bed_verified
     public function verifikasiInt(Request $request, int $id): RedirectResponse
     {
         $v = $request->validate([
@@ -194,22 +126,17 @@ class MenuIcuController extends Controller
             return back()->with('error', 'BU tidak bisa diverifikasi dari status ini.');
         }
 
+        // Cek bed ISI (sudah ada pasien fisik) — tidak bisa direkomendasikan
         $bed     = StatusKamar::with('ruang')->where('Kode_Ruang', $v['Kode_Ruang'])->first();
         $namaBed = $bed?->ruang?->Nama_RuangM ?? $v['Kode_Ruang'];
 
-        // Bed ISI fisik — tidak bisa dipakai
-        if ($bed && strtoupper($bed->Status) === 'ISI') {
+        if ($bed && $bed->isIsi()) {
             return back()->with('error', "Bed {$namaBed} sudah terisi pasien aktif. Tidak bisa digunakan.");
         }
 
         $namaPasien = (string) ($bu->pasien?->Nama_Pasien ?? $bu->No_MR);
 
-        // Reset SEMUA pemegang bed ini dari tabel lokal
-        $preempted = $this->releaseAllHoldersOf($v['Kode_Ruang'], $namaBed, $namaPasien, null, $bu->id);
-
-        // Force STATUS_KAMAR → BOOKING
-        StatusKamar::setBookingForce($v['Kode_Ruang'], $this->actor());
-
+        // Catat rekomendasi bed — TANPA menyentuh STATUS_KAMAR
         $bu->update([
             'status'           => 'bed_verified',
             'kebutuhan_bed'    => $v['kebutuhan_bed'],
@@ -221,15 +148,11 @@ class MenuIcuController extends Controller
 
         $this->activityLog->verifikasibed($bu->id, $namaPasien, $namaBed);
 
-        $msg = "Bed {$namaBed} terverifikasi untuk {$namaPasien}.";
-        if ($preempted) {
-            $msg .= ' ' . implode(', ', $preempted) . ' dikembalikan ke antrian untuk mendapat bed baru.';
-        }
-
-        return redirect()->route('icu.menu_icu')->with('success', $msg);
+        return redirect()->route('icu.menu_icu')
+            ->with('success', "Bed {$namaBed} terverifikasi untuk {$namaPasien}. Admisi akan memproses melalui Bed Management.");
     }
-    
-    // ACTION — BU Internal: tolak (pending_icu -> ditolak)
+
+    // ACTION — BU Internal: tolak (pending_icu / waiting_list -> ditolak)
     public function tolakInt(Request $request, int $id): RedirectResponse
     {
         $v = $request->validate([
@@ -242,11 +165,6 @@ class MenuIcuController extends Controller
             return back()->with('error', 'BU tidak bisa ditolak dari status ini.');
         }
 
-        // Release bed jika sudah sempat dialokasikan
-        if ($bu->allocated_bed_id) {
-            StatusKamar::releaseBooking($bu->allocated_bed_id);
-        }
-
         $bu->update([
             'status'       => 'ditolak',
             'alasan_tolak' => $v['alasan_tolak'],
@@ -255,21 +173,21 @@ class MenuIcuController extends Controller
 
         $this->activityLog->tolakSpriIcu($bu->id, (string) ($bu->pasien?->Nama_Pasien ?? $bu->No_MR), $v['alasan_tolak']);
 
-        return redirect()->route('icu.menu_icu')->with('success', "BU {$bu->pasien?->Nama_Pasien} ditolak oleh ICU.");
+        return redirect()->route('icu.menu_icu')
+            ->with('success', "BU {$bu->pasien?->Nama_Pasien} ditolak oleh ICU.");
     }
 
     // ACTION — Booking External: masuk waiting list (pending_icu -> waiting_list)
     public function waitingListExt(Request $request, int $id): RedirectResponse
     {
         $v = $request->validate([
-            'waiting_alasan'    => 'required|string|max:500',
-            'waiting_estimasi'  => 'required|date|after:now',
+            'waiting_alasan'   => 'required|string|max:500',
+            'waiting_estimasi' => 'required|date|after:now',
         ]);
 
         $booking = IcuBookingExternal::findOrFail($id);
 
-        // if ($booking->status !== 'pending_icu') {
-        if (!in_array($booking->status, ['pending_icu', 'waiting_list'])) {
+        if (! in_array($booking->status, ['pending_icu', 'waiting_list'])) {
             return back()->with('error', 'Booking sudah tidak berstatus Menunggu ICU.');
         }
 
@@ -289,15 +207,16 @@ class MenuIcuController extends Controller
             'IcuBookingExternal'
         );
 
-        return redirect()->route('icu.menu_icu')->with('success', "{$booking->nama_pasien} masuk Waiting List ICU.");
+        return redirect()->route('icu.menu_icu')
+            ->with('success', "{$booking->nama_pasien} masuk Waiting List ICU.");
     }
 
     // ACTION — BU Internal: masuk waiting list (pending_icu -> waiting_list)
     public function waitingListInt(Request $request, int $id): RedirectResponse
     {
         $v = $request->validate([
-            'waiting_alasan'    => 'required|string|max:500',
-            'waiting_estimasi'  => 'required|date|after:now',
+            'waiting_alasan'   => 'required|string|max:500',
+            'waiting_estimasi' => 'required|date|after:now',
         ]);
 
         $bu = IcuSpriInternal::findOrFail($id);
@@ -324,10 +243,12 @@ class MenuIcuController extends Controller
             'IcuSpriInternal'
         );
 
-        return redirect()->route('icu.menu_icu')->with('success', "{$namaPasien} masuk Waiting List ICU.");
+        return redirect()->route('icu.menu_icu')
+            ->with('success', "{$namaPasien} masuk Waiting List ICU.");
     }
 
     // ACTION — Booking External: pindah bed (bed_confirmed -> bed baru, status tetap bed_confirmed)
+    // Hanya mengubah rekomendasi bed di tabel lokal — TIDAK menyentuh STATUS_KAMAR
     public function pindahBedExt(Request $request, int $id): RedirectResponse
     {
         $v = $request->validate([
@@ -342,7 +263,6 @@ class MenuIcuController extends Controller
             return back()->with('error', 'Pindah bed hanya bisa dilakukan untuk pasien yang sudah dikonfirmasi bednya.');
         }
 
-        // Tidak boleh memilih bed yang sama
         if ($booking->allocated_bed_id === $v['Kode_Ruang']) {
             return back()->with('error', 'Bed baru tidak boleh sama dengan bed saat ini.');
         }
@@ -350,25 +270,13 @@ class MenuIcuController extends Controller
         $bed     = StatusKamar::with('ruang')->where('Kode_Ruang', $v['Kode_Ruang'])->first();
         $namaBed = $bed?->ruang?->Nama_RuangM ?? $v['Kode_Ruang'];
 
-        // Guard: bed baru harus KOSONG atau BOOKING (bukan ISI)
-        if ($bed && strtoupper($bed->Status) === 'ISI') {
+        if ($bed && $bed->isIsi()) {
             return back()->with('error', "Bed {$namaBed} sudah terisi pasien aktif. Tidak bisa digunakan.");
         }
 
-        $bedLama    = $booking->nama_bed ?? '—';
-        $kodeRuangLama = $booking->allocated_bed_id;
+        $bedLama = $booking->nama_bed ?? '—';
 
-        // Release bed lama → KOSONG (hanya jika masih BOOKING, bukan ISI)
-        if ($kodeRuangLama) {
-            StatusKamar::releaseBooking($kodeRuangLama);
-        }
-
-        // Preempt SEMUA pemegang bed baru dari tabel lokal (tanpa syarat STATUS_KAMAR)
-        $this->releaseAllHoldersOf($v['Kode_Ruang'], $namaBed, $booking->nama_pasien, $booking->id, null);
-
-        // Set bed baru → BOOKING (force)
-        StatusKamar::setBookingForce($v['Kode_Ruang'], $this->actor());
-
+        // Cukup update rekomendasi bed lokal — TANPA menyentuh STATUS_KAMAR
         $booking->update([
             'kebutuhan_bed'    => $v['kebutuhan_bed'],
             'allocated_bed_id' => $v['Kode_Ruang'],
@@ -384,10 +292,12 @@ class MenuIcuController extends Controller
 
         $this->activityLog->pindahBedExt($booking->id, $booking->nama_pasien, $bedLama, $namaBed);
 
-        return redirect()->route('icu.menu_icu')->with('success', "Bed pasien {$booking->nama_pasien} dipindahkan: {$bedLama} → {$namaBed}.");
+        return redirect()->route('icu.menu_icu')
+            ->with('success', "Rekomendasi bed pasien {$booking->nama_pasien} diubah: {$bedLama} → {$namaBed}. Admisi perlu memperbarui di Bed Management.");
     }
 
     // ACTION — BU Internal: pindah bed (bed_verified -> bed baru, status tetap bed_verified)
+    // Hanya mengubah rekomendasi bed di tabel lokal — TIDAK menyentuh STATUS_KAMAR
     public function pindahBedInt(Request $request, int $id): RedirectResponse
     {
         $v = $request->validate([
@@ -402,7 +312,6 @@ class MenuIcuController extends Controller
             return back()->with('error', 'Pindah bed hanya bisa dilakukan untuk pasien yang sudah diverifikasi bednya.');
         }
 
-        // Tidak boleh memilih bed yang sama
         if ($bu->allocated_bed_id === $v['Kode_Ruang']) {
             return back()->with('error', 'Bed baru tidak boleh sama dengan bed saat ini.');
         }
@@ -410,26 +319,14 @@ class MenuIcuController extends Controller
         $bed     = StatusKamar::with('ruang')->where('Kode_Ruang', $v['Kode_Ruang'])->first();
         $namaBed = $bed?->ruang?->Nama_RuangM ?? $v['Kode_Ruang'];
 
-        // Guard: bed baru harus KOSONG atau BOOKING (bukan ISI)
-        if ($bed && strtoupper($bed->Status) === 'ISI') {
+        if ($bed && $bed->isIsi()) {
             return back()->with('error', "Bed {$namaBed} sudah terisi pasien aktif. Tidak bisa digunakan.");
         }
 
-        $bedLama       = $bu->nama_bed ?? '—';
-        $kodeRuangLama = $bu->allocated_bed_id;
-        $namaPasien    = (string) ($bu->pasien?->Nama_Pasien ?? $bu->No_MR);
+        $bedLama    = $bu->nama_bed ?? '—';
+        $namaPasien = (string) ($bu->pasien?->Nama_Pasien ?? $bu->No_MR);
 
-        // Release bed lama → KOSONG
-        if ($kodeRuangLama) {
-            StatusKamar::releaseBooking($kodeRuangLama);
-        }
-
-        // Preempt SEMUA pemegang bed baru dari tabel lokal
-        $this->releaseAllHoldersOf($v['Kode_Ruang'], $namaBed, $namaPasien, null, $bu->id);
-
-        // Set bed baru → BOOKING (force)
-        StatusKamar::setBookingForce($v['Kode_Ruang'], $this->actor());
-
+        // Cukup update rekomendasi bed lokal — TANPA menyentuh STATUS_KAMAR
         $bu->update([
             'kebutuhan_bed'    => $v['kebutuhan_bed'],
             'allocated_bed_id' => $v['Kode_Ruang'],
@@ -444,6 +341,7 @@ class MenuIcuController extends Controller
 
         $this->activityLog->pindahBedInt($bu->id, $namaPasien, $bedLama, $namaBed);
 
-        return redirect()->route('icu.menu_icu')->with('success', "Bed pasien {$namaPasien} dipindahkan: {$bedLama} → {$namaBed}.");
+        return redirect()->route('icu.menu_icu')
+            ->with('success', "Rekomendasi bed pasien {$namaPasien} diubah: {$bedLama} → {$namaBed}. Admisi perlu memperbarui di Bed Management.");
     }
 }
