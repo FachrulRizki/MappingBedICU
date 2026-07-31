@@ -286,7 +286,8 @@ class AntrianService
         return [
             'id'             => $s->id,
             'sumber'         => 'internal',
-            'sumber_label'   => 'Booking Internal',
+            'sumber_label'   => $s->simrs_source === 'igd_asesmen' ? 'IGD/SIMRS' : 'Booking Internal',
+            'simrs_source'   => $s->simrs_source,
             'nama_pasien'    => $s->pasien?->Nama_Pasien ?? $s->No_MR,
             'No_MR'          => $s->No_MR,
             'No_Reg'         => $s->No_Reg,
@@ -329,8 +330,6 @@ class AntrianService
             'verified_at'    => $s->verified_at?->format('Y-m-d H:i'),
             'verified_at_fmt'=> $s->verified_at?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
             'lama_proses'    => $this->hitungLamaProses($s->created_at, $s->verified_at),
-            'masuk_at'       => $s->masuk_at?->format('Y-m-d H:i'),
-            'masuk_at_fmt'   => $s->masuk_at?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
         ];
     }
 }
