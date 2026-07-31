@@ -20,12 +20,15 @@ class IcuSpriInternal extends Model
         'pindah_alasan', 'pindah_bed_lama', 'pindah_by', 'pindah_at',
         'approved_by', 'approved_at',
         'verified_by', 'verified_at',
+        'masuk_at', 'masuk_by',
     ];
 
     protected $casts = [
         'waiting_estimasi' => 'datetime',
         'approved_at'      => 'datetime',
         'verified_at'      => 'datetime',
+        'pindah_at'        => 'datetime',
+        'masuk_at'         => 'datetime',
     ];
 
     public function pasien()

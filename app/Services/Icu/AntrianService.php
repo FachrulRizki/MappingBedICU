@@ -330,6 +330,8 @@ class AntrianService
             'verified_at'    => $s->verified_at?->format('Y-m-d H:i'),
             'verified_at_fmt'=> $s->verified_at?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
             'lama_proses'    => $this->hitungLamaProses($s->created_at, $s->verified_at),
+            'masuk_at'       => $s->masuk_at?->format('Y-m-d H:i'),
+            'masuk_at_fmt'   => $s->masuk_at?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
         ];
     }
 }
