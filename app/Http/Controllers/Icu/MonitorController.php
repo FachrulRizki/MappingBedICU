@@ -48,16 +48,6 @@ class MonitorController extends Controller
         ]);
     }
 
-    /**
-     * Deteksi otomatis pasien yang sudah masuk ICU secara fisik.
-     *
-     * Logika: cari booking/BU yang statusnya bed_confirmed / bed_verified / admisi_verified
-     * dan punya allocated_bed_id, lalu cek STATUS_KAMAR untuk bed tersebut.
-     * Jika STATUS_KAMAR = 'ISI' → berarti Bed Management sudah mengkonfirmasi
-     * pasien menempati bed → update status lokal ke 'masuk_icu'.
-     *
-     * Aplikasi ini HANYA MEMBACA STATUS_KAMAR, tidak pernah menulisnya.
-     */
     private function syncMasukIcu(): void
     {
         try {
