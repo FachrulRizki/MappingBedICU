@@ -70,6 +70,7 @@ const SS = {
     waiting_list:   { bg:'rgba(217,119,6,.15)',   color:'#D97706', dot:'#D97706' },
     bed_verified:   { bg:'rgba(0,168,132,.15)',   color:'#00A884', dot:'#00A884' },
     ditolak:        { bg:'rgba(231,76,60,.15)',   color:'#E74C3C', dot:'#E74C3C' },
+    dibatalkan:     { bg:'rgba(107,114,128,.15)', color:'#6B7280', dot:'#6B7280' },
 }
 const ss     = (s) => SS[s] ?? { bg:'var(--bg-input)', color:'var(--text-secondary)', dot:'#888' }
 const gIcon  = (g) => g === 'L' ? '♂' : g === 'P' ? '♀' : '·'
@@ -79,10 +80,39 @@ const gColor = (g) => g === 'L' ? '#00A884' : g === 'P' ? '#8E44AD' : 'var(--tex
 const CARDS = computed(() => [
     { key:'',             label:'Total',        val: props.summary.total        ?? 0, color:'#5A6B7C', icon:'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
     { key:'pending_icu',  label:'Menunggu ICU', val: props.summary.pending_icu  ?? 0, color:'#E0923A', icon:'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
-    { key:'waiting_list', label:'Waiting List', val: props.spriList.filter(s=>s.status==='waiting_list').length, color:'#D97706', icon:'M12 8v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z' },
+    { key:'waiting_list', label:'Waiting List', val: props.summary.waiting_list ?? 0, color:'#D97706', icon:'M12 8v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z' },
     { key:'bed_verified', label:'Bed Verified', val: props.summary.bed_verified ?? 0, color:'#059669', icon:'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' },
     { key:'ditolak',      label:'Ditolak',      val: props.summary.ditolak      ?? 0, color:'#E74C3C', icon:'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z' },
+    { key:'dibatalkan',   label:'Dibatalkan',   val: props.summary.dibatalkan   ?? 0, color:'#6B7280', icon:'M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636' },
 ])
+
+// Klik card: pindah ke tab yang sesuai + filter
+const clickCard = (key) => {
+    if (key === 'bed_verified') {
+        activeTab.value = 'riwayat'
+        fStatus.value   = 'bed_verified'
+        selectedItem.value = null
+        return
+    }
+    if (key === 'ditolak' || key === 'dibatalkan') {
+        activeTab.value = 'riwayat'
+        fStatus.value   = key
+        selectedItem.value = null
+        applyFilters()
+        return
+    }
+    if (key === 'waiting_list') {
+        activeTab.value = 'waiting_list'
+        fStatus.value   = ''
+        selectedItem.value = null
+        return
+    }
+    // pending_icu atau '' (total) → tab aktif
+    activeTab.value = 'aktif'
+    fStatus.value   = key
+    selectedItem.value = null
+    applyFilters()
+}
 
 const statusOptions = [
     { value:'',             label:'Semua Status' },
@@ -131,15 +161,25 @@ const selectedItem = ref(null)
 const showFilter   = ref(false)
 const showPasienPanel = ref(false)  // mobile: toggle panel pasien bangsal
 
-const spriRiwayat     = computed(() => props.spriList.filter(s => ['bed_verified','ditolak'].includes(s.status)))
+const spriRiwayat     = computed(() => props.spriList.filter(s => ['bed_verified','ditolak','dibatalkan'].includes(s.status)))
 const spriWaitingList = computed(() => props.spriList.filter(s => s.status === 'waiting_list'))
+// Tab aktif = semua yang BUKAN riwayat/waiting_list
+const spriAktif = computed(() => props.spriList.filter(s => !['bed_verified','ditolak','dibatalkan','waiting_list'].includes(s.status)))
 const tabList = computed(() => {
-    if (activeTab.value === 'riwayat')      return spriRiwayat.value
+    if (activeTab.value === 'riwayat') {
+        // Jika ada filter status khusus (dibatalkan/ditolak), terapkan filter dalam riwayat
+        if (fStatus.value === 'dibatalkan') return spriRiwayat.value.filter(s => s.status === 'dibatalkan')
+        if (fStatus.value === 'ditolak')    return spriRiwayat.value.filter(s => s.status === 'ditolak')
+        if (fStatus.value === 'bed_verified') return spriRiwayat.value.filter(s => s.status === 'bed_verified')
+        return spriRiwayat.value
+    }
     if (activeTab.value === 'waiting_list') return spriWaitingList.value
-    return props.spriList
+    // tab aktif — filter by fStatus jika ada
+    if (fStatus.value === 'pending_icu') return spriAktif.value.filter(s => s.status === 'pending_icu')
+    return spriAktif.value
 })
 const tabCounts = computed(() => ({
-    aktif:        props.spriList.length,
+    aktif:        spriAktif.value.length,
     riwayat:      spriRiwayat.value.length,
     waiting_list: spriWaitingList.value.length,
 }))
@@ -239,31 +279,39 @@ const canSubmit  = computed(() => fmSpri.No_MR.trim() && fmSpri.No_Reg.trim() &&
 
 // ── Edit SPRI ────────────────────────────────────────────────────────────────
 const fmEditSpri = useForm({ No_MR:'', No_Reg:'', Diagnosis:'', Diagnosis_ICD:'', IndikasiRI:'', asal_ruang:'', Dokter:'', spesialis:'', Keterangan:'' })
+const editingSpriId = ref(null) // ID yang sedang diedit — terpisah dari selectedItem
 const openEditSpri = (item) => {
+    selectedItem.value = item
+    editingSpriId.value = item.id  // simpan ID secara eksplisit
     fmEditSpri.No_MR         = item.No_MR       ?? ''
     fmEditSpri.No_Reg        = item.No_Reg      ?? ''
     fmEditSpri.Diagnosis     = item.Diagnosis   ?? item.diagnosa ?? ''
-    fmEditSpri.Diagnosis_ICD = item.diagnosa_icd ?? ''
+    fmEditSpri.Diagnosis_ICD = item.Diagnosis_ICD ?? item.diagnosa_icd ?? ''
     fmEditSpri.IndikasiRI    = item.IndikasiRI  ?? ''
     fmEditSpri.asal_ruang    = item.asal_ruang  ?? ''
     fmEditSpri.Dokter        = item.Dokter      ?? ''
     fmEditSpri.spesialis     = item.spesialis   ?? ''
     fmEditSpri.Keterangan    = item.Keterangan  ?? item.keterangan ?? ''
     openModal('edit_spri')
-    selectedItem.value = item
 }
 const submitEditSpri = () => {
-    if (!selectedItem.value) return
-    fmEditSpri.put(route('icu.menu_petugas.spri.update', selectedItem.value.id), {
-        onSuccess: () => { closeModal(); modal.value = { open:false, type:'' } }
+    if (!editingSpriId.value) return
+    fmEditSpri.put(route('icu.menu_petugas.spri.update', editingSpriId.value), {
+        onSuccess: () => { closeModal(); editingSpriId.value = null }
     })
 }
 
 // ── Batal SPRI ────────────────────────────────────────────────────────────────
-const batalSpri = (item) => {
-    if (!confirm(`Batalkan booking untuk ${item.nama_pasien}?`)) return
-    router.post(route('icu.menu_petugas.spri.batal', item.id), {}, {
-        onSuccess: () => { selectedItem.value = null }
+const fmBatalSpri = useForm({ alasan_batal: '' })
+const openBatalSpriModal = (item) => {
+    fmBatalSpri.alasan_batal = ''
+    selectedItem.value = item
+    openModal('batal_spri')
+}
+const submitBatalSpri = () => {
+    if (!selectedItem.value) return
+    fmBatalSpri.post(route('icu.menu_petugas.spri.batal', selectedItem.value.id), {
+        onSuccess: () => { closeModal(); selectedItem.value = null }
     })
 }
 
@@ -327,11 +375,11 @@ const hapusSpri = (item) => {
   </div>
 
   <!-- ══ KPI CARDS ════════════════════════════════════════════════════════ -->
-  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-    <button v-for="c in CARDS" :key="c.key" @click="fStatus = c.key; applyFilters()"
+  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+    <button v-for="c in CARDS" :key="c.key" @click="clickCard(c.key)"
       class="group relative flex items-center gap-3 p-3.5 sm:p-4 rounded-2xl text-left transition-all duration-200 hover:-translate-y-1 hover:shadow-lg"
       style="background:var(--bg-card); border:1px solid var(--border-default); box-shadow:var(--shadow-card); min-height:80px"
-      :style="fStatus===c.key ? `border:2.5px solid ${c.color}; box-shadow:0 0 0 3px ${c.color}15` : ''">
+      :style="(fStatus===c.key && c.key !== '') || (c.key === 'bed_verified' && activeTab === 'riwayat' && fStatus === 'bed_verified') ? `border:2.5px solid ${c.color}; box-shadow:0 0 0 3px ${c.color}15` : ''">
       <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110"
         :style="`background:${c.color}12`">
         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" :style="`color:${c.color}`">
@@ -778,6 +826,58 @@ const hapusSpri = (item) => {
                 <p class="text-xs" style="color:var(--text-secondary)">{{ selectedItem.catatan_admisi }}</p>
               </div>
             </template>
+
+            <!-- Alasan batal -->
+            <template v-if="selectedItem.status==='dibatalkan'">
+              <div class="mp-divider"></div>
+              <div class="p-4 rounded-b-xl" style="background:rgba(217,119,6,.04)">
+                <p class="mp-detail-label">Info Pembatalan</p>
+                <p v-if="selectedItem.alasan_batal" class="text-xs font-semibold mt-1" style="color:#92400E">{{ selectedItem.alasan_batal }}</p>
+                <p v-else class="text-xs mt-1" style="color:var(--text-muted)">Tanpa catatan</p>
+                <p v-if="selectedItem.dibatalkan_by" class="text-xs mt-1" style="color:var(--text-muted)">
+                  Oleh {{ selectedItem.dibatalkan_by }}
+                  <span v-if="selectedItem.dibatalkan_at_fmt"> · {{ selectedItem.dibatalkan_at_fmt }}</span>
+                </p>
+              </div>
+            </template>
+
+            <!-- ── Tombol Aksi ── -->
+            <template v-if="canBuatSpriInternal || isAdmin">
+              <div class="mp-divider"></div>
+              <div class="p-4 space-y-2">
+                <p class="mp-detail-label mb-2">Aksi</p>
+                <!-- Edit — hanya jika masih pending (bukan ditolak, bukan dibatalkan) -->
+                <button v-if="['pending_admisi','pending_icu'].includes(selectedItem.status)"
+                  @click="openEditSpri(selectedItem)"
+                  class="w-full text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all hover:-translate-y-px"
+                  style="background:rgba(14,165,233,.08); color:#0EA5E9; border:1.5px solid rgba(14,165,233,.2)">
+                  <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                  </svg>
+                  Edit Booking
+                </button>
+                <!-- Batal -->
+                <button v-if="['pending_admisi','pending_icu','waiting_list'].includes(selectedItem.status)"
+                  @click="openBatalSpriModal(selectedItem)"
+                  class="w-full text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all hover:-translate-y-px"
+                  style="background:rgba(217,119,6,.08); color:#D97706; border:1.5px solid rgba(217,119,6,.2)">
+                  <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+                  </svg>
+                  Batalkan Booking
+                </button>
+                <!-- Hapus -->
+                <button v-if="['pending_admisi','pending_icu','ditolak','dibatalkan'].includes(selectedItem.status)"
+                  @click="hapusSpri(selectedItem)"
+                  class="w-full text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all hover:-translate-y-px"
+                  style="background:rgba(231,76,60,.05); color:#E74C3C; border:1.5px solid rgba(231,76,60,.2)">
+                  <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                  </svg>
+                  Hapus Permanen
+                </button>
+              </div>
+            </template>
           </div>
         </Transition>
 
@@ -957,12 +1057,147 @@ const hapusSpri = (item) => {
             <button type="submit" :disabled="!canSubmit || fmSpri.processing"
               class="px-5 py-2.5 rounded-xl text-sm font-bold text-white cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:-translate-y-px"
               style="background:#00A884;box-shadow:0 4px 14px rgba(0,168,132,.3)">
-              {{ fmSpri.processing ? 'Menyimpan…' : 'Kirim Booking ICU' }}
+              {{ fmSpri.processing ? 'Menyimpan…' : 'Kirim Booking ICU/HCU' }}
             </button>
           </div>
         </form>
       </div>
     </Transition>
+
+    <!-- ── Modal: Edit Booking Internal ──────────────────────────────────── -->
+    <Transition enter-active-class="transition-all duration-200" enter-from-class="opacity-0 scale-95" leave-to-class="opacity-0 scale-95">
+      <div v-if="modal.type==='edit_spri'" class="mp-modal">
+        <div class="flex items-center gap-3 px-5 py-4 rounded-t-2xl" style="background:#0EA5E9">
+          <svg class="w-5 h-5 text-white flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+          </svg>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-bold text-white">Edit Booking ICU Internal</p>
+            <p class="text-xs text-white/70 truncate">{{ selectedItem?.nama_pasien ?? '' }}</p>
+          </div>
+          <button @click="closeModal" class="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-white/20" style="color:rgba(255,255,255,.8)">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <form @submit.prevent="submitEditSpri" class="p-5 space-y-4 overflow-y-auto" style="max-height:calc(92vh - 80px)">
+          <div class="space-y-3">
+            <p class="text-xs font-bold uppercase tracking-widest" style="color:var(--text-accent)">Data Pasien</p>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="mp-label">No. MR <span style="color:#E74C3C">*</span></label>
+                <input v-model="fmEditSpri.No_MR" required placeholder="No. MR" class="mp-input w-full font-mono"/>
+              </div>
+              <div>
+                <label class="mp-label">No. Reg <span style="color:#E74C3C">*</span></label>
+                <input v-model="fmEditSpri.No_Reg" required placeholder="No. Registrasi" class="mp-input w-full font-mono"/>
+              </div>
+            </div>
+          </div>
+          <div class="space-y-3">
+            <p class="text-xs font-bold uppercase tracking-widest" style="color:var(--text-accent)">Data Klinis</p>
+            <div>
+              <label class="mp-label">Diagnosis <span style="color:#E74C3C">*</span></label>
+              <input v-model="fmEditSpri.Diagnosis" required placeholder="Diagnosis pasien" class="mp-input w-full"/>
+            </div>
+            <div>
+              <label class="mp-label">
+                Kode ICD-10
+                <span class="ml-1 normal-case font-normal text-xs px-2 py-0.5 rounded-full" style="background:rgba(14,165,233,.1);color:#0EA5E9">Opsional</span>
+              </label>
+              <Icd10Search v-model="fmEditSpri.Diagnosis_ICD" placeholder="Cari kode ICD-10 (opsional)..." :required="false" :has-error="false"/>
+            </div>
+            <div>
+              <label class="mp-label">Indikasi Rawat Inap <span style="color:#E74C3C">*</span></label>
+              <textarea v-model="fmEditSpri.IndikasiRI" required rows="2" placeholder="Indikasi ICU..." class="mp-textarea w-full resize-none"></textarea>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="mp-label">Asal Ruang</label>
+                <input v-model="fmEditSpri.asal_ruang" placeholder="Nama ruang" class="mp-input w-full"/>
+              </div>
+              <div>
+                <label class="mp-label">Dokter DPJP</label>
+                <input v-model="fmEditSpri.Dokter" placeholder="Nama dokter" class="mp-input w-full"/>
+              </div>
+            </div>
+            <div>
+              <label class="mp-label">Keterangan</label>
+              <textarea v-model="fmEditSpri.Keterangan" rows="2" placeholder="Catatan tambahan..." class="mp-textarea w-full resize-none"></textarea>
+            </div>
+          </div>
+          <div class="flex justify-end gap-3 pt-2 border-t" style="border-color:var(--border-default)">
+            <button type="button" @click="closeModal" class="px-4 py-2.5 rounded-xl text-sm font-semibold" style="background:var(--bg-input);color:var(--text-secondary);border:1px solid var(--border-default)">
+              Batal
+            </button>
+            <button type="submit"
+              :disabled="fmEditSpri.processing || !fmEditSpri.No_MR || !fmEditSpri.No_Reg || !fmEditSpri.Diagnosis || !fmEditSpri.IndikasiRI"
+              class="px-5 py-2.5 rounded-xl text-sm font-bold text-white transition-all disabled:opacity-40 hover:-translate-y-px"
+              style="background:#0EA5E9">
+              {{ fmEditSpri.processing ? 'Menyimpan…' : 'Simpan Perubahan' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </Transition>
+
+    <!-- ── Modal: Batalkan Booking Internal ──────────────────────────────── -->
+    <Transition enter-active-class="transition-all duration-200" enter-from-class="opacity-0 scale-95" leave-to-class="opacity-0 scale-95">
+      <div v-if="modal.type==='batal_spri'" class="mp-modal" style="max-width:480px">
+        <div class="flex items-center gap-3 px-5 py-4 rounded-t-2xl" style="background:#D97706">
+          <svg class="w-5 h-5 text-white flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+          </svg>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-bold text-white">Batalkan Booking ICU</p>
+            <p class="text-xs text-white/70 truncate">{{ selectedItem?.nama_pasien ?? '' }}</p>
+          </div>
+          <button @click="closeModal" class="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-white/20" style="color:rgba(255,255,255,.8)">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <form @submit.prevent="submitBatalSpri" class="p-5 space-y-4">
+          <!-- Info booking -->
+          <div class="rounded-xl p-3.5 grid grid-cols-2 gap-3" style="background:var(--bg-input); border:1px solid var(--border-default)">
+            <div>
+              <p class="text-xs" style="color:var(--text-muted)">No. MR</p>
+              <p class="text-sm font-bold font-mono" style="color:var(--text-primary)">{{ selectedItem?.No_MR ?? '—' }}</p>
+            </div>
+            <div>
+              <p class="text-xs" style="color:var(--text-muted)">Asal Ruang</p>
+              <p class="text-sm font-bold" style="color:var(--text-primary)">{{ selectedItem?.asal_ruang ?? '—' }}</p>
+            </div>
+          </div>
+          <!-- Warning -->
+          <div class="rounded-xl p-3.5 flex gap-3" style="background:rgba(217,119,6,.07); border:1.5px solid rgba(217,119,6,.2)">
+            <svg class="w-4 h-4 flex-shrink-0 mt-0.5" style="color:#D97706" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+            <p class="text-xs" style="color:#92400E">Booking yang dibatalkan tidak dapat dilanjutkan. Admisi dan ICU akan menerima notifikasi pembatalan.</p>
+          </div>
+          <!-- Alasan -->
+          <div>
+            <label class="mp-label">
+              Alasan Pembatalan
+              <span class="normal-case font-normal ml-1" style="color:var(--text-muted)">(opsional)</span>
+            </label>
+            <textarea v-model="fmBatalSpri.alasan_batal" rows="4"
+              placeholder="Mis: Pasien kondisi membaik, tidak perlu ICU, dirujuk ke RS lain..."
+              class="mp-textarea w-full resize-none mt-1"></textarea>
+          </div>
+          <div class="flex justify-end gap-3 pt-2 border-t" style="border-color:var(--border-default)">
+            <button type="button" @click="closeModal" class="px-4 py-2.5 rounded-xl text-sm font-semibold" style="background:var(--bg-input);color:var(--text-secondary);border:1px solid var(--border-default)">
+              Kembali
+            </button>
+            <button type="submit" :disabled="fmBatalSpri.processing"
+              class="px-5 py-2.5 rounded-xl text-sm font-bold transition-all disabled:opacity-40 hover:-translate-y-px"
+              style="background:rgba(217,119,6,.15); color:#D97706; border:1.5px solid rgba(217,119,6,.35)">
+              {{ fmBatalSpri.processing ? 'Memproses...' : 'Ya, Batalkan Booking' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </Transition>
+
   </div>
 </Transition>
 

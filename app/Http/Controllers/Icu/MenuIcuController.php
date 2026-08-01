@@ -34,15 +34,23 @@ class MenuIcuController extends Controller
     {
         $data = $this->service->build($request);
 
+        // Bangun map: Kode_Ruang -> Status untuk semua bed ICU
+        // Dipakai frontend untuk deteksi bed sudah kosong (pasien keluar ICU)
+        $statusKamarMap = StatusKamar::all()
+            ->pluck('Status', 'Kode_Ruang')
+            ->map(fn ($s) => strtoupper($s))
+            ->toArray();
+
         return Inertia::render('Icu/MenuIcu', [
-            'antrian'       => $data['antrian'],
-            'summary'       => $data['summary'],
-            'filters'       => $data['filters'],
-            'kamarKosong'   => MRuangMaster::bedKosong(),
-            'kamarTersedia' => MRuangMaster::bedTersediaUntukKonfirmasi(),
-            'masterKelas'   => MRuangMaster::jenisIcuTersedia(),
-            'caraBayar'     => \App\Models\MCaraBayar::list(),
-            'flash'         => [
+            'antrian'        => $data['antrian'],
+            'summary'        => $data['summary'],
+            'filters'        => $data['filters'],
+            'kamarKosong'    => MRuangMaster::bedKosong(),
+            'kamarTersedia'  => MRuangMaster::bedTersediaUntukKonfirmasi(),
+            'masterKelas'    => MRuangMaster::jenisIcuTersedia(),
+            'caraBayar'      => \App\Models\MCaraBayar::list(),
+            'statusKamarMap' => $statusKamarMap,
+            'flash'          => [
                 'success' => session('success'),
                 'error'   => session('error'),
             ],
@@ -342,4 +350,5 @@ class MenuIcuController extends Controller
         return redirect()->route('icu.menu_icu')
             ->with('success', "Rekomendasi bed pasien {$namaPasien} diubah: {$bedLama} → {$namaBed}. Admisi perlu memperbarui di Bed Management.");
     }
+
 }

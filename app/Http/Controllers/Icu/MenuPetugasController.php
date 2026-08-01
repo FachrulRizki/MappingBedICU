@@ -98,13 +98,18 @@ class MenuPetugasController extends Controller
                 : $spriList->sortByDesc(fn ($i) => strtolower($i['nama_pasien']))->values();
         }
 
-        $allData = IcuSpriInternal::query()->whereIn('NameUser', $this->actorNames())->get();
+        // Summary ikut filter tanggal yang sama dengan data list
+        $summaryQ = IcuSpriInternal::query()->whereIn('NameUser', $this->actorNames())
+            ->whereBetween('created_at', [$fTglDari . ' 00:00:00', $fTglAkh . ' 23:59:59']);
+        $allData = $summaryQ->get();
         $summary = [
             'total'        => $allData->count(),
             'pending_icu'  => $allData->where('status', 'pending_icu')->count(),
             'waiting_list' => $allData->where('status', 'waiting_list')->count(),
             'bed_verified' => $allData->where('status', 'bed_verified')->count(),
             'ditolak'      => $allData->where('status', 'ditolak')->count(),
+            'dibatalkan'   => $allData->where('status', 'dibatalkan')->count(),
+            'selesai'      => $allData->where('status', 'selesai')->count(),
         ];
 
         /** @var \App\Models\User|null $authUser */
@@ -349,8 +354,8 @@ class MenuPetugasController extends Controller
 
         $bu = IcuSpriInternal::findOrFail($id);
 
-        // Hanya bisa edit jika masih pending atau ditolak
-        if (!in_array($bu->status, ['pending_admisi', 'pending_icu', 'ditolak'])) {
+        // Hanya bisa edit jika masih pending (bukan ditolak, bukan dibatalkan, bukan bed_verified)
+        if (!in_array($bu->status, ['pending_admisi', 'pending_icu'])) {
             return back()->with('error', 'BU tidak dapat diedit karena sudah diproses.');
         }
 
@@ -373,7 +378,7 @@ class MenuPetugasController extends Controller
         return back()->with('success', "Booking ICU {$nama} berhasil diupdate.");
     }
 
-    public function batalSpri(int $id): RedirectResponse
+    public function batalSpri(Request $request, int $id): RedirectResponse
     {
         $bu = IcuSpriInternal::findOrFail($id);
 
@@ -381,6 +386,10 @@ class MenuPetugasController extends Controller
         if (!in_array($bu->status, ['pending_admisi', 'pending_icu', 'waiting_list'])) {
             return back()->with('error', 'Booking ICU tidak dapat dibatalkan.');
         }
+
+        $v = $request->validate([
+            'alasan_batal' => 'nullable|string|max:500',
+        ]);
 
         $nama = $bu->No_MR;
         try {
@@ -391,13 +400,16 @@ class MenuPetugasController extends Controller
         $oldStatus = $bu->status;
 
         $bu->update([
-            'status' => 'dibatalkan',
-            'alasan_tolak' => 'Dibatalkan oleh ' . $this->actor(),
+            'status'        => 'dibatalkan',
+            'alasan_batal'  => $v['alasan_batal'] ?? null,
+            'dibatalkan_by' => $this->actor(),
+            'dibatalkan_at' => now(),
         ]);
 
         $this->activityLog->log(
             'Batal BookingICU',
-            "Batalkan BookingICU {$nama} (status sebelumnya: {$oldStatus})",
+            "Batalkan BookingICU {$nama} (status sebelumnya: {$oldStatus})"
+                . (!empty($v['alasan_batal']) ? " — {$v['alasan_batal']}" : ''),
             'spri_internal',
             $bu->id,
             'IcuSpriInternal'
@@ -469,6 +481,7 @@ class MenuPetugasController extends Controller
             'nama_pasien'    => $pasien?->Nama_Pasien ?? '-',
             'jenis_kelamin'  => strtoupper($pasien?->Jenis_Kelamin ?? $pasien?->jenis_kelamin ?? ''),
             'Diagnosis'      => $s->Diagnosis,
+            'Diagnosis_ICD'  => $s->Diagnosis_ICD,
             'IndikasiRI'     => $s->IndikasiRI,
             'kebutuhan_bed'  => $s->kebutuhan_bed,
             'asal_ruang'     => $s->asal_ruang,
@@ -480,6 +493,10 @@ class MenuPetugasController extends Controller
             'status'         => $s->status,
             'status_label'   => $s->statusLabel(),
             'alasan_tolak'   => $s->alasan_tolak,
+            'alasan_batal'   => $s->alasan_batal,
+            'dibatalkan_by'  => $s->dibatalkan_by,
+            'dibatalkan_at'  => $s->dibatalkan_at?->format('Y-m-d H:i'),
+            'dibatalkan_at_fmt' => $s->dibatalkan_at?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
             'jaminan_kode'   => $jaminan['kode'] ?? null,
             'jaminan_nama'   => $jaminan['nama'] ?? null,
             // waiting list

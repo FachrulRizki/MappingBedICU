@@ -12,6 +12,7 @@ use App\Http\Controllers\Icu\MenuIcuController;
 use App\Http\Controllers\Icu\MenuAdmisiController;
 use App\Http\Controllers\Icu\MenuPetugasController;
 use App\Http\Controllers\Icu\MonitorController;
+use App\Http\Controllers\Icu\LaporanIcuController;
 use App\Http\Controllers\Icu\MenuYanmedController;
 use App\Http\Controllers\Icu\NotifikasiController;
 
@@ -80,6 +81,14 @@ Route::middleware('auth')->group(function () {
     Route::get('/icu/menu-yanmed', [MenuYanmedController::class, 'index'])
         ->name('icu.menu_yanmed')
         ->middleware('permission:yanmed:view');
+
+    // ── Laporan Pasien Keluar ICU ─────────────────────────────────────────────
+    Route::get('/icu/laporan/pasien-keluar',     [LaporanIcuController::class, 'index'])
+        ->name('icu.laporan.keluar')
+        ->middleware('permission:booking_ext:view,booking_int:view');
+    Route::get('/icu/laporan/pasien-keluar/pdf', [LaporanIcuController::class, 'exportPdf'])
+        ->name('icu.laporan.keluar.pdf')
+        ->middleware('permission:booking_ext:view,booking_int:view');
 
     // ── Notifikasi polling (semua user login bisa akses) ─────────────────────
     Route::get('/icu/notifikasi/poll', [NotifikasiController::class, 'poll'])->name('icu.notifikasi.poll');

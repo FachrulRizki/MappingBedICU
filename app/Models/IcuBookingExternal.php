@@ -15,6 +15,7 @@ class IcuBookingExternal extends Model
         'No_MR', 'No_Reg',
         'allocated_bed_id', 'nama_bed',
         'status', 'alasan_tolak',
+        'alasan_batal', 'dibatalkan_by', 'dibatalkan_at',
         'waiting_alasan', 'waiting_estimasi', 'waiting_by',
         'pindah_alasan', 'pindah_bed_lama', 'pindah_by', 'pindah_at',
         'created_by', 'confirmed_by', 'confirmed_at',
@@ -28,6 +29,7 @@ class IcuBookingExternal extends Model
         'verified_at'      => 'datetime',
         'pindah_at'        => 'datetime',
         'masuk_at'         => 'datetime',
+        'dibatalkan_at'    => 'datetime',
     ];
 
     public function pasien()
@@ -53,6 +55,7 @@ class IcuBookingExternal extends Model
             'bed_confirmed'   => 'Bed Dikonfirmasi',
             'admisi_verified' => 'Terverifikasi',
             'masuk_icu'       => 'Sudah Masuk ICU',
+            'selesai'         => 'Keluar ICU',
             'ditolak'         => 'Ditolak',
             'dibatalkan'      => 'Dibatalkan',
             default           => $this->status,
@@ -67,6 +70,7 @@ class IcuBookingExternal extends Model
             'bed_confirmed'   => 'blue',
             'admisi_verified' => 'teal',
             'masuk_icu'       => 'green',
+            'selesai'         => 'slate',
             'ditolak'         => 'red',
             'dibatalkan'      => 'gray',
             default           => 'gray',

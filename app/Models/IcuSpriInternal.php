@@ -16,6 +16,7 @@ class IcuSpriInternal extends Model
         'catatan_admisi',
         'allocated_bed_id', 'nama_bed',
         'status', 'alasan_tolak',
+        'alasan_batal', 'dibatalkan_by', 'dibatalkan_at',
         'waiting_alasan', 'waiting_estimasi', 'waiting_by',
         'pindah_alasan', 'pindah_bed_lama', 'pindah_by', 'pindah_at',
         'approved_by', 'approved_at',
@@ -29,6 +30,7 @@ class IcuSpriInternal extends Model
         'verified_at'      => 'datetime',
         'pindah_at'        => 'datetime',
         'masuk_at'         => 'datetime',
+        'dibatalkan_at'    => 'datetime',
     ];
 
     public function pasien()
@@ -54,6 +56,7 @@ class IcuSpriInternal extends Model
             'waiting_list'   => 'Waiting List',
             'bed_verified'   => 'Bed Terverifikasi',
             'masuk_icu'      => 'Sudah Masuk ICU',
+            'selesai'        => 'Keluar ICU',
             'ditolak'        => 'Ditolak',
             'dibatalkan'     => 'Dibatalkan',
             default          => $this->status,
@@ -68,6 +71,7 @@ class IcuSpriInternal extends Model
             'waiting_list'   => 'orange',
             'bed_verified'   => 'teal',
             'masuk_icu'      => 'green',
+            'selesai'        => 'slate',
             'ditolak'        => 'red',
             'dibatalkan'     => 'gray',
             default          => 'gray',

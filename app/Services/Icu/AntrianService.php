@@ -52,14 +52,30 @@ class AntrianService
             $sortDir === 'desc'
         )->values();
 
-        // ── Summary ALL data (tidak difilter sama sekali) ────────────────────
-        $allExternal = IcuBookingExternal::whereIn('status', [
-            'pending_icu', 'waiting_list', 'bed_confirmed', 'ditolak', 'admisi_verified', 'dibatalkan', 'masuk_icu',
-        ])->get()->map(fn ($b) => ['status' => $b->status, 'sumber' => 'external']);
+        // ── Summary — ikut filter tanggal jika ada, all-time jika tidak ────────
+        $dari   = ($fTglDari && $fTglAkh) ? $fTglDari . ' 00:00:00' : null;
+        $sampai = ($fTglDari && $fTglAkh) ? $fTglAkh  . ' 23:59:59' : null;
 
-        $allInternal = IcuSpriInternal::whereIn('status', [
-            'pending_admisi', 'pending_icu', 'bed_verified', 'waiting_list', 'ditolak', 'dibatalkan', 'masuk_icu',
-        ])->get()->map(fn ($s) => ['status' => $s->status, 'sumber' => 'internal']);
+        $qSummaryExt = IcuBookingExternal::whereIn('status', [
+            'pending_icu', 'waiting_list', 'bed_confirmed', 'ditolak', 'admisi_verified', 'dibatalkan', 'masuk_icu', 'selesai',
+        ]);
+        $qSummaryInt = IcuSpriInternal::whereIn('status', [
+            'pending_admisi', 'pending_icu', 'bed_verified', 'waiting_list', 'ditolak', 'dibatalkan', 'masuk_icu', 'selesai',
+        ]);
+
+        if ($dari && $sampai) {
+            $qSummaryExt->where(fn ($q) => $q->whereBetween('created_at', [$dari, $sampai])
+                ->orWhereBetween('confirmed_at', [$dari, $sampai])
+                ->orWhereBetween('verified_at',  [$dari, $sampai])
+                ->orWhereBetween('updated_at',   [$dari, $sampai]));
+            $qSummaryInt->where(fn ($q) => $q->whereBetween('created_at',  [$dari, $sampai])
+                ->orWhereBetween('approved_at',  [$dari, $sampai])
+                ->orWhereBetween('verified_at',  [$dari, $sampai])
+                ->orWhereBetween('updated_at',   [$dari, $sampai]));
+        }
+
+        $allExternal = $qSummaryExt->get()->map(fn ($b) => ['status' => $b->status, 'sumber' => 'external']);
+        $allInternal = $qSummaryInt->get()->map(fn ($s) => ['status' => $s->status, 'sumber' => 'internal']);
 
         $allData = $allExternal->concat($allInternal);
 
@@ -79,7 +95,7 @@ class AntrianService
 
     private function queryExternal(string $fNama, string $fTglDari = '', string $fTglAkh = ''): Collection
     {
-        $activeStatuses = ['pending_icu', 'waiting_list', 'bed_confirmed', 'ditolak', 'admisi_verified', 'dibatalkan', 'masuk_icu'];
+        $activeStatuses = ['pending_icu', 'waiting_list', 'bed_confirmed', 'ditolak', 'admisi_verified', 'dibatalkan', 'masuk_icu', 'selesai'];
         $q = IcuBookingExternal::with('pasien')->whereIn('status', $activeStatuses);
 
         if ($fNama) {
@@ -102,7 +118,7 @@ class AntrianService
 
     private function queryInternal(string $fNama, string $fTglDari = '', string $fTglAkh = ''): Collection
     {
-        $activeStatuses = ['pending_admisi', 'pending_icu', 'bed_verified', 'waiting_list', 'ditolak', 'dibatalkan', 'masuk_icu'];
+        $activeStatuses = ['pending_admisi', 'pending_icu', 'bed_verified', 'waiting_list', 'ditolak', 'dibatalkan', 'masuk_icu', 'selesai'];
         $q = IcuSpriInternal::whereIn('status', $activeStatuses);
 
         if ($fNama) {
@@ -220,6 +236,7 @@ class AntrianService
             'admisi_verified'=> $data->filter(fn ($i) => $st($i) === 'admisi_verified')->count(),
             'verified'       => $data->filter(fn ($i) => in_array($st($i), ['admisi_verified', 'bed_verified']))->count(),
             'masuk_icu'      => $data->filter(fn ($i) => $st($i) === 'masuk_icu')->count(),
+            'selesai'        => $data->filter(fn ($i) => $st($i) === 'selesai')->count(),
             'ditolak'        => $data->filter(fn ($i) => $st($i) === 'ditolak')->count(),
             'dibatalkan'     => $data->filter(fn ($i) => $st($i) === 'dibatalkan')->count(),
             'by_sumber'      => [
@@ -255,6 +272,10 @@ class AntrianService
             'status'           => $b->status,
             'status_label'     => $b->statusLabel(),
             'alasan_tolak'     => $b->alasan_tolak,
+            'alasan_batal'     => $b->alasan_batal,
+            'dibatalkan_by'    => $b->dibatalkan_by,
+            'dibatalkan_at'    => $b->dibatalkan_at?->format('Y-m-d H:i'),
+            'dibatalkan_at_fmt'=> $b->dibatalkan_at?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
             // waiting list
             'waiting_alasan'   => $b->waiting_alasan,
             'waiting_estimasi' => $b->waiting_estimasi?->format('Y-m-d H:i'),
@@ -278,6 +299,7 @@ class AntrianService
             'lama_proses'      => $this->hitungLamaProses($b->created_at,$b->verified_at),
             'masuk_at'         => $b->masuk_at?->format('Y-m-d H:i'),
             'masuk_at_fmt'     => $b->masuk_at?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
+            'allocated_bed_id' => $b->allocated_bed_id,
         ];
     }
 
@@ -308,6 +330,10 @@ class AntrianService
             'status'         => $s->status,
             'status_label'   => $s->statusLabel(),
             'alasan_tolak'   => $s->alasan_tolak,
+            'alasan_batal'   => $s->alasan_batal,
+            'dibatalkan_by'  => $s->dibatalkan_by,
+            'dibatalkan_at'  => $s->dibatalkan_at?->format('Y-m-d H:i'),
+            'dibatalkan_at_fmt' => $s->dibatalkan_at?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
             // waiting list
             'waiting_alasan'   => $s->waiting_alasan,
             'waiting_estimasi' => $s->waiting_estimasi?->format('Y-m-d H:i'),
@@ -331,6 +357,7 @@ class AntrianService
             'lama_proses'    => $this->hitungLamaProses($s->created_at, $s->verified_at),
             'masuk_at'       => $s->masuk_at?->format('Y-m-d H:i'),
             'masuk_at_fmt'   => $s->masuk_at?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
+            'allocated_bed_id' => $s->allocated_bed_id,
         ];
     }
 }

@@ -8,8 +8,8 @@
  *
  * Support: Chrome 66+, Firefox 53+, Safari 14.1+, Edge 79+
  */
-
 import { ref, onMounted, onUnmounted } from 'vue';
+import { router } from '@inertiajs/vue3';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AUDIO CONTEXT — singleton, dibuat dari gesture pertama
@@ -61,19 +61,15 @@ if (typeof window !== 'undefined') {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CHIME GENERATOR — seperti bunyi bel stasiun
-// Pakai triangle wave + sedikit overtone untuk suara lebih "metalik/bel"
 // ─────────────────────────────────────────────────────────────────────────────
 function chimeTone(freq, startSec, durSec, vol = 0.55) {
     if (!isCtxReady()) return;
-    const ctx = _ctx;
-
-    // Oscillator utama
+    const ctx   = _ctx;
     const osc1  = ctx.createOscillator();
     const gain1 = ctx.createGain();
     osc1.type = 'triangle';
     osc1.frequency.setValueAtTime(freq, ctx.currentTime + startSec);
 
-    // Overtone (harmonik 2x frekuensi, volume rendah) untuk tekstur bel
     const osc2  = ctx.createOscillator();
     const gain2 = ctx.createGain();
     osc2.type = 'sine';
@@ -83,12 +79,9 @@ function chimeTone(freq, startSec, durSec, vol = 0.55) {
     osc2.connect(gain2); gain2.connect(ctx.destination);
 
     const t = ctx.currentTime + startSec;
-
-    // Envelope bel: attack cepat, decay lambat (khas bel logam)
     gain1.gain.setValueAtTime(0, t);
-    gain1.gain.linearRampToValueAtTime(vol,     t + 0.008);   // attack 8ms
-    gain1.gain.exponentialRampToValueAtTime(0.001, t + durSec); // decay alami
-
+    gain1.gain.linearRampToValueAtTime(vol,       t + 0.008);
+    gain1.gain.exponentialRampToValueAtTime(0.001, t + durSec);
     gain2.gain.setValueAtTime(0, t);
     gain2.gain.linearRampToValueAtTime(vol * 0.25, t + 0.008);
     gain2.gain.exponentialRampToValueAtTime(0.001,  t + durSec * 0.7);
@@ -97,41 +90,23 @@ function chimeTone(freq, startSec, durSec, vol = 0.55) {
     osc2.start(t); osc2.stop(t + durSec * 0.7 + 0.05);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CHIME PATTERNS
-// Pola: seperti pengumuman stasiun — nada pendek lalu pengumuman
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * NONING INTERNAL — "ding-dong" 2 nada (tinggi→rendah)
- * Total durasi: ~0.9 detik, ucapan mulai setelah 0.95 detik
- */
+// Pola chime — return detik sampai speech dimulai
 function chimeNoningInternal() {
-    chimeTone(880, 0.00, 0.55);   // A5 — "NO"
-    chimeTone(659, 0.55, 0.55);   // E5 — "ning"
-    return 1.2; // ms sampai speech dimulai
+    chimeTone(880, 0.00, 0.55);
+    chimeTone(659, 0.55, 0.55);
+    return 1.2;
 }
-
-/**
- * NONING EXTERNAL — "ding-dong ding-dong" 4 nada
- * Total durasi: ~1.7 detik, ucapan mulai setelah 1.75 detik
- */
 function chimeNoningExternal() {
     chimeTone(659, 0.00, 0.38);
     chimeTone(880, 0.42, 0.38);
     chimeTone(659, 0.88, 0.38);
     chimeTone(880, 1.30, 0.45);
-    return 1.85; // ms sampai speech dimulai
+    return 1.85;
 }
-
-/**
- * NINGNONG — "dong-ding" 2 nada (rendah→tinggi), suara lebih "meriah"
- * Total durasi: ~1.0 detik, ucapan mulai setelah 1.1 detik
- */
 function chimeNingnong() {
-    chimeTone(523, 0.00, 0.50, 0.6);   // C5 rendah — "NING"
-    chimeTone(784, 0.52, 0.60, 0.6);   // G5 tinggi — "nong"
-    return 1.25; // ms sampai speech dimulai
+    chimeTone(523, 0.00, 0.50, 0.6);
+    chimeTone(784, 0.52, 0.60, 0.6);
+    return 1.25;
 }
 
 const CHIME_FN = {
@@ -142,66 +117,79 @@ const CHIME_FN = {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SPEECH SYNTHESIS
-// Teks pengumuman, diucapkan setelah chime selesai
 // ─────────────────────────────────────────────────────────────────────────────
 const SPEECH_TEXT = {
-    noning_internal : 'Perhatian. Ada permintaan booking ICU dari ruang rawat inap.',
-    noning_external : 'Perhatian. Ada permintaan booking ICU dari pasien eksternal.',
-    ningnong        : 'Perhatian. Bed ICU tersedia. Mohon segera konfirmasi.',
+    noning_internal: 'Perhatian. Ada permintaan booking ICU dari ruang rawat inap.',
+    noning_external: 'Perhatian. Ada permintaan booking ICU dari pasien eksternal.',
+    ningnong:        'Perhatian. Bed ICU tersedia. Mohon segera antar pasien ke ICU.',
 };
 
 function getBestVoice() {
     const voices = window.speechSynthesis?.getVoices() ?? [];
+    if (!voices.length) return null;
 
-    // Prioritas: Gadis (id-ID) > Andika (id-ID) > voice id-ID lainnya > ms-MY > en-US lokal
-    return voices.find(v => v.name.includes('Gadis'))
-        ?? voices.find(v => v.name.includes('Andika'))
+    // PRIORITAS LOKAL dulu — Google TTS (remote) diblokir Chrome dari async/polling context
+    return voices.find(v => /gadis|andika/i.test(v.name) && v.localService)
+        ?? voices.find(v => /gadis|andika/i.test(v.name))
         ?? voices.find(v => v.lang === 'id-ID' && v.localService)
-        ?? voices.find(v => v.lang === 'id-ID')
         ?? voices.find(v => v.lang.startsWith('id') && v.localService)
-        ?? voices.find(v => v.lang.startsWith('id'))
-        ?? voices.find(v => v.lang === 'ms-MY' && v.localService)
-        ?? voices.find(v => v.lang.startsWith('ms'))
-        ?? voices.find(v => v.lang === 'en-US' && v.localService)
-        ?? voices.find(v => v.lang.startsWith('en'))
+        ?? voices.find(v => v.lang.startsWith('ms') && v.localService)
+        ?? voices.find(v => v.localService)                // lokal apapun
+        ?? voices.find(v => v.lang === 'id-ID')            // remote fallback terakhir
+        ?? voices[0]
         ?? null;
 }
 
 function speak(text) {
     if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-
-    const utter = new SpeechSynthesisUtterance(text);
-    const voice = getBestVoice();
-
-    if (voice) utter.voice = voice;
-    utter.lang   = voice?.lang ?? 'id-ID';
-    utter.rate   = 0.82;    // lebih lambat → lebih jelas dan tegas
-    utter.pitch  = 0.95;    // sedikit lebih dalam, tidak cempreng
-    utter.volume = 1.0;     // volume maksimal
-
-    window.speechSynthesis.speak(utter);
+    try {
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(text);
+        const voice = getBestVoice();
+        if (voice) utter.voice = voice;
+        utter.lang   = voice?.lang ?? 'id-ID';
+        utter.rate   = 0.82;
+        utter.pitch  = 0.95;
+        utter.volume = 1.0;
+        utter.onerror = (e) => console.warn('[notif] speech error:', e.error);
+        utter.onstart = () => console.log('[notif] speaking:', text.substring(0, 40));
+        window.speechSynthesis.speak(utter);
+    } catch (e) { console.warn('[notif] speak ex:', e); }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PLAY FULL ANNOUNCEMENT — chime lalu ucapan (pola KAI)
+// PLAY FULL ANNOUNCEMENT — chime lalu ucapan
+// text: teks dari server (nama pasien, ruang, dll) — fallback ke SPEECH_TEXT
 // ─────────────────────────────────────────────────────────────────────────────
-function playAnnouncement(key) {
+function playAnnouncement(key, customText = null) {
     const chimeFn = CHIME_FN[key];
-    const text    = SPEECH_TEXT[key];
-    if (!chimeFn) return;
+    // Gunakan teks dari server jika ada, fallback ke default
+    const text    = customText || SPEECH_TEXT[key];
 
-    // 1. Mainkan chime
-    const delayMs = chimeFn() * 1000; // fungsi chime return berapa detik sampai speech
+    // Chime — hanya jika AudioContext ready
+    let delayMs = 0;
+    if (chimeFn && isCtxReady()) {
+        delayMs = chimeFn() * 1000;
+    }
 
-    // 2. Ucapkan setelah chime + jeda 200ms ekstra
+    // Speech — SELALU jalankan, tidak tergantung AudioContext
     if (text) {
-        setTimeout(() => speak(text), delayMs + 200);
+        const speechDelay = delayMs > 0 ? delayMs + 200 : 300;
+        setTimeout(() => speak(text), speechDelay);
     }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// COMPOSABLE
+// GLOBAL ALERT MODAL STATE — dipakai AppLayout untuk tampilkan modal bahaya
+// ─────────────────────────────────────────────────────────────────────────────
+const _alertModal = ref(null);
+
+export function useNotifAlert() {
+    return { alertModal: _alertModal };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPOSABLE UTAMA
 // ─────────────────────────────────────────────────────────────────────────────
 export function useNotifikasi() {
     const notifList = ref([]);
@@ -209,24 +197,54 @@ export function useNotifikasi() {
     let startTimer  = null;
     let _id         = 1;
 
+    // Auto-refresh data halaman setelah notif masuk
+    function doAutoRefresh() {
+        try {
+            router.reload({
+                only          : ['antrian', 'summary', 'spriList', 'kamarKosong', 'statusKamarMap'],
+                preserveScroll: true,
+                preserveState : true,
+            });
+        } catch (_) {}
+    }
+
     async function doPoll() {
         try {
             const res = await fetch('/icu/notifikasi/poll', {
-                headers     : { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                credentials : 'same-origin',
+                headers    : { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin',
             });
             if (!res.ok) return;
 
             const { notifs = [] } = await res.json();
             if (!notifs.length) return;
 
-            // Mainkan announcement (chime + ucapan)
-            if (isCtxReady()) {
-                const ORDER  = ['ningnong', 'noning_external', 'noning_internal'];
-                const sounds = notifs.map(n => n.sound);
-                const top    = ORDER.find(s => sounds.includes(s)) ?? sounds[0];
-                if (top) playAnnouncement(top);
+            // Auto-refresh data halaman
+            doAutoRefresh();
+
+            // Mainkan announcement (chime + ucapan) — tidak perlu cek isCtxReady di sini
+            const ORDER  = ['ningnong', 'noning_external', 'noning_internal'];
+            const sounds = notifs.map(n => n.sound);
+            const top    = ORDER.find(s => sounds.includes(s)) ?? sounds[0];
+            if (top) {
+                // Cari message dari notif dengan sound tertinggi prioritasnya
+                const topNotifData = notifs.find(n => n.sound === top);
+                // Buat teks TTS yang informatif: "Perhatian. <message dari server>"
+                const ttsText = topNotifData?.message
+                    ? 'Perhatian. ' + topNotifData.message
+                    : null;
+                playAnnouncement(top, ttsText);
             }
+
+            // Tampilkan danger alert modal di tengah layar
+            const topNotif = notifs[0];
+            _alertModal.value = {
+                type     : topNotif.sound,
+                message  : topNotif.message,
+                count    : notifs.length,
+                allNotifs: notifs,
+            };
+            setTimeout(() => { _alertModal.value = null; }, 30_000); // 30 detik
 
             // Tampilkan toast
             for (const n of notifs) {
@@ -246,7 +264,7 @@ export function useNotifikasi() {
     onMounted(() => {
         startTimer = setTimeout(() => {
             doPoll();
-            pollTimer = setInterval(doPoll, 15_000);
+            pollTimer = setInterval(doPoll, 10_000);
         }, 1_000);
     });
 
@@ -259,19 +277,28 @@ export function useNotifikasi() {
         notifList,
         dismissNotif,
         _debug: {
-            /** Test semua suara: window.__notif.test() */
+            /** window.__notif.test() */
             test() {
                 console.log('[notif] test | ctx:', _ctx?.state);
                 playAnnouncement('noning_internal');
                 setTimeout(() => playAnnouncement('noning_external'), 4_000);
                 setTimeout(() => playAnnouncement('ningnong'),        9_000);
             },
-            state   : () => ({ ctx: _ctx?.state ?? 'null', gestureHandled: _gestureHandled }),
-            poll    : doPoll,
-            voices  : () => window.speechSynthesis?.getVoices().map(v => `${v.lang} — ${v.name} (local:${v.localService})`),
+            testAlert() {
+                _alertModal.value = {
+                    type    : 'noning_external',
+                    message : 'TEST: Ada permintaan booking ICU dari pasien eksternal!',
+                    count   : 1,
+                    allNotifs: [{ type: 'test', sound: 'noning_external', message: 'Test notif' }],
+                };
+                setTimeout(() => { _alertModal.value = null; }, 8_000);
+            },
+            state    : () => ({ ctx: _ctx?.state ?? 'null', gestureHandled: _gestureHandled }),
+            poll     : doPoll,
+            voices   : () => window.speechSynthesis?.getVoices().map(v => `${v.lang} — ${v.name} (local:${v.localService})`),
             bestVoice: () => { const v = getBestVoice(); return v ? `${v.lang} — ${v.name}` : 'none'; },
-            speak   : (t) => speak(t),
-            announce: (k) => playAnnouncement(k),
+            speak    : (t) => speak(t),
+            announce : (k) => playAnnouncement(k),
         },
     };
 }

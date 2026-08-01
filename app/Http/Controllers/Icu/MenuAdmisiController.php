@@ -96,8 +96,8 @@ class MenuAdmisiController extends Controller
 
         $booking = IcuBookingExternal::findOrFail($id);
 
-        // Hanya bisa edit jika masih pending atau ditolak
-        if (!in_array($booking->status, ['pending_icu', 'ditolak'])) {
+        // Hanya bisa edit jika masih pending
+        if (!in_array($booking->status, ['pending_icu'])) {
             return back()->with('error', 'Booking tidak dapat diedit karena sudah diproses.');
         }
 
@@ -114,7 +114,7 @@ class MenuAdmisiController extends Controller
         return back()->with('success', "Booking {$booking->nama_pasien} berhasil diupdate.");
     }
 
-    public function batalBooking(int $id): RedirectResponse
+    public function batalBooking(Request $request, int $id): RedirectResponse
     {
         $booking = IcuBookingExternal::findOrFail($id);
 
@@ -123,17 +123,24 @@ class MenuAdmisiController extends Controller
             return back()->with('error', 'Booking tidak dapat dibatalkan.');
         }
 
+        $v = $request->validate([
+            'alasan_batal' => 'nullable|string|max:500',
+        ]);
+
         $namaPasien = $booking->nama_pasien;
-        $oldStatus = $booking->status;
+        $oldStatus  = $booking->status;
 
         $booking->update([
-            'status' => 'dibatalkan',
-            'alasan_tolak' => 'Dibatalkan oleh ' . $this->actor(),
+            'status'        => 'dibatalkan',
+            'alasan_batal'  => $v['alasan_batal'] ?? null,
+            'dibatalkan_by' => $this->actor(),
+            'dibatalkan_at' => now(),
         ]);
 
         $this->activityLog->log(
             'Batal Booking',
-            "Batalkan booking {$namaPasien} (status sebelumnya: {$oldStatus})",
+            "Batalkan booking {$namaPasien} (status sebelumnya: {$oldStatus})"
+                . (!empty($v['alasan_batal']) ? " — {$v['alasan_batal']}" : ''),
             'booking_external',
             $booking->id,
             'IcuBookingExternal'
@@ -202,7 +209,7 @@ class MenuAdmisiController extends Controller
         return back()->with('success', "Booking ICU {$namaPasien} berhasil diupdate.");
     }
 
-    public function batalInt(int $id): RedirectResponse
+    public function batalInt(Request $request, int $id): RedirectResponse
     {
         $bu = IcuSpriInternal::findOrFail($id);
 
@@ -211,17 +218,24 @@ class MenuAdmisiController extends Controller
             return back()->with('error', 'Booking ICU tidak dapat dibatalkan.');
         }
 
+        $v = $request->validate([
+            'alasan_batal' => 'nullable|string|max:500',
+        ]);
+
         $namaPasien = (string) ($bu->pasien?->Nama_Pasien ?? $bu->No_MR);
         $oldStatus  = $bu->status;
 
         $bu->update([
-            'status'       => 'dibatalkan',
-            'alasan_tolak' => 'Dibatalkan oleh admisi: ' . $this->actor(),
+            'status'        => 'dibatalkan',
+            'alasan_batal'  => $v['alasan_batal'] ?? null,
+            'dibatalkan_by' => $this->actor(),
+            'dibatalkan_at' => now(),
         ]);
 
         $this->activityLog->log(
             'Batal Booking Internal',
-            "Batalkan booking internal {$namaPasien} oleh admisi (status sebelumnya: {$oldStatus})",
+            "Batalkan booking internal {$namaPasien} oleh admisi (status sebelumnya: {$oldStatus})"
+                . (!empty($v['alasan_batal']) ? " — {$v['alasan_batal']}" : ''),
             'spri_internal',
             $bu->id,
             'IcuSpriInternal'

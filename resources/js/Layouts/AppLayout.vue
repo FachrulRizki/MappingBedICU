@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { router, usePage, Link } from '@inertiajs/vue3';
 import FlashMessage from '@/Components/FlashMessage.vue';
 import { useTheme } from '@/composables/useTheme.js';
-import { useNotifikasi } from '@/composables/useNotifikasi.js';
+import { useNotifikasi, useNotifAlert } from '@/composables/useNotifikasi.js';
 
 defineProps({
     flash:     { type: Object, default: () => ({}) },
@@ -64,9 +64,20 @@ const isDark = computed(() => theme.value === 'dark');
 
 // ── Notifikasi suara (polling) ─────────────────────────────────────────────
 const { notifList, dismissNotif, _debug } = useNotifikasi();
+const { alertModal } = useNotifAlert();
 
 // Debug helper — bisa akses dari browser console: window.__notif.test()
 if (typeof window !== 'undefined') window.__notif = _debug;
+
+// ── Dismiss alert modal ──
+const dismissAlert = () => { alertModal.value = null; };
+
+// ── Tipe notif → label & warna ──
+const alertConfig = (type) => {
+    if (type === 'noning_internal') return { label: '🚨 Booking Internal Baru!', color: '#00A884', bg: 'linear-gradient(135deg,#00875a,#00A884)', glow: 'rgba(0,168,132,0.6)' };
+    if (type === 'noning_external') return { label: '🚨 Booking Eksternal Baru!', color: '#0EA5E9', bg: 'linear-gradient(135deg,#0369a1,#0EA5E9)', glow: 'rgba(14,165,233,0.6)' };
+    return { label: '🔔 Notifikasi ICU', color: '#7C3AED', bg: 'linear-gradient(135deg,#5b21b6,#7C3AED)', glow: 'rgba(124,58,237,0.6)' };
+};
 
 const mobileOpen = ref(false);
 const onResize   = () => { if (window.innerWidth >= 1024) mobileOpen.value = false; };
@@ -118,6 +129,50 @@ const iconMoon = 'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003
 <template>
 <div class="flex h-screen overflow-hidden" style="background:var(--bg-main); font-family:'Inter','Plus Jakarta Sans',sans-serif">
     <FlashMessage :flash="flash" />
+
+    <!-- ── DANGER ALERT MODAL — muncul di tengah layar saat ada notif ─── -->
+    <Teleport to="body">
+        <Transition name="danger-modal">
+            <div v-if="alertModal" class="danger-overlay" @click.self="dismissAlert" role="alertdialog" aria-modal="true">
+                <div class="danger-card" :style="`box-shadow: 0 0 60px ${alertConfig(alertModal.type).glow}, 0 25px 50px rgba(0,0,0,0.5)`">
+                    <!-- Pulse ring animasi -->
+                    <div class="danger-pulse-ring"></div>
+                    <div class="danger-pulse-ring danger-pulse-ring--2"></div>
+
+                    <!-- Icon bahaya berkedip -->
+                    <div class="danger-icon-wrap" :style="`background:${alertConfig(alertModal.type).bg}`">
+                        <svg class="danger-icon" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="2">
+                            <path v-if="alertModal.type === 'ningnong'" stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+                            <path v-else-if="alertModal.type === 'noning_internal'" stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                            <path v-else stroke-linecap="round" stroke-linejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
+                        </svg>
+                    </div>
+
+                    <!-- Judul -->
+                    <h2 class="danger-title">{{ alertConfig(alertModal.type).label }}</h2>
+
+                    <!-- Pesan -->
+                    <p class="danger-message">{{ alertModal.message }}</p>
+
+                    <!-- Semua notif jika lebih dari 1 -->
+                    <div v-if="alertModal.allNotifs && alertModal.allNotifs.length > 1" class="danger-extra">
+                        <p v-for="n in alertModal.allNotifs.slice(1)" :key="n.type" class="danger-extra-item">• {{ n.message }}</p>
+                    </div>
+
+                    <!-- Tombol dismiss -->
+                    <button @click="dismissAlert" class="danger-dismiss-btn">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                        </svg>
+                        Sudah Mengerti
+                    </button>
+
+                    <!-- Progress bar auto-dismiss -->
+                    <div class="danger-progress"></div>
+                </div>
+            </div>
+        </Transition>
+    </Teleport>
 
     <!-- ── Navigation Loading Modal ───────────────────────────────────── -->
     <Transition name="nav-overlay">
@@ -636,5 +691,175 @@ const iconMoon = 'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003
 .notif-slide-leave-to {
     opacity: 0;
     transform: translateX(60px) scale(0.9);
+}
+
+/* ══════════════════════════════════════════════
+   DANGER ALERT MODAL
+══════════════════════════════════════════════ */
+.danger-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 99990;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+
+.danger-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 40px 32px 32px;
+    border-radius: 24px;
+    background: #0f1117;
+    border: 1.5px solid rgba(255, 255, 255, 0.12);
+    max-width: 420px;
+    width: 100%;
+    overflow: hidden;
+    animation: danger-shake 0.5s ease;
+}
+
+@keyframes danger-shake {
+    0%, 100% { transform: translateX(0); }
+    15%       { transform: translateX(-6px); }
+    30%       { transform: translateX(6px); }
+    45%       { transform: translateX(-4px); }
+    60%       { transform: translateX(4px); }
+    75%       { transform: translateX(-2px); }
+    90%       { transform: translateX(2px); }
+}
+
+/* Cincin pulse di belakang kartu */
+.danger-pulse-ring {
+    position: absolute;
+    inset: -20px;
+    border-radius: 36px;
+    border: 2px solid rgba(231, 76, 60, 0.4);
+    animation: danger-ring-pulse 1.5s ease-in-out infinite;
+    pointer-events: none;
+}
+.danger-pulse-ring--2 {
+    inset: -40px;
+    border-color: rgba(231, 76, 60, 0.2);
+    animation-delay: 0.4s;
+    animation-duration: 1.8s;
+}
+@keyframes danger-ring-pulse {
+    0%   { opacity: 1; transform: scale(1); }
+    100% { opacity: 0; transform: scale(1.06); }
+}
+
+/* Icon berkedip */
+.danger-icon-wrap {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
+    flex-shrink: 0;
+    animation: danger-icon-blink 0.8s ease-in-out infinite alternate;
+    box-shadow: 0 0 30px rgba(231, 76, 60, 0.5);
+}
+.danger-icon {
+    width: 36px;
+    height: 36px;
+}
+@keyframes danger-icon-blink {
+    from { transform: scale(1);    filter: brightness(1); }
+    to   { transform: scale(1.08); filter: brightness(1.2); }
+}
+
+.danger-title {
+    font-size: 20px;
+    font-weight: 900;
+    color: #fff;
+    margin-bottom: 10px;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+}
+
+.danger-message {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.85);
+    line-height: 1.6;
+    margin-bottom: 12px;
+    max-width: 340px;
+}
+
+.danger-extra {
+    width: 100%;
+    background: rgba(255,255,255,0.06);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 16px;
+}
+.danger-extra-item {
+    font-size: 12px;
+    color: rgba(255,255,255,0.7);
+    line-height: 1.7;
+    text-align: left;
+}
+
+.danger-dismiss-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 28px;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.12);
+    border: 1.5px solid rgba(255,255,255,0.2);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-top: 4px;
+    position: relative;
+    z-index: 1;
+}
+.danger-dismiss-btn:hover {
+    background: rgba(255,255,255,0.22);
+    transform: translateY(-1px);
+}
+
+/* Progress bar 8 detik auto dismiss */
+.danger-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 4px;
+    width: 100%;
+    background: rgba(255,255,255,0.15);
+    transform-origin: left;
+    animation: danger-progress-bar 8s linear forwards;
+    border-radius: 0 0 24px 24px;
+}
+@keyframes danger-progress-bar {
+    from { transform: scaleX(1); background: rgba(231,76,60,0.7); }
+    to   { transform: scaleX(0); background: rgba(255,255,255,0.1); }
+}
+
+/* Transition masuk/keluar modal */
+.danger-modal-enter-active {
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.danger-modal-leave-active {
+    transition: all 0.2s ease-in;
+}
+.danger-modal-enter-from {
+    opacity: 0;
+    transform: scale(0.85);
+}
+.danger-modal-leave-to {
+    opacity: 0;
+    transform: scale(0.95);
 }
 </style>

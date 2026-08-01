@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Icu;
 use App\Http\Controllers\Controller;
 use App\Models\IcuBookingExternal;
 use App\Models\IcuSpriInternal;
+use App\Models\RegistrasiPasien;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -12,11 +13,6 @@ use Illuminate\Support\Facades\Cache;
 
 class NotifikasiController extends Controller
 {
-    /**
-     * GET /icu/notifikasi/poll
-     *
-     * Mengembalikan notifikasi yang relevan berdasarkan role user.
-     */
     public function poll(Request $request): JsonResponse
     {
         /** @var \App\Models\User|null $user */
@@ -25,67 +21,83 @@ class NotifikasiController extends Controller
             return response()->json(['notifs' => []]);
         }
 
-        // Permissions disimpan di session (di-sync dari Keycloak oleh SyncKeycloakRole middleware)
         $permissions = $request->session()->get('keycloak_permissions', []);
         $userId      = $user->id;
 
-        // Key cache untuk menyimpan timestamp terakhir kali user di-notif
         $cacheKey    = "notif_last_seen_{$userId}";
         $lastSeenRaw = Cache::get($cacheKey);
-
-        // Pertama kali buka: gunakan 5 menit lalu agar langsung dapat notif yang ada
-        $lastSeen = $lastSeenRaw
+        $lastSeen    = $lastSeenRaw
             ? \Carbon\Carbon::parse($lastSeenRaw)
             : now()->subMinutes(5);
 
-        $now   = now();
+        $now    = now();
         $notifs = [];
 
-        // ── ICU: notif saat ada booking baru (internal atau external) masuk ──
+        // ─── Helper: ambil nama pasien dari No_MR ────────────────────────────
+        $getNamaPasien = function (string $noMr): string {
+            try {
+                return RegistrasiPasien::where('No_MR', $noMr)->value('Nama_Pasien') ?? $noMr;
+            } catch (\Exception) {
+                return $noMr;
+            }
+        };
+
+        // ─── ICU ─────────────────────────────────────────────────────────────
         $isIcu = in_array('booking_ext:konfirmasi_bed', $permissions)
                || in_array('booking_int:verifikasi_bed', $permissions);
 
         if ($isIcu) {
-            // Booking Internal baru (pending_icu) — dari petugas ruang
-            $newInternal = IcuSpriInternal::where('status', 'pending_icu')
+            // Internal baru — sebut nama pasien + asal ruang
+            $newInternals = IcuSpriInternal::where('status', 'pending_icu')
                 ->where('updated_at', '>', $lastSeen)
-                ->count();
+                ->get(['No_MR', 'asal_ruang']);
 
-            // Booking External baru (pending_icu) — dari admisi
-            $newExternal = IcuBookingExternal::where('status', 'pending_icu')
-                ->where('updated_at', '>', $lastSeen)
-                ->count();
-
-            if ($newInternal > 0) {
+            if ($newInternals->count() > 0) {
+                if ($newInternals->count() === 1) {
+                    $item    = $newInternals->first();
+                    $nama    = $getNamaPasien($item->No_MR);
+                    $ruang   = $item->asal_ruang ? " dari {$item->asal_ruang}" : '';
+                    $message = "Permintaan ICU: {$nama}{$ruang}";
+                } else {
+                    $message = "Ada {$newInternals->count()} permintaan ICU baru dari ruang rawat inap";
+                }
                 $notifs[] = [
                     'type'    => 'new_booking_internal',
                     'sound'   => 'noning_internal',
-                    'count'   => $newInternal,
-                    'message' => $newInternal === 1
-                        ? 'Ada bookingan pasien dari internal nih!'
-                        : "Ada {$newInternal} bookingan pasien baru dari internal!",
+                    'count'   => $newInternals->count(),
+                    'message' => $message,
                 ];
             }
 
-            if ($newExternal > 0) {
+            // External baru — sebut nama pasien + asal rujukan
+            $newExternals = IcuBookingExternal::where('status', 'pending_icu')
+                ->where('updated_at', '>', $lastSeen)
+                ->get(['nama_pasien', 'asal_rujukan']);
+
+            if ($newExternals->count() > 0) {
+                if ($newExternals->count() === 1) {
+                    $item    = $newExternals->first();
+                    $asal    = $item->asal_rujukan ? " dari {$item->asal_rujukan}" : '';
+                    $message = "Permintaan ICU eksternal: {$item->nama_pasien}{$asal}";
+                } else {
+                    $message = "Ada {$newExternals->count()} permintaan ICU baru dari pasien eksternal";
+                }
                 $notifs[] = [
                     'type'    => 'new_booking_external',
                     'sound'   => 'noning_external',
-                    'count'   => $newExternal,
-                    'message' => $newExternal === 1
-                        ? 'Ada bookingan pasien dari eksternal nih!'
-                        : "Ada {$newExternal} bookingan pasien baru dari eksternal!",
+                    'count'   => $newExternals->count(),
+                    'message' => $message,
                 ];
             }
         }
 
-        // ── Admisi / Petugas Ruang: notif saat bed tersedia & diverifikasi ICU ──
+        // ─── Admisi & Petugas ─────────────────────────────────────────────────
         $isAdmisi  = in_array('booking_ext:create', $permissions)
                    || in_array('booking_ext:verifikasi_pasien', $permissions)
                    || in_array('booking_int:approve', $permissions);
         $isPetugas = in_array('booking_int:create', $permissions);
 
-        // Identitas petugas — bisa punya beberapa alias (name, keycloak_username, username)
+        // Semua nama/alias user ini yang tersimpan di kolom NameUser
         $petugasNames = array_unique(array_filter([
             $user->name,
             $user->keycloak_username ?? null,
@@ -93,50 +105,58 @@ class NotifikasiController extends Controller
         ]));
 
         if ($isAdmisi || $isPetugas) {
-            // External: bed_confirmed baru (ICU konfirmasi bed → admisi perlu update di Bed Management)
-            // Admisi menerima SEMUA notif booking external karena mereka handle semua pasien external
-            if ($isAdmisi) {
-                $newBedConfirmed = IcuBookingExternal::where('status', 'bed_confirmed')
-                    ->where('confirmed_at', '>', $lastSeen)
-                    ->count();
 
-                if ($newBedConfirmed > 0) {
+            // Admisi: bed_confirmed external — sebut nama pasien
+            if ($isAdmisi) {
+                $confirmed = IcuBookingExternal::where('status', 'bed_confirmed')
+                    ->where('confirmed_at', '>', $lastSeen)
+                    ->get(['nama_pasien', 'nama_bed']);
+
+                if ($confirmed->count() > 0) {
+                    if ($confirmed->count() === 1) {
+                        $item    = $confirmed->first();
+                        $bed     = $item->nama_bed ? " — Bed {$item->nama_bed}" : '';
+                        $message = "Bed dikonfirmasi ICU: {$item->nama_pasien}{$bed}";
+                    } else {
+                        $message = "{$confirmed->count()} bed dikonfirmasi ICU, segera update di Bed Management";
+                    }
                     $notifs[] = [
                         'type'    => 'bed_confirmed',
                         'sound'   => 'ningnong',
-                        'count'   => $newBedConfirmed,
-                        'message' => $newBedConfirmed === 1
-                            ? 'Ningnong! ICU sudah konfirmasi bed, segera update di Bed Management!'
-                            : "Ningnong! {$newBedConfirmed} bed dikonfirmasi ICU, segera update di Bed Management!",
+                        'count'   => $confirmed->count(),
+                        'message' => $message,
                     ];
                 }
             }
 
-            // Internal: bed_verified — petugas HANYA notif untuk BU milik mereka sendiri
-            // Admisi tetap terima semua (mereka handle approve semua ruangan)
+            // Bed verified internal — petugas hanya miliknya, admisi semua
             $qBedVerified = IcuSpriInternal::where('status', 'bed_verified')
                 ->where('verified_at', '>', $lastSeen);
 
             if ($isPetugas && ! $isAdmisi) {
-                // Murni petugas ruang — filter hanya BU yang dibuat oleh user ini
                 $qBedVerified->whereIn('NameUser', $petugasNames);
             }
-            // Jika $isAdmisi → tidak difilter, admisi terima semua
 
-            $newBedVerified = $qBedVerified->count();
+            $bedVerified = $qBedVerified->get(['No_MR', 'nama_bed', 'asal_ruang']);
 
-            if ($newBedVerified > 0) {
+            if ($bedVerified->count() > 0) {
+                if ($bedVerified->count() === 1) {
+                    $item    = $bedVerified->first();
+                    $nama    = $getNamaPasien($item->No_MR);
+                    $bed     = $item->nama_bed ? " — Bed {$item->nama_bed}" : '';
+                    $message = "Bed ICU tersedia untuk {$nama}{$bed}";
+                } else {
+                    $message = "{$bedVerified->count()} bed ICU diverifikasi untuk pasien Anda";
+                }
                 $notifs[] = [
                     'type'    => 'bed_verified_internal',
                     'sound'   => 'ningnong',
-                    'count'   => $newBedVerified,
-                    'message' => $newBedVerified === 1
-                        ? 'Ningnong! ICU sudah verifikasi bed untuk pasien Anda!'
-                        : "Ningnong! {$newBedVerified} bed diverifikasi ICU untuk pasien Anda!",
+                    'count'   => $bedVerified->count(),
+                    'message' => $message,
                 ];
             }
 
-            // Notif pasien sudah masuk ICU — petugas hanya untuk pasiennya sendiri, admisi semua
+            // Pasien masuk ICU
             $qMasukInt = IcuSpriInternal::where('status', 'masuk_icu')
                 ->where('masuk_at', '>', $lastSeen);
 
@@ -144,37 +164,61 @@ class NotifikasiController extends Controller
                 $qMasukInt->whereIn('NameUser', $petugasNames);
             }
 
-            $newMasukExt = $isAdmisi
-                ? IcuBookingExternal::where('status', 'masuk_icu')->where('masuk_at', '>', $lastSeen)->count()
-                : 0; // petugas ruang tidak handle external
+            $masukInt = $qMasukInt->get(['No_MR', 'nama_bed']);
+            $masukExt = $isAdmisi
+                ? IcuBookingExternal::where('status', 'masuk_icu')
+                    ->where('masuk_at', '>', $lastSeen)
+                    ->get(['nama_pasien', 'nama_bed'])
+                : collect();
 
-            $newMasukInt  = $qMasukInt->count();
-            $totalMasuk   = $newMasukExt + $newMasukInt;
+            $totalMasuk = $masukInt->count() + $masukExt->count();
 
             if ($totalMasuk > 0) {
+                if ($totalMasuk === 1) {
+                    if ($masukInt->count() === 1) {
+                        $item    = $masukInt->first();
+                        $nama    = $getNamaPasien($item->No_MR);
+                        $bed     = $item->nama_bed ? " di Bed {$item->nama_bed}" : '';
+                        $message = "{$nama} sudah masuk ICU{$bed}";
+                    } else {
+                        $item    = $masukExt->first();
+                        $bed     = $item->nama_bed ? " di Bed {$item->nama_bed}" : '';
+                        $message = "{$item->nama_pasien} sudah masuk ICU{$bed}";
+                    }
+                } else {
+                    $message = "{$totalMasuk} pasien sudah masuk ICU";
+                }
                 $notifs[] = [
                     'type'    => 'pasien_masuk_icu',
                     'sound'   => 'ningnong',
                     'count'   => $totalMasuk,
-                    'message' => $totalMasuk === 1
-                        ? 'Pasien sudah masuk ICU dan menempati bed!'
-                        : "{$totalMasuk} pasien sudah masuk ICU dan menempati bed!",
+                    'message' => $message,
                 ];
             }
         }
 
-        // Update timestamp last seen
         Cache::put($cacheKey, $now->toIso8601String(), now()->addHours(12));
 
         return response()->json([
-            'notifs'      => $notifs,
-            'server_ts'   => $now->toIso8601String(),
-            '_debug'      => [
-                'permissions' => $permissions,
-                'is_icu'      => $isIcu,
-                'is_admisi'   => $isAdmisi,
-                'is_petugas'  => $isPetugas,
-                'last_seen'   => $lastSeen->toIso8601String(),
+            'notifs'    => $notifs,
+            'server_ts' => $now->toIso8601String(),
+            '_debug'    => [
+                'permissions'   => $permissions,
+                'is_icu'        => $isIcu,
+                'is_admisi'     => $isAdmisi,
+                'is_petugas'    => $isPetugas,
+                'petugas_names' => $petugasNames,
+                'last_seen'     => $lastSeen->toIso8601String(),
+                // Debug: cek berapa BU milik user ini
+                'my_bu_total'   => $isPetugas
+                    ? IcuSpriInternal::whereIn('NameUser', $petugasNames)->count()
+                    : null,
+                'my_bu_verified'=> $isPetugas
+                    ? IcuSpriInternal::whereIn('NameUser', $petugasNames)
+                        ->where('status', 'bed_verified')
+                        ->where('verified_at', '>', $lastSeen)
+                        ->count()
+                    : null,
             ],
         ]);
     }

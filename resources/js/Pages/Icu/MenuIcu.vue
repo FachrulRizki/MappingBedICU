@@ -16,6 +16,7 @@ const props = defineProps({
   kamarKosong: { type: Array, default: () => [] },
   kamarTersedia: { type: Array, default: () => [] },
   masterKelas: { type: Array, default: () => [] },
+  statusKamarMap: { type: Object, default: () => ({}) }, // { Kode_Ruang: 'KOSONG'|'ISI'|'BOOKING' }
   flash: { type: Object, default: () => ({}) },
 });
 
@@ -66,6 +67,8 @@ const SS = {
   bed_confirmed: { bg: '#D1FAF0', color: '#00A884', dot: '#00A884' },
   bed_verified: { bg: '#EBF9F1', color: '#27AE60', dot: '#27AE60' },
   admisi_verified: { bg: '#EBF9F1', color: '#27AE60', dot: '#27AE60' },
+  masuk_icu: { bg: '#EEF2FF', color: '#4F46E5', dot: '#4F46E5' },
+  selesai:   { bg: '#F1F5F9', color: '#475569', dot: '#94A3B8' },
   ditolak: { bg: '#FDEDEC', color: '#E74C3C', dot: '#E74C3C' },
   pindah_bed: { bg: '#EDE9FE', color: '#7C3AED', dot: '#7C3AED' },
 };
@@ -82,6 +85,13 @@ const jaminanLabel = (k) => {
 };
 const gIcon = (g) => g === 'L' ? '♂' : g === 'P' ? '♀' : '·';
 const gColor = (g) => g === 'L' ? '#00A884' : g === 'P' ? '#8E44AD' : 'var(--text-secondary)';
+
+// ── Helper: cek apakah bed yang di-assign sudah KOSONG di StatusKamar ────────
+const bedSudahKosong = (item) => {
+  if (!item.allocated_bed_id) return false;
+  const status = props.statusKamarMap[item.allocated_bed_id];
+  return status && status.toUpperCase() === 'KOSONG';
+};
 
 // ── Aksi yang tersedia per item — setiap tombol dijaga permission sendiri ──
 const actionsOf = (item) => {
@@ -147,6 +157,8 @@ const CARDS = computed(() => [
   { key: 'waiting_list',label: 'Waiting List',     val: props.summary.waiting_list ?? 0, color: '#D97706', icon: 'M12 8v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z' },
   { key: '__bed_aktif', label: 'Bed Terverifikasi',val: props.summary.bed_aktif ?? 0,    color: '#00A884', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
   { key: 'ditolak',     label: 'Ditolak',          val: props.summary.ditolak ?? 0,      color: '#E74C3C', icon: 'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z' },
+  { key: 'dibatalkan',  label: 'Dibatalkan',       val: props.summary.dibatalkan ?? 0,   color: '#6B7280', icon: 'M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636' },
+  { key: 'selesai',     label: 'Keluar ICU',       val: props.summary.selesai ?? 0,      color: '#475569', icon: 'M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1' },
 ]);
 
 // ── Tab view: "antrian" (pending/waiting) vs "bed_terverifikasi" (konfirmasi/verifikasi) ──
@@ -156,20 +168,27 @@ const antrianView = computed(() =>
   props.antrian.filter(i => {
     const inAntrian = ['pending_icu', 'waiting_list'].includes(i.status);
     const inDitolak = fStatus.value === 'ditolak' && i.status === 'ditolak';
+    const inDibatalkan = fStatus.value === 'dibatalkan' && i.status === 'dibatalkan';
     if (fStatus.value === 'ditolak') return inDitolak;
+    if (fStatus.value === 'dibatalkan') return inDibatalkan;
     if (fStatus.value === 'pending_icu') return i.status === 'pending_icu';
     if (fStatus.value === 'waiting_list') return i.status === 'waiting_list';
     return inAntrian; // default: semua pending+waiting
   })
 );
 const bedTerverifikasiView = computed(() =>
-  props.antrian.filter(i => ['bed_confirmed', 'bed_verified'].includes(i.status))
+  props.antrian.filter(i => ['bed_confirmed', 'bed_verified', 'masuk_icu'].includes(i.status))
+);
+const pasienKeluarView = computed(() =>
+  props.antrian.filter(i => i.status === 'masuk_icu' && bedSudahKosong(i))
 );
 const currentView = computed(() => {
   if (viewTab.value === 'bed_terverifikasi') return bedTerverifikasiView.value;
+  if (viewTab.value === 'pasien_keluar')     return pasienKeluarView.value;
   // Tab antrian — filter berdasarkan fStatus
+  if (fStatus.value === 'ditolak')    return props.antrian.filter(i => i.status === 'ditolak');
+  if (fStatus.value === 'dibatalkan') return props.antrian.filter(i => i.status === 'dibatalkan');
   if (!fStatus.value) return antrianView.value;
-  if (fStatus.value === 'ditolak') return props.antrian.filter(i => i.status === 'ditolak');
   return antrianView.value;
 });
 
@@ -182,6 +201,17 @@ const clickCard = (key) => {
   // Semua card lain tetap di tab antrian dengan filter status
   viewTab.value = 'antrian';
   fStatus.value = key; // '' untuk total, 'pending_icu', 'waiting_list', 'ditolak', dll
+};
+
+// ── Export PDF pasien keluar ────────────────────────────────────────────────
+const exportPdfKeluar = () => {
+  const params = new URLSearchParams({
+    tgl_dari:   fTglDari.value || '',
+    tgl_sampai: fTglAkh.value  || '',
+    jenis:      fJenis.value   || '',
+    nama:       fNama.value    || '',
+  })
+  window.open(route('icu.laporan.keluar.pdf') + '?' + params.toString(), '_blank')
 };
 
 // ── Modal ──────────────────────────────────────────────────
@@ -312,15 +342,15 @@ const jenisOptions = [
       </div>
 
       <!-- ═══ 2. KPI SUMMARY CARDS ════════════════════════════════════════ -->
-      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
+      <div class="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-2 sm:gap-3">
         <button v-for="c in CARDS" :key="c.key" @click="clickCard(c.key)"
           class="group relative flex items-center gap-2.5 p-3 rounded-2xl text-left transition-all duration-200 hover:-translate-y-1 hover:shadow-lg"
           style="background:var(--bg-card); border:1px solid var(--border-default); box-shadow:var(--shadow-card); min-height:72px; width:100%"
           :style="(c.key === '__bed_aktif' ? viewTab === 'bed_terverifikasi' : fStatus === c.key)
             ? `border:2px solid ${c.color}; box-shadow:0 0 0 3px ${c.color}15; background:var(--bg-surface)` : ''">
-          <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110"
+          <div class="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110"
             :style="`background:${c.color}12`">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" :style="`color:${c.color}`">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" :style="`color:${c.color}`">
               <path stroke-linecap="round" stroke-linejoin="round" :d="c.icon" />
             </svg>
           </div>
@@ -437,9 +467,35 @@ const jenisOptions = [
               {{ bedTerverifikasiView.length }}
             </span>
           </button>
+          <!-- Tab: Pasien Keluar ICU -->
+          <button @click="viewTab='pasien_keluar'"
+            class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+            :style="viewTab==='pasien_keluar' ? 'background:#475569;color:#fff;box-shadow:0 2px 8px rgba(71,85,105,.3)' : 'color:var(--text-secondary)'">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+            </svg>
+            Pasien Keluar
+            <span class="px-1.5 py-0.5 rounded-full text-xs font-bold"
+              :style="viewTab==='pasien_keluar' ? 'background:rgba(255,255,255,.25);color:#fff' : 'background:rgba(71,85,105,.12);color:#475569'">
+              {{ pasienKeluarView.length }}
+            </span>
+          </button>
         </div>
-        <p v-if="viewTab==='antrian'" class="text-xs" style="color:var(--text-muted)">Permintaan menunggu konfirmasi bed · semua tanggal</p>
-        <p v-else class="text-xs" style="color:var(--text-muted)">Pasien dengan bed terverifikasi · bisa Pindah Bed jika perlu</p>
+
+        <!-- Teks deskripsi -->
+        <p v-if="viewTab==='antrian'" class="text-xs" style="color:var(--text-muted)">Permintaan menunggu konfirmasi bed</p>
+        <p v-else-if="viewTab==='bed_terverifikasi'" class="text-xs" style="color:var(--text-muted)">Pasien dengan bed terverifikasi · bisa Pindah Bed jika perlu</p>
+        <p v-else class="text-xs" style="color:var(--text-muted)">Pasien yang sudah selesai dirawat di ICU</p>
+
+        <!-- Tombol Export PDF — pojok kanan, hanya saat tab Pasien Keluar -->
+        <button v-if="viewTab==='pasien_keluar'" @click="exportPdfKeluar"
+          class="flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-xl transition-all hover:-translate-y-px ml-auto flex-shrink-0"
+          style="background:rgba(231,76,60,.1); color:#E74C3C; border:1.5px solid rgba(231,76,60,.25)">
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+          Export PDF
+        </button>
       </div>
 
       <!-- ═══ 6. EMPTY STATE ═══════════════════════════════════════════════ -->
@@ -454,7 +510,7 @@ const jenisOptions = [
         </div>
         <p class="text-base font-bold mb-1.5" style="color:var(--text-primary)">Tidak Ada Data</p>
         <p class="text-sm max-w-xs" style="color:var(--text-muted)">
-          {{ viewTab === 'bed_terverifikasi' ? 'Belum ada pasien dengan bed terverifikasi.' : 'Belum ada antrian yang menunggu konfirmasi ICU.' }}
+          {{ viewTab === 'bed_terverifikasi' ? 'Belum ada pasien dengan bed terverifikasi.' : viewTab === 'pasien_keluar' ? 'Belum ada pasien yang keluar ICU pada periode ini.' : 'Belum ada antrian yang menunggu konfirmasi ICU.' }}
         </p>
       </div>
 
@@ -595,6 +651,13 @@ const jenisOptions = [
                         d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     Est. {{ item.waiting_estimasi_fmt }}
+                  </p>
+                  <!-- Badge bed sudah kosong -->
+                  <p v-if="item.status === 'masuk_icu' && bedSudahKosong(item)"
+                    class="text-xs mt-1.5 font-semibold flex items-center gap-1 px-2 py-0.5 rounded-full inline-flex"
+                    style="background:rgba(100,116,139,.1); color:#475569">
+                    <span class="w-1.5 h-1.5 rounded-full bg-slate-400 flex-shrink-0"></span>
+                    Bed sudah kosong
                   </p>
                 </td>
                 <td class="px-5 py-4 font-mono text-xs whitespace-nowrap" style="color:var(--text-secondary)">{{
@@ -936,6 +999,25 @@ const jenisOptions = [
                   <p class="text-sm" style="color:var(--text-primary)">{{ modal.item.alasan_tolak }}</p>
                 </div>
 
+                <!-- Alasan Batal section -->
+                <div v-if="modal.item.status === 'dibatalkan'" class="rounded-xl p-4 space-y-2"
+                  style="background:rgba(107,114,128,.06); border:1.5px solid rgba(107,114,128,.25)">
+                  <p class="text-xs font-bold flex items-center gap-1.5" style="color:#6B7280">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+                    </svg>
+                    Info Pembatalan
+                  </p>
+                  <p v-if="modal.item.alasan_batal" class="text-sm font-semibold" style="color:#374151">
+                    {{ modal.item.alasan_batal }}
+                  </p>
+                  <p v-else class="text-xs italic" style="color:var(--text-muted)">Tidak ada catatan pembatalan</p>
+                  <p v-if="modal.item.dibatalkan_by" class="text-xs" style="color:var(--text-muted)">
+                    Dibatalkan oleh <strong>{{ modal.item.dibatalkan_by }}</strong>
+                    <span v-if="modal.item.dibatalkan_at_fmt"> · {{ modal.item.dibatalkan_at_fmt }}</span>
+                  </p>
+                </div>
+
                 <!-- ── Waiting List Info Banner ─────────────────────────── -->
                 <div v-if="modal.item.status === 'waiting_list'" class="rounded-xl overflow-hidden"
                   style="border:2px solid #FCD34D">
@@ -986,7 +1068,8 @@ const jenisOptions = [
                 </p>
                 <div class="flex flex-col gap-2.5">
                   <template v-for="act in actionsOf(modal.item)" :key="act.id">
-                    <button @click="openModal(act.id, modal.item)"
+                    <button
+                      @click="openModal(act.id, modal.item)"
                       class="w-full text-sm font-bold py-3 rounded-xl flex items-center justify-center transition-all duration-150 hover:-translate-y-px hover:brightness-105"
                       :style="`background:${act.bg}; color:${act.color}; border:1.5px solid ${act.border}`">
                       {{ act.label }}

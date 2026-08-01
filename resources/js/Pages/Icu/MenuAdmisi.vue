@@ -101,8 +101,6 @@ const gColor = (g) => g === 'L' ? '#00A884' : g === 'P' ? '#8E44AD' : 'var(--tex
 const CARDS = computed(() => [
     { key:'',         label:'Total',           val: props.summary.total ?? 0,
       color:'#5A6B7C', icon:'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
-    { key:'pending_admisi', label:'Menunggu Admisi', val: props.summary.pending_admisi ?? 0,
-      color:'#E67E22', icon:'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
     { key:'waiting_list',   label:'Waiting List',    val: props.summary.waiting_list ?? 0,
       color:'#D97706', icon:'M12 8v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z' },
     { key:'__bed',          label:'Terverifikasi ICU',val: props.summary.bed_aktif ?? 0,
@@ -113,6 +111,8 @@ const CARDS = computed(() => [
       color:'#E74C3C', icon:'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z' },
     { key:'dibatalkan',     label:'Dibatalkan',      val: props.summary.dibatalkan ?? 0,
       color:'#6B7280', icon:'M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636' },
+    { key:'selesai',        label:'Keluar ICU',      val: props.summary.selesai ?? 0,
+      color:'#475569', icon:'M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1' },
 ]);
 
 // Card yang aktif untuk styling (bisa multi-status)
@@ -130,44 +130,26 @@ const canAct = computed(() => canVerifikasiAdmisiExt.value || canApproveAdmisi.v
 const actionsOf = (item) => {
     if (!canAct.value) return [];
     const acts = [];
-    if (item.sumber === 'internal' && item.status === 'pending_admisi') {
-        if (canApproveAdmisi.value || isAdmin.value) {
-            acts.push({ id:'approve', label:'Setujui Booking ICU', color:'#00A884', bg:'rgba(0,168,132,.12)', border:'rgba(0,168,132,.3)' });
-        }
-        if (canTolakAdmisi.value || isAdmin.value) {
-            acts.push({ id:'tolak',   label:'Tolak Booking ICU',   color:'#E74C3C', bg:'rgba(231,76,60,.08)', border:'rgba(231,76,60,.25)' });
-        }
-    }
-    // Edit internal — hanya jika masih pending_admisi atau pending_icu atau ditolak
-    if (item.sumber === 'internal' && ['pending_admisi', 'pending_icu', 'ditolak'].includes(item.status)) {
-        if (canApproveAdmisi.value || isAdmin.value) {
-            acts.push({ id:'edit_internal', label:'Edit Booking', color:'#0EA5E9', bg:'rgba(14,165,233,.08)', border:'rgba(14,165,233,.25)' });
-        }
-    }
-    // Batal internal — hanya jika masih bisa dibatalkan
-    if (item.sumber === 'internal' && ['pending_admisi', 'pending_icu', 'waiting_list'].includes(item.status)) {
-        if (canApproveAdmisi.value || isAdmin.value) {
-            acts.push({ id:'batal_internal', label:'Batal Booking', color:'#D97706', bg:'rgba(217,119,6,.08)', border:'rgba(217,119,6,.25)' });
-        }
-    }
+    // ── Internal: HANYA tampil data, TIDAK ada aksi approve/tolak/edit/batal di menu Admisi ──
+    // Aksi internal dikelola di Menu Petugas (oleh petugas ruang yang mengajukan)
     if (item.sumber === 'external' && item.status === 'bed_confirmed') {
         if (canVerifikasiAdmisiExt.value || isAdmin.value) {
             acts.push({ id:'verifikasi', label:'Verifikasi Pasien', color:'#00A884', bg:'rgba(0,168,132,.12)', border:'rgba(0,168,132,.3)' });
         }
     }
-    // Edit — hanya jika booking external masih pending atau ditolak
-    if (item.sumber === 'external' && ['pending_icu', 'ditolak'].includes(item.status)) {
+    // Edit — hanya booking external yang masih pending (bukan ditolak)
+    if (item.sumber === 'external' && item.status === 'pending_icu') {
         if (canBuatBookingExternal.value || isAdmin.value) {
             acts.push({ id:'edit', label:'Edit Booking', color:'#0EA5E9', bg:'rgba(14,165,233,.08)', border:'rgba(14,165,233,.25)' });
         }
     }
-    // Batal — hanya jika booking external masih bisa dibatalkan
+    // Batal — hanya booking external yang masih bisa dibatalkan
     if (item.sumber === 'external' && ['pending_icu', 'waiting_list', 'bed_confirmed'].includes(item.status)) {
         if (canBuatBookingExternal.value || isAdmin.value) {
             acts.push({ id:'batal', label:'Batal Booking', color:'#D97706', bg:'rgba(217,119,6,.08)', border:'rgba(217,119,6,.25)' });
         }
     }
-    // Hapus — hanya jika pending, ditolak, atau dibatalkan
+    // Hapus — hanya booking external pending, ditolak, atau dibatalkan
     if (item.sumber === 'external' && ['pending_icu', 'ditolak', 'dibatalkan'].includes(item.status)) {
         if (canBuatBookingExternal.value || isAdmin.value) {
             acts.push({ id:'hapus', label:'Hapus Booking', color:'#E74C3C', bg:'rgba(231,76,60,.05)', border:'rgba(231,76,60,.2)' });
@@ -183,15 +165,12 @@ const closeModal = () => {
     modal.value.open = false;
     setTimeout(() => {
         modal.value = { open: false, type: '', item: null };
-        // Reset semua state lookup saat modal ditutup
         verifLookupResult.value  = null;
         verifLookupError.value   = '';
         verifKunjungans.value    = [];
         fmVerif.reset();
-        fmApprove.reset();
-        fmTolak.reset();
         fmEdit.reset();
-        fmEditInternal.reset();
+        fmBatal.reset();
     }, 200);
 };
 
@@ -234,11 +213,23 @@ const submitEdit = () => {
     });
 };
 
-// ── Aksi: Batal Booking ────────────────────────────────────
-const batalBooking = (item) => {
-    if (!confirm(`Batalkan booking untuk ${item.nama_pasien}?`)) return;
-    router.post(route('icu.menu_admisi.booking.batal', item.id), {}, {
-        onSuccess: closeModal,
+// ── Form: Batal Booking (External) ────────────────────────
+const fmBatal = useForm({ alasan_batal: '' });
+const openBatalModal = (item) => { fmBatal.alasan_batal = ''; openModal('batal', item); };
+const submitBatal = () => {
+    if (!modal.value.item) return;
+    fmBatal.post(route('icu.menu_admisi.booking.batal', modal.value.item.id), {
+        onSuccess: () => { closeModal(); fmBatal.reset(); },
+    });
+};
+
+// ── Form: Batal Booking Internal ──────────────────────────
+const fmBatalInternal = useForm({ alasan_batal: '' });
+const openBatalInternalModal = (item) => { fmBatalInternal.alasan_batal = ''; openModal('batal_internal', item); };
+const submitBatalInternal = () => {
+    if (!modal.value.item) return;
+    fmBatalInternal.post(route('icu.menu_admisi.int.batal', modal.value.item.id), {
+        onSuccess: () => { closeModal(); fmBatalInternal.reset(); },
     });
 };
 
@@ -268,12 +259,7 @@ const submitEditInternal = () => {
 };
 
 // ── Aksi: Batal Booking Internal ──────────────────────────
-const batalBookingInternal = (item) => {
-    if (!confirm(`Batalkan booking ICU untuk ${item.nama_pasien}?`)) return;
-    router.post(route('icu.menu_admisi.int.batal', item.id), {}, {
-        onSuccess: closeModal,
-    });
-};
+// (handled by fmBatalInternal above)
 // ── Aksi: Hapus Booking ────────────────────────────────────
 const hapusBooking = (item) => {
     if (!confirm(`Hapus permanen booking untuk ${item.nama_pasien}? Tindakan tidak dapat dibatalkan.`)) return;
@@ -357,7 +343,6 @@ const submitVerif = () => {
 
 const statusOptions = [
     { value:'', label:'Semua Status' },
-    { value:'pending_admisi',  label:'Menunggu Admisi' },
     { value:'pending_icu',     label:'Menunggu ICU' },
     { value:'waiting_list',    label:'Waiting List' },
     { value:'bed_confirmed',   label:'Bed Dikonfirmasi' },
@@ -875,6 +860,24 @@ const jenisOptions = [
                             <p class="text-sm" style="color:var(--text-primary)">{{ modal.item.alasan_tolak }}</p>
                         </div>
 
+                        <!-- ── Info Pembatalan ──────────────────────────── -->
+                        <div v-if="modal.item.status === 'dibatalkan'" class="rounded-xl p-4 space-y-2" style="background:rgba(107,114,128,.06); border:1.5px solid rgba(107,114,128,.25)">
+                            <p class="text-xs font-bold flex items-center gap-1.5" style="color:#6B7280">
+                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+                                </svg>
+                                Info Pembatalan
+                            </p>
+                            <p v-if="modal.item.alasan_batal" class="text-sm font-semibold" style="color:#374151">
+                                {{ modal.item.alasan_batal }}
+                            </p>
+                            <p v-else class="text-xs italic" style="color:var(--text-muted)">Tidak ada catatan pembatalan</p>
+                            <p v-if="modal.item.dibatalkan_by" class="text-xs" style="color:var(--text-muted)">
+                                Dibatalkan oleh <strong>{{ modal.item.dibatalkan_by }}</strong>
+                                <span v-if="modal.item.dibatalkan_at_fmt"> · {{ modal.item.dibatalkan_at_fmt }}</span>
+                            </p>
+                        </div>
+
                         <!-- ── Waiting List Banner (Admisi view) ──────── -->
                         <div v-if="modal.item.status === 'waiting_list'"
                             class="rounded-xl overflow-hidden" style="border:2px solid #FCD34D">
@@ -919,7 +922,7 @@ const jenisOptions = [
                         <p class="text-xs font-bold uppercase tracking-widest" style="color:var(--text-muted)">Tindakan Tersedia</p>
                         <div class="flex flex-col gap-2.5">
                             <template v-for="act in actionsOf(modal.item)" :key="act.id">
-                                <button @click="act.id==='verifikasi' ? openVerifModal(modal.item) : act.id==='edit' ? openEditModal(modal.item) : act.id==='batal' ? batalBooking(modal.item) : act.id==='hapus' ? hapusBooking(modal.item) : act.id==='edit_internal' ? openEditInternalModal(modal.item) : act.id==='batal_internal' ? batalBookingInternal(modal.item) : openModal(act.id, modal.item)"
+                                <button @click="act.id==='verifikasi' ? openVerifModal(modal.item) : act.id==='edit' ? openEditModal(modal.item) : act.id==='batal' ? openBatalModal(modal.item) : act.id==='hapus' ? hapusBooking(modal.item) : openModal(act.id, modal.item)"
                                     class="w-full text-sm font-bold py-3 rounded-xl flex items-center justify-center transition-all duration-150 hover:-translate-y-px hover:brightness-105"
                                     :style="`background:${act.bg}; color:${act.color}; border:1.5px solid ${act.border}`">
                                     {{ act.label }}
@@ -1069,7 +1072,7 @@ const jenisOptions = [
                                     class="flex items-center gap-2 font-bold px-6 py-3 rounded-xl transition-all duration-150 disabled:opacity-50 hover:-translate-y-px"
                                     style="background:#00A884; color:var(--text-on-accent); font-size:14px">
                                     <svg v-if="fmBooking.processing" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                                    {{ fmBooking.processing ? 'Menyimpan...' : 'Request ke ICU' }}
+                                    {{ fmBooking.processing ? 'Menyimpan...' : 'Request ke ICU/HCU' }}
                                 </button>
                                 <button type="button" @click="closeModal" class="px-6 py-3 rounded-xl font-medium"
                                     style="background:var(--bg-input); color:var(--text-secondary); border:1.5px solid var(--border-default); font-size:14px">Batal</button>
@@ -1461,6 +1464,136 @@ const jenisOptions = [
                             </button>
                             <button type="button" @click="closeModal" class="px-5 py-3 rounded-xl font-medium"
                                 style="background:var(--bg-input); color:var(--text-secondary); border:1.5px solid var(--border-default); font-size:14px">Batal</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- ── VIEW: BATAL BOOKING EXTERNAL ──────────────────────── -->
+                <div v-else-if="modal.type==='batal' && modal.item" key="batal" class="flex flex-col w-full" style="max-height:92vh">
+                    <div class="flex items-center justify-between px-6 py-5 flex-shrink-0" style="border-bottom:1px solid var(--border-default)">
+                        <div class="flex items-center gap-3">
+                            <button type="button" @click="openModal('detail', modal.item)" class="w-8 h-8 rounded-xl flex items-center justify-center transition-all hover:scale-110" style="background:var(--bg-input); color:var(--text-secondary)">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+                            </button>
+                            <div>
+                                <h2 class="text-base font-bold" style="color:#D97706">Batalkan Booking</h2>
+                                <p class="text-xs mt-0.5" style="color:var(--text-secondary)">{{ modal.item.nama_pasien }}</p>
+                            </div>
+                        </div>
+                        <button @click="closeModal" class="w-8 h-8 rounded-xl flex items-center justify-center transition-all hover:scale-110" style="background:var(--bg-input); color:var(--text-secondary)">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                    </div>
+                    <form @submit.prevent="submitBatal" class="px-6 py-5 space-y-4 overflow-y-auto flex-1">
+                        <!-- Info pasien -->
+                        <div class="rounded-xl p-4 grid grid-cols-2 gap-3" style="background:var(--bg-surface-2); border:1px solid var(--border-default)">
+                            <div>
+                                <p class="text-xs" style="color:var(--text-muted)">Pasien</p>
+                                <p class="text-sm font-bold" style="color:var(--text-primary)">{{ modal.item.nama_pasien }}</p>
+                            </div>
+                            <div>
+                                <p class="text-xs" style="color:var(--text-muted)">Status Saat Ini</p>
+                                <span class="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full mt-0.5"
+                                    :style="`background:${ss(modal.item.status).bg}; color:${ss(modal.item.status).color}`">
+                                    {{ modal.item.status_label }}
+                                </span>
+                            </div>
+                        </div>
+                        <!-- Warning -->
+                        <div class="rounded-xl p-3.5 flex gap-3" style="background:rgba(217,119,6,.07); border:1.5px solid rgba(217,119,6,.2)">
+                            <svg class="w-4 h-4 flex-shrink-0 mt-0.5" style="color:#D97706" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                            </svg>
+                            <p class="text-xs" style="color:#92400E">Booking yang dibatalkan tidak dapat dilanjutkan. Petugas ICU akan menerima notifikasi pembatalan ini.</p>
+                        </div>
+                        <!-- Alasan batal (opsional) -->
+                        <div class="space-y-1.5">
+                            <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">
+                                Alasan Pembatalan
+                                <span class="normal-case font-normal ml-1" style="color:var(--text-muted)">(opsional)</span>
+                            </label>
+                            <textarea v-model="fmBatal.alasan_batal" rows="4"
+                                placeholder="Mis: Pasien sudah meninggal, kondisi membaik, dirujuk ke RS lain..."
+                                class="w-full rounded-xl outline-none resize-none"
+                                style="padding:11px 14px; font-size:13px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary); line-height:1.6"/>
+                        </div>
+                        <div class="flex items-center gap-3 pt-1" style="border-top:1px solid var(--border-default)">
+                            <button type="submit" :disabled="fmBatal.processing"
+                                class="flex-1 font-bold py-3 rounded-xl transition-all duration-150 disabled:opacity-40 hover:-translate-y-px"
+                                style="background:rgba(217,119,6,.12); color:#D97706; border:1.5px solid rgba(217,119,6,.3); font-size:14px">
+                                {{ fmBatal.processing ? 'Memproses...' : 'Ya, Batalkan Booking' }}
+                            </button>
+                            <button type="button" @click="openModal('detail', modal.item)" class="px-5 py-3 rounded-xl font-medium"
+                                style="background:var(--bg-input); color:var(--text-secondary); border:1.5px solid var(--border-default); font-size:14px">Kembali</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- ── VIEW: BATAL BOOKING INTERNAL ──────────────────────── -->
+                <div v-else-if="modal.type==='batal_internal' && modal.item" key="batal_internal" class="flex flex-col w-full" style="max-height:92vh">
+                    <div class="flex items-center justify-between px-6 py-5 flex-shrink-0" style="border-bottom:1px solid var(--border-default)">
+                        <div class="flex items-center gap-3">
+                            <button type="button" @click="openModal('detail', modal.item)" class="w-8 h-8 rounded-xl flex items-center justify-center transition-all hover:scale-110" style="background:var(--bg-input); color:var(--text-secondary)">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+                            </button>
+                            <div>
+                                <h2 class="text-base font-bold" style="color:#D97706">Batalkan Booking Internal</h2>
+                                <p class="text-xs mt-0.5" style="color:var(--text-secondary)">{{ modal.item.nama_pasien }}</p>
+                            </div>
+                        </div>
+                        <button @click="closeModal" class="w-8 h-8 rounded-xl flex items-center justify-center transition-all hover:scale-110" style="background:var(--bg-input); color:var(--text-secondary)">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                    </div>
+                    <form @submit.prevent="submitBatalInternal" class="px-6 py-5 space-y-4 overflow-y-auto flex-1">
+                        <!-- Info pasien -->
+                        <div class="rounded-xl p-4 grid grid-cols-2 gap-3" style="background:var(--bg-surface-2); border:1px solid var(--border-default)">
+                            <div>
+                                <p class="text-xs" style="color:var(--text-muted)">Pasien</p>
+                                <p class="text-sm font-bold" style="color:var(--text-primary)">{{ modal.item.nama_pasien }}</p>
+                            </div>
+                            <div>
+                                <p class="text-xs" style="color:var(--text-muted)">Asal Ruang</p>
+                                <p class="text-sm font-bold" style="color:var(--text-primary)">{{ modal.item.asal ?? '—' }}</p>
+                            </div>
+                            <div>
+                                <p class="text-xs" style="color:var(--text-muted)">No. MR</p>
+                                <p class="text-sm font-mono font-bold" style="color:var(--text-primary)">{{ modal.item.No_MR ?? '—' }}</p>
+                            </div>
+                            <div>
+                                <p class="text-xs" style="color:var(--text-muted)">Status Saat Ini</p>
+                                <span class="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full mt-0.5"
+                                    :style="`background:${ss(modal.item.status).bg}; color:${ss(modal.item.status).color}`">
+                                    {{ modal.item.status_label }}
+                                </span>
+                            </div>
+                        </div>
+                        <!-- Warning -->
+                        <div class="rounded-xl p-3.5 flex gap-3" style="background:rgba(217,119,6,.07); border:1.5px solid rgba(217,119,6,.2)">
+                            <svg class="w-4 h-4 flex-shrink-0 mt-0.5" style="color:#D97706" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                            </svg>
+                            <p class="text-xs" style="color:#92400E">Booking internal yang dibatalkan tidak dapat dilanjutkan. Petugas yang mengajukan akan menerima notifikasi.</p>
+                        </div>
+                        <!-- Alasan batal -->
+                        <div class="space-y-1.5">
+                            <label class="block text-xs font-semibold uppercase tracking-wide" style="color:var(--text-muted)">
+                                Alasan Pembatalan
+                                <span class="normal-case font-normal ml-1" style="color:var(--text-muted)">(opsional)</span>
+                            </label>
+                            <textarea v-model="fmBatalInternal.alasan_batal" rows="4"
+                                placeholder="Mis: Pasien kondisi membaik, sudah dipindah ke ruang biasa..."
+                                class="w-full rounded-xl outline-none resize-none"
+                                style="padding:11px 14px; font-size:13px; border:1.5px solid var(--border-default); background:var(--bg-input); color:var(--text-primary); line-height:1.6"/>
+                        </div>
+                        <div class="flex items-center gap-3 pt-1" style="border-top:1px solid var(--border-default)">
+                            <button type="submit" :disabled="fmBatalInternal.processing"
+                                class="flex-1 font-bold py-3 rounded-xl transition-all duration-150 disabled:opacity-40 hover:-translate-y-px"
+                                style="background:rgba(217,119,6,.12); color:#D97706; border:1.5px solid rgba(217,119,6,.3); font-size:14px">
+                                {{ fmBatalInternal.processing ? 'Memproses...' : 'Ya, Batalkan Booking' }}
+                            </button>
+                            <button type="button" @click="openModal('detail', modal.item)" class="px-5 py-3 rounded-xl font-medium"
+                                style="background:var(--bg-input); color:var(--text-secondary); border:1.5px solid var(--border-default); font-size:14px">Kembali</button>
                         </div>
                     </form>
                 </div>
