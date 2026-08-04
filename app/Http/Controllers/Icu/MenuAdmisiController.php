@@ -10,6 +10,7 @@ use App\Models\MRuangMaster;
 use App\Models\RegistrasiPasien;
 use App\Services\ActivityLogService;
 use App\Services\Icu\AntrianService;
+use App\Services\Icu\BedSyncService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -23,6 +24,7 @@ class MenuAdmisiController extends Controller
     public function __construct(
         private readonly AntrianService     $service,
         private readonly ActivityLogService $activityLog,
+        private readonly BedSyncService     $bedSync,
     ) {}
 
     private function actor(): string
@@ -34,6 +36,10 @@ class MenuAdmisiController extends Controller
 
     public function index(Request $request): Response
     {
+        // Sync status bed agar data antrian yang tampil selalu up-to-date
+        // (pasien yang sudah masuk ICU hilang dari antrian, pasien keluar masuk laporan)
+        $this->bedSync->sync();
+
         $data = $this->service->build($request);
 
         return Inertia::render('Icu/MenuAdmisi', [

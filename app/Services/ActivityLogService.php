@@ -38,7 +38,7 @@ class ActivityLogService
         }
     }
 
-    // ── Auth ──────────────────────────────────────────────────────────────────
+    // Auth
 
     public function loginLog(): void
     {
@@ -50,7 +50,7 @@ class ActivityLogService
         $this->log('Autentikasi', 'Melakukan logout', 'auth');
     }
 
-    // ── Booking External ──────────────────────────────────────────────────────
+    // Booking External
 
     public function bookingBaru(int $id, string $namaPasien): void
     {
@@ -62,7 +62,7 @@ class ActivityLogService
         $this->log('Verifikasi Pasien', "Verifikasi {$namaPasien} — No. MR: {$noMr}", 'booking_external', $id, 'IcuBookingExternal');
     }
 
-    // ── SPRI Internal (Admisi) ────────────────────────────────────────────────
+    // SPRI Internal (Admisi)
 
     public function approveSpri(int $id, string $namaPasien): void
     {
@@ -74,7 +74,7 @@ class ActivityLogService
         $this->log('Tolak Data', "Menolak BU SPRI {$namaPasien}: {$alasan}", 'spri_internal', $id, 'IcuSpriInternal');
     }
 
-    // ── Petugas ICU ───────────────────────────────────────────────────────────
+    // Petugas ICU─
 
     public function konfirmasibed(int $id, string $namaPasien, string $namaBed): void
     {
@@ -106,7 +106,7 @@ class ActivityLogService
         $this->log('Pindah Bed', "Pindah bed {$namaPasien}: {$bedLama} → {$bedBaru}", 'spri_internal', $id, 'IcuSpriInternal');
     }
 
-    // ── Auto-detect masuk ICU (via STATUS_KAMAR ISI) ──────────────────────────
+    // Auto-detect masuk ICU (via STATUS_KAMAR ISI)
 
     public function masukIcu(int $id, string $namaPasien, string $namaBed, string $module, string $subjectType): void
     {
@@ -119,8 +119,19 @@ class ActivityLogService
         );
     }
 
-    // ── Petugas Ruang ─────────────────────────────────────────────────────────
+    // Auto-detect keluar ICU (via STATUS_KAMAR KOSONG)
+    public function keluarIcu(int $id, string $namaPasien, string $namaBed, string $module, string $subjectType): void
+    {
+        $this->log(
+            'Pasien Keluar ICU',
+            "Pasien {$namaPasien} keluar ICU — bed {$namaBed} dilepas oleh Bed Management (STATUS_KAMAR = KOSONG)",
+            $module,
+            $id,
+            $subjectType
+        );
+    }
 
+    // Petugas Ruang
     public function buatSpri(int $id, string $namaPasien): void
     {
         $this->log('Buat Data', "Membuat BU SPRI (Booking ICU) untuk {$namaPasien}", 'spri_internal', $id, 'IcuSpriInternal');

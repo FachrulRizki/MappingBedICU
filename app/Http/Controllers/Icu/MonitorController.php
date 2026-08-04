@@ -8,6 +8,7 @@ use App\Models\IcuSpriInternal;
 use App\Models\MRuangMaster;
 use App\Models\StatusKamar;
 use App\Services\ActivityLogService;
+use App\Services\Icu\BedSyncService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -19,11 +20,12 @@ class MonitorController extends Controller
 {
     public function __construct(
         private readonly ActivityLogService $activityLog,
+        private readonly BedSyncService     $bedSync,
     ) {}
 
     public function index(): Response
     {
-        $this->syncMasukIcu();
+        $this->bedSync->sync();
 
         return Inertia::render('Icu/Monitor', [
             'bedData' => $this->getBedData(),
@@ -33,12 +35,12 @@ class MonitorController extends Controller
     }
 
     /**
-     * Endpoint JSON untuk polling auto-refresh dari Vue (setiap 30 detik).
-     * Setiap poll juga menjalankan sync masuk_icu.
+     * Endpoint JSON untuk polling auto-refresh dari Vue (setiap 10 detik).
+     * Setiap poll juga menjalankan sync masuk_icu dan keluar_icu.
      */
     public function data(Request $request): JsonResponse
     {
-        $this->syncMasukIcu();
+        $this->bedSync->sync();
 
         return response()->json([
             'bedData' => $this->getBedData(),
@@ -46,84 +48,6 @@ class MonitorController extends Controller
             'summary' => $this->getSummary(),
             'ts'      => now()->setTimezone('Asia/Jakarta')->format('d/m/Y H:i:s'),
         ]);
-    }
-
-    private function syncMasukIcu(): void
-    {
-        try {
-            // Kumpulkan semua allocated_bed_id yang masih aktif
-            $activeExternal = IcuBookingExternal::whereIn('status', ['bed_confirmed', 'admisi_verified'])
-                ->whereNotNull('allocated_bed_id')
-                ->get(['id', 'allocated_bed_id', 'nama_pasien', 'nama_bed']);
-
-            $activeInternal = IcuSpriInternal::where('status', 'bed_verified')
-                ->whereNotNull('allocated_bed_id')
-                ->get(['id', 'allocated_bed_id', 'No_MR', 'nama_bed']);
-
-            if ($activeExternal->isEmpty() && $activeInternal->isEmpty()) {
-                return;
-            }
-
-            // Ambil semua kode_ruang yang perlu dicek sekaligus (1 query ke Bed Management)
-            $kodeRuangs = collect($activeExternal->pluck('allocated_bed_id'))
-                ->concat($activeInternal->pluck('allocated_bed_id'))
-                ->unique()
-                ->filter()
-                ->values()
-                ->toArray();
-
-            $statusMap = StatusKamar::whereIn('Kode_Ruang', $kodeRuangs)
-                ->pluck('Status', 'Kode_Ruang')
-                ->map(fn ($s) => strtoupper($s ?? ''))
-                ->toArray();
-
-            // Cek booking external
-            foreach ($activeExternal as $booking) {
-                $statusBed = $statusMap[$booking->allocated_bed_id] ?? null;
-
-                if ($statusBed === 'ISI') {
-                    $booking->update([
-                        'status'   => 'masuk_icu',
-                        'masuk_at' => now(),
-                        'masuk_by' => 'system',
-                    ]);
-
-                    $this->activityLog->masukIcu(
-                        $booking->id,
-                        $booking->nama_pasien,
-                        $booking->nama_bed ?? $booking->allocated_bed_id,
-                        'booking_external',
-                        'IcuBookingExternal'
-                    );
-                }
-            }
-
-            // Cek BU internal
-            foreach ($activeInternal as $bu) {
-                $statusBed = $statusMap[$bu->allocated_bed_id] ?? null;
-
-                if ($statusBed === 'ISI') {
-                    $namaPasien = (string) ($bu->pasien?->Nama_Pasien ?? $bu->No_MR);
-
-                    $bu->update([
-                        'status'   => 'masuk_icu',
-                        'masuk_at' => now(),
-                        'masuk_by' => 'system',
-                    ]);
-
-                    $this->activityLog->masukIcu(
-                        $bu->id,
-                        $namaPasien,
-                        $bu->nama_bed ?? $bu->allocated_bed_id,
-                        'spri_internal',
-                        'IcuSpriInternal'
-                    );
-                }
-            }
-        } catch (\Throwable $e) {
-            // Jangan sampai sync error menghentikan tampilan monitor
-            Log::warning('[MonitorController::syncMasukIcu] ' . $e->getMessage());
-        }
     }
 
     private function getBedData(): array
@@ -168,7 +92,7 @@ class MonitorController extends Controller
 
         // Antrian aktif external: hanya tampilkan yang belum masuk ICU
         $ext = IcuBookingExternal::whereIn('status', ['pending_icu', 'waiting_list', 'bed_confirmed', 'admisi_verified'])
-            ->oldest()->limit(20)->get()
+            ->oldest()->get()
             ->map(fn ($b) => [
                 'id'               => 'ext_' . $b->id,
                 'sumber'           => 'external',
@@ -188,7 +112,7 @@ class MonitorController extends Controller
 
         // Antrian aktif internal: hanya tampilkan yang belum masuk ICU
         $int = IcuSpriInternal::whereIn('status', ['pending_admisi', 'pending_icu', 'waiting_list', 'bed_verified'])
-            ->oldest()->limit(20)->get()
+            ->oldest()->get()
             ->map(fn ($s) => [
                 'id'               => 'int_' . $s->id,
                 'sumber'           => 'internal',

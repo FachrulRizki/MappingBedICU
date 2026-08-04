@@ -188,7 +188,8 @@ class MenuPetugasController extends Controller
                 ]);
 
             if ($isIgd) {
-                $q->where('p.Kode_Masuk', '1');
+                $q->where('p.Kode_Masuk', '1')
+                  ->where('p.Tanggal', '>=', now()->subDays(3)->startOfDay());
             } else {
                 $q->where('p.Medis', 'RAWAT INAP')->whereIn('rm.Kode_Bangsal', $wardIds);
             }
@@ -267,29 +268,44 @@ class MenuPetugasController extends Controller
 
         $kunjungans = collect();
         try {
+            // Join ASESMEN_SURAT_PERMINTAAN_RI hanya untuk pasien IGD 
             $rows = DB::connection('sqlsrv_rsus')
                 ->table('PENDAFTARAN as p')
                 ->leftJoin('M_RUANG_MASTER as rm', 'p.Kode_Ruang', '=', 'rm.Kode_RuangM')
                 ->leftJoin('DOKTER as d', 'p.Kode_Dokter', '=', 'd.Kode_Dokter')
                 ->leftJoin('M_CARABAYAR as cb', 'p.Kode_Bayar', '=', 'cb.Kode_Bayar')
-                ->leftJoin(DB::raw('(SELECT No_Reg, MAX(Diagnosis) as Diagnosis FROM ASESMEN_SURAT_PERMINTAAN_RI GROUP BY No_Reg) as asmt'), 'p.No_Reg', '=', 'asmt.No_Reg')
+                ->leftJoin(
+                    DB::raw('(SELECT No_Reg, MAX(Diagnosis) as Diagnosis, MAX(IndikasiRI) as IndikasiRI FROM ASESMEN_SURAT_PERMINTAAN_RI GROUP BY No_Reg) as asmt'),
+                    fn ($join) => $join
+                        ->on('p.No_Reg', '=', 'asmt.No_Reg')
+                        ->where('p.Kode_Masuk', '=', '1')   // hanya IGD
+                )
                 ->where('p.No_MR', $noMr)
                 ->orderByDesc('p.Tanggal')
                 ->select([
                     'p.No_Reg', 'p.Kode_Masuk', 'p.Kode_Ruang', 'p.Kode_Dokter', 'p.Kode_Bayar',
                     DB::raw("ISNULL(rm.Nama_RuangM, p.Kode_Ruang) as nama_asal_ruang"),
                     DB::raw("ISNULL(NULLIF(LTRIM(RTRIM(d.Nama_Dokter)),''), p.PermintaanDPJP) as nama_dokter"),
+                    // Jaminan dari M_CARABAYAR untuk semua cara masuk
                     DB::raw("ISNULL(cb.Ket_Bayar, p.Kode_Bayar) as ket_bayar"),
-                    'asmt.Diagnosis',
+                    // Diagnosis & IndikasiRI hanya terisi jika IGD (join ASESMEN di atas sudah conditional)
+                    DB::raw("CASE WHEN p.Kode_Masuk = '1' THEN asmt.Diagnosis   ELSE NULL END as Diagnosis"),
+                    DB::raw("CASE WHEN p.Kode_Masuk = '1' THEN asmt.IndikasiRI  ELSE NULL END as IndikasiRI"),
+                    // Diagnosis & IndikasiRI hanya terisi jika IGD (join ASESMEN di atas sudah conditional)
+                    DB::raw("CASE WHEN p.Kode_Masuk = '1' THEN asmt.Diagnosis   ELSE NULL END as Diagnosis"),
+                    DB::raw("CASE WHEN p.Kode_Masuk = '1' THEN asmt.IndikasiRI  ELSE NULL END as IndikasiRI"),
                 ])->get();
 
             $kunjungans = $rows->map(fn ($r) => [
                 'No_Reg'      => $r->No_Reg,
+                'Kode_Masuk'  => $r->Kode_Masuk ?? '',
                 'Dokter'      => $this->formatNamaDokter(trim($r->nama_dokter ?? '')),
                 'Kode_Dokter' => trim($r->Kode_Dokter   ?? ''),
                 'asal_ruang'  => trim($r->nama_asal_ruang ?? $r->Kode_Ruang ?? ''),
-                'Diagnosis'   => trim($r->Diagnosis      ?? ''),
-                'Kode_Bayar'  => trim($r->Kode_Bayar    ?? ''),
+                // Untuk IGD: dari ASESMEN. Untuk bangsal: kosong (diisi manual petugas)
+                'Diagnosis'   => trim($r->Diagnosis  ?? ''),
+                'IndikasiRI'  => trim($r->IndikasiRI ?? ''),
+                'Kode_Bayar'  => trim($r->Kode_Bayar ?? ''),
                 'jaminan'     => $this->formatNamaDokter(trim($r->ket_bayar ?? '')),
             ]);
         } catch (\Exception $e) {

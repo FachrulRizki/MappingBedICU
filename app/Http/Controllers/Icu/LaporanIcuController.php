@@ -64,15 +64,15 @@ class LaporanIcuController extends Controller
         $dari   = $f['tgl_dari']   . ' 00:00:00';
         $sampai = $f['tgl_sampai'] . ' 23:59:59';
 
-        // ── External: status selesai ──────────────────────────────────────────
+        // ── External: status selesai, filter berdasarkan keluar_at ────────────
         $externals = collect();
         if ($f['jenis'] !== 'internal') {
             $qExt = IcuBookingExternal::where('status', 'selesai')
-                ->whereBetween('updated_at', [$dari, $sampai]);
+                ->whereBetween('keluar_at', [$dari, $sampai]);
             if ($f['nama']) {
                 $qExt->where('nama_pasien', 'like', "%{$f['nama']}%");
             }
-            $externals = $qExt->latest('updated_at')->get()->map(fn ($b) => [
+            $externals = $qExt->latest('keluar_at')->get()->map(fn ($b) => [
                 'id'            => $b->id,
                 'sumber'        => 'external',
                 'sumber_label'  => 'Booking Eksternal',
@@ -85,19 +85,19 @@ class LaporanIcuController extends Controller
                 'asal'          => $b->asal_rujukan ?? '—',
                 'jaminan'       => $b->jaminan ?? '—',
                 'masuk_at'      => $b->masuk_at?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i') ?? '—',
-                'keluar_at'     => $b->updated_at?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i') ?? '—',
-                'lama_rawat'    => $b->masuk_at ? $this->lamaRawat($b->masuk_at, $b->updated_at) : '—',
+                'keluar_at'     => $b->keluar_at?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i') ?? '—',
+                'lama_rawat'    => $b->masuk_at && $b->keluar_at ? $this->lamaRawat($b->masuk_at, $b->keluar_at) : '—',
                 'created_by'    => $b->created_by ?? '—',
                 'confirmed_by'  => $b->confirmed_by ?? '—',
             ]);
         }
 
-        // ── Internal: status selesai ──────────────────────────────────────────
+        // ── Internal: status selesai, filter berdasarkan keluar_at ───────────
         $internals = collect();
         if ($f['jenis'] !== 'external') {
             $qInt = IcuSpriInternal::where('status', 'selesai')
-                ->whereBetween('updated_at', [$dari, $sampai]);
-            $results = $qInt->latest('updated_at')->get();
+                ->whereBetween('keluar_at', [$dari, $sampai]);
+            $results = $qInt->latest('keluar_at')->get();
 
             // Lookup nama pasien
             $noMrList  = $results->pluck('No_MR')->filter()->unique()->values()->toArray();
@@ -131,8 +131,8 @@ class LaporanIcuController extends Controller
                 'asal'          => $s->asal_ruang ?? '—',
                 'jaminan'       => '—',
                 'masuk_at'      => $s->masuk_at?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i') ?? '—',
-                'keluar_at'     => $s->updated_at?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i') ?? '—',
-                'lama_rawat'    => $s->masuk_at ? $this->lamaRawat($s->masuk_at, $s->updated_at) : '—',
+                'keluar_at'     => $s->keluar_at?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i') ?? '—',
+                'lama_rawat'    => $s->masuk_at && $s->keluar_at ? $this->lamaRawat($s->masuk_at, $s->keluar_at) : '—',
                 'created_by'    => $s->NameUser ?? '—',
                 'confirmed_by'  => $s->verified_by ?? '—',
             ]);

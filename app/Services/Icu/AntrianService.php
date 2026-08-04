@@ -7,6 +7,7 @@ use App\Models\IcuSpriInternal;
 use App\Models\RegistrasiPasien;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class AntrianService
@@ -139,59 +140,91 @@ class AntrianService
         }
 
         $results    = $q->oldest()->get();
+        $noMrs      = $results->pluck('No_MR')->filter()->unique()->values()->toArray();
+        $pasienMap  = $this->fetchPasienMap($noMrs);
         $jaminanMap = $this->buildJaminanMap($results->pluck('No_Reg')->filter()->unique()->values()->toArray());
 
-        return $results->map(fn ($s) => $this->fmtInt($s, $jaminanMap[$s->No_Reg] ?? null));
+        return $results->map(fn ($s) => $this->fmtInt($s, $jaminanMap[$s->No_Reg] ?? null, $pasienMap[$s->No_MR] ?? null));
+    }
+
+    /**
+     * Batch-load RegistrasiPasien dari RSUS — di-cache 5 menit per kombinasi No_MR.
+     * Menghindari N+1 query ke SQL Server RSUS.
+     */
+    private function fetchPasienMap(array $noMrs): array
+    {
+        if (empty($noMrs)) return [];
+
+        $cacheKey = 'pasien_map:' . md5(implode(',', $noMrs));
+        return Cache::remember($cacheKey, 300, function () use ($noMrs) {
+            try {
+                return RegistrasiPasien::whereIn('No_MR', $noMrs)
+                    ->get(['No_MR', 'Nama_Pasien', 'Jenis_Kelamin', 'jenis_kelamin'])
+                    ->keyBy('No_MR')
+                    ->toArray();
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::warning('[fetchPasienMap] ' . $e->getMessage());
+                return [];
+            }
+        });
     }
 
     private function buildJaminanMap(array $noRegs): array
     {
         if (empty($noRegs)) return [];
 
-        try {
-            $rows = DB::connection('sqlsrv_rsus')
-                ->table('PENDAFTARAN as p')
-                ->leftJoin('M_CARABAYAR as cb', 'p.Kode_Bayar', '=', 'cb.Kode_Bayar')
-                ->whereIn('p.No_Reg', $noRegs)
-                ->select([
-                    'p.No_Reg',
-                    DB::raw("ISNULL(cb.Ket_Bayar, p.Kode_Bayar) as ket_bayar"),
-                ])
-                ->get();
+        // Cache per kombinasi No_Reg — TTL 2 menit agar tidak query RSUS setiap page load
+        $cacheKey = 'jaminan_map:' . md5(implode(',', $noRegs));
+        return Cache::remember($cacheKey, 120, function () use ($noRegs) {
+            try {
+                $rows = DB::connection('sqlsrv_rsus')
+                    ->table('PENDAFTARAN as p')
+                    ->leftJoin('M_CARABAYAR as cb', 'p.Kode_Bayar', '=', 'cb.Kode_Bayar')
+                    ->whereIn('p.No_Reg', $noRegs)
+                    ->select([
+                        'p.No_Reg',
+                        DB::raw("ISNULL(cb.Ket_Bayar, p.Kode_Bayar) as ket_bayar"),
+                    ])
+                    ->get();
 
-            return $rows->pluck('ket_bayar', 'No_Reg')->toArray();
-        } catch (\Exception) {
-            return [];
-        }
+                return $rows->pluck('ket_bayar', 'No_Reg')->toArray();
+            } catch (\Exception) {
+                return [];
+            }
+        });
     }
 
     private function fetchDokterKolab(array $noRegs): array
     {
         if (empty($noRegs)) return [];
 
-        try {
-            $rows = \Illuminate\Support\Facades\DB::connection('sqlsrv_rsus')
-                ->table('ASESMEN_DOKTER_KOLABORASI as adk')
-                ->leftJoin('DOKTER as d', 'adk.Dokter', '=', 'd.Kode_Dokter')
-                ->where('adk.Ket', '!=', 'Sayhello')
-                ->whereIn('adk.No_Reg', $noRegs)
-                ->select(['adk.No_Reg', 'd.Nama_Dokter', 'adk.Dokter as Kode_Dokter', 'adk.Ket'])
-                ->get();
+        // Cache per kombinasi No_Reg — TTL 2 menit
+        $cacheKey = 'dokter_kolab:' . md5(implode(',', $noRegs));
+        return Cache::remember($cacheKey, 120, function () use ($noRegs) {
+            try {
+                $rows = DB::connection('sqlsrv_rsus')
+                    ->table('ASESMEN_DOKTER_KOLABORASI as adk')
+                    ->leftJoin('DOKTER as d', 'adk.Dokter', '=', 'd.Kode_Dokter')
+                    ->where('adk.Ket', '!=', 'Sayhello')
+                    ->whereIn('adk.No_Reg', $noRegs)
+                    ->select(['adk.No_Reg', 'd.Nama_Dokter', 'adk.Dokter as Kode_Dokter', 'adk.Ket'])
+                    ->get();
 
-            $map = [];
-            foreach ($rows as $row) {
-                if ($row->No_Reg) {
-                    $map[$row->No_Reg][] = [
-                        'nama' => $row->Nama_Dokter ?? $row->Kode_Dokter,
-                        'ket'  => $row->Ket,
-                    ];
+                $map = [];
+                foreach ($rows as $row) {
+                    if ($row->No_Reg) {
+                        $map[$row->No_Reg][] = [
+                            'nama' => $row->Nama_Dokter ?? $row->Kode_Dokter,
+                            'ket'  => $row->Ket,
+                        ];
+                    }
                 }
+                return $map;
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::warning('[fetchDokterKolab] ' . $e->getMessage());
+                return [];
             }
-            return $map;
-        } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::warning('[fetchDokterKolab] ' . $e->getMessage());
-            return [];
-        }
+        });
     }
 
     private function hitungLamaProses($mulai, $selesai): ?string
@@ -299,22 +332,28 @@ class AntrianService
             'lama_proses'      => $this->hitungLamaProses($b->created_at,$b->verified_at),
             'masuk_at'         => $b->masuk_at?->format('Y-m-d H:i'),
             'masuk_at_fmt'     => $b->masuk_at?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
+            'keluar_at'        => $b->keluar_at?->format('Y-m-d H:i'),
+            'keluar_at_fmt'    => $b->keluar_at?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
             'allocated_bed_id' => $b->allocated_bed_id,
         ];
     }
 
-    public function fmtInt(IcuSpriInternal $s, ?string $jaminan = null): array
+    public function fmtInt(IcuSpriInternal $s, ?string $jaminan = null, ?array $pasien = null): array
     {
+        // $pasien bisa array dari cache (fetchPasienMap) atau null — fallback ke relasi Eloquent
+        $namaKelamin = $pasien
+            ? strtoupper($pasien['Jenis_Kelamin'] ?? $pasien['jenis_kelamin'] ?? '')
+            : strtoupper($s->pasien?->Jenis_Kelamin ?? $s->pasien?->jenis_kelamin ?? '');
+        $namaPasien = $pasien['Nama_Pasien'] ?? $s->pasien?->Nama_Pasien ?? $s->No_MR;
+
         return [
             'id'             => $s->id,
             'sumber'         => 'internal',
             'sumber_label'   => 'Booking Internal',
-            'nama_pasien'    => $s->pasien?->Nama_Pasien ?? $s->No_MR,
+            'nama_pasien'    => $namaPasien,
             'No_MR'          => $s->No_MR,
             'No_Reg'         => $s->No_Reg,
-            'jenis_kelamin'  => $s->pasien
-                ? strtoupper($s->pasien->Jenis_Kelamin ?? $s->pasien->jenis_kelamin ?? '')
-                : null,
+            'jenis_kelamin'  => $namaKelamin,
             'asal_rujukan'   => $s->asal_ruang,
             'asal_ruang'     => $s->asal_ruang,
             'Dokter'         => $s->Dokter,
@@ -357,6 +396,8 @@ class AntrianService
             'lama_proses'    => $this->hitungLamaProses($s->created_at, $s->verified_at),
             'masuk_at'       => $s->masuk_at?->format('Y-m-d H:i'),
             'masuk_at_fmt'   => $s->masuk_at?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
+            'keluar_at'      => $s->keluar_at?->format('Y-m-d H:i'),
+            'keluar_at_fmt'  => $s->keluar_at?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
             'allocated_bed_id' => $s->allocated_bed_id,
         ];
     }

@@ -24,14 +24,14 @@ const props = defineProps({
     flash:           { type: Object,  default: () => ({}) },
 })
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// Helpers
 const localDate = (n = 0) => {
     const d = new Date(); d.setDate(d.getDate() + n)
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
 }
 const _today = localDate(0)
 
-// ── Filters ───────────────────────────────────────────────────────────────────
+// Filters─
 const fStatus  = ref(props.filters.status   ?? '')
 const fNama    = ref(props.filters.nama     ?? '')
 const fJaminan = ref(props.filters.jaminan  ?? '')
@@ -63,7 +63,7 @@ const toggleSort = (col) => {
 }
 const sortIcon = (col) => sortBy.value !== col ? '↕' : sortDir.value === 'asc' ? '↑' : '↓'
 
-// ── Styles ────────────────────────────────────────────────────────────────────
+// Styles
 const SS = {
     pending_admisi: { bg:'rgba(245,166,35,.15)',  color:'#E67E22', dot:'#E67E22' },
     pending_icu:    { bg:'rgba(224,146,58,.15)',  color:'#E0923A', dot:'#E0923A' },
@@ -76,7 +76,7 @@ const ss     = (s) => SS[s] ?? { bg:'var(--bg-input)', color:'var(--text-seconda
 const gIcon  = (g) => g === 'L' ? '♂' : g === 'P' ? '♀' : '·'
 const gColor = (g) => g === 'L' ? '#00A884' : g === 'P' ? '#8E44AD' : 'var(--text-secondary)'
 
-// ── Summary ────────────────────────────────────────────────────────────────────
+// Summary
 const CARDS = computed(() => [
     { key:'',             label:'Total',        val: props.summary.total        ?? 0, color:'#5A6B7C', icon:'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
     { key:'pending_icu',  label:'Menunggu ICU', val: props.summary.pending_icu  ?? 0, color:'#E0923A', icon:'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
@@ -125,7 +125,7 @@ const statusOptions = [
 const isSSO          = computed(() => props.authProvider === 'keycloak')
 const hasActiveFilter = computed(() => fStatus.value || fNama.value || fJaminan.value)
 
-// ── Pasien bangsal (SSO) ─────────────────────────────────────────────────────
+// Pasien bangsal (SSO)─
 const cariPasien  = ref('')
 const pasienList  = ref(props.pasienAktif ?? [])
 const cariLoading = ref(false)
@@ -155,7 +155,7 @@ const pasienPerRuang = computed(() => {
     return m
 })
 
-// ── Tabs ──────────────────────────────────────────────────────────────────────
+// Tabs
 const activeTab    = ref('aktif')
 const selectedItem = ref(null)
 const showFilter   = ref(false)
@@ -187,7 +187,7 @@ const selectDetail = (item) => {
     selectedItem.value = selectedItem.value?.id === item.id ? null : item
 }
 
-// ── Modal & Form BU ──────────────────────────────────────────────────────────
+// Modal & Form BU
 const modal = ref({ open: false, type: '' })
 const openModal = (type) => {
     if (type === 'spri' && !skipLookupWatch.value) resetSpri()
@@ -230,6 +230,11 @@ const doLookup = async (noMr, preserveFields = false) => {
                 const k = kunjungans.value[0]
                 fmSpri.No_Reg = k.No_Reg; fmSpri.Dokter = k.Dokter; fmSpri.asal_ruang = k.asal_ruang
                 diagnosisExisting.value = k.Diagnosis; jaminanExisting.value = k.jaminan ?? ''
+                // Untuk pasien IGD: auto-fill Diagnosis & IndikasiRI dari ASESMEN_SURAT_PERMINTAAN_RI
+                if (k.Kode_Masuk === '1') {
+                    if (!fmSpri.Diagnosis)  fmSpri.Diagnosis  = k.Diagnosis   ?? ''
+                    if (!fmSpri.IndikasiRI) fmSpri.IndikasiRI = k.IndikasiRI  ?? ''
+                }
             }
             if (!preserveFields && d.prefill) {
                 if (!fmSpri.IndikasiRI) fmSpri.IndikasiRI = d.prefill.IndikasiRI ?? ''
@@ -242,14 +247,39 @@ const doLookup = async (noMr, preserveFields = false) => {
 }
 const onKunjunganChange = (nr) => {
     const k = kunjungans.value.find(x => x.No_Reg === nr)
-    if (k) { fmSpri.Dokter = k.Dokter; fmSpri.asal_ruang = k.asal_ruang; diagnosisExisting.value = k.Diagnosis; jaminanExisting.value = k.jaminan ?? '' }
+    if (k) {
+        fmSpri.Dokter = k.Dokter; fmSpri.asal_ruang = k.asal_ruang
+        diagnosisExisting.value = k.Diagnosis; jaminanExisting.value = k.jaminan ?? ''
+        // Untuk pasien IGD: auto-fill Diagnosis & IndikasiRI dari ASESMEN_SURAT_PERMINTAAN_RI
+        if (k.Kode_Masuk === '1') {
+            fmSpri.Diagnosis  = k.Diagnosis  ?? ''
+            fmSpri.IndikasiRI = k.IndikasiRI ?? ''
+        }
+    }
 }
 
 const pilihPasien = (p) => {
     resetSpri(); skipLookupWatch.value = true
-    fmSpri.No_MR = p.No_MR; fmSpri.No_Reg = p.No_Reg ?? ''; fmSpri.asal_ruang = p.Nama_RuangM ?? ''; fmSpri.Dokter = p.Dokter ?? ''
+    fmSpri.No_MR      = p.No_MR
+    fmSpri.No_Reg     = p.No_Reg      ?? ''
+    fmSpri.asal_ruang = p.Nama_RuangM ?? ''
+    fmSpri.Dokter     = p.Dokter      ?? ''
     lookupResult.value = { found:true, No_MR:p.No_MR, nama_pasien:p.Nama_Pasien, jenis_kelamin:p.jenis_kelamin ?? '' }
-    if (p.No_Reg) kunjungans.value = [{ No_Reg:p.No_Reg, Dokter:p.Dokter ?? '', asal_ruang:p.Nama_RuangM ?? '', Diagnosis:'' }]
+    // Set kunjungans sementara dengan data ASESMEN yang sudah ada dari panel
+    if (p.No_Reg) kunjungans.value = [{
+        No_Reg:     p.No_Reg,
+        Kode_Masuk: p.Kode_Masuk      ?? '',
+        Dokter:     p.Dokter          ?? '',
+        asal_ruang: p.Nama_RuangM     ?? '',
+        Diagnosis:  p.asmt_Diagnosis  ?? '',
+        IndikasiRI: p.asmt_IndikasiRI ?? '',
+        jaminan:    '',
+    }]
+    // Auto-fill Step 3 dari ASESMEN (Perawatan='ICU') yang sudah di-join di controller
+    if (p.Kode_Masuk === '1') {
+        fmSpri.Diagnosis  = p.asmt_Diagnosis  ?? ''
+        fmSpri.IndikasiRI = p.asmt_IndikasiRI ?? ''
+    }
     modal.value = { open:true, type:'spri' }
     showPasienPanel.value = false
     nextTick(() => { skipLookupWatch.value = false; doLookupDiagnosis(p.No_MR, p.No_Reg) })
@@ -262,14 +292,24 @@ const doLookupDiagnosis = async (noMr, noReg) => {
         if (d.found) {
             lookupResult.value = { ...lookupResult.value, ...d, found:true }
             const ks = d.kunjungans ?? []
-            let k = noReg ? ks.find(x => x.No_Reg?.trim() === noReg?.trim()) : null
+
+            // Prioritas: match exact No_Reg dari panel → fallback ke kunjungan pertama
+            let k = noReg ? ks.find(x => (x.No_Reg ?? '').trim() === (noReg ?? '').trim()) : null
             if (!k && ks.length > 0) k = ks[0]
+
             if (k) {
-                diagnosisExisting.value = k.Diagnosis ?? ''; jaminanExisting.value = k.jaminan ?? ''
-                if (!fmSpri.Dokter && k.Dokter)         fmSpri.Dokter     = k.Dokter
-                if (!fmSpri.asal_ruang && k.asal_ruang) fmSpri.asal_ruang = k.asal_ruang
-                if (!fmSpri.No_Reg && k.No_Reg)         fmSpri.No_Reg     = k.No_Reg
+                diagnosisExisting.value = k.Diagnosis ?? ''
+                jaminanExisting.value   = k.jaminan   ?? ''
+                if (k.Dokter)     fmSpri.Dokter     = k.Dokter
+                if (k.asal_ruang) fmSpri.asal_ruang = k.asal_ruang
+                if (k.No_Reg)     fmSpri.No_Reg     = k.No_Reg
+
+                if (k.Kode_Masuk === '1') {
+                    fmSpri.Diagnosis  = k.Diagnosis  ?? ''
+                    fmSpri.IndikasiRI = k.IndikasiRI ?? ''
+                }
             }
+
             if (ks.length > 1) kunjungans.value = ks
         }
     } catch(e) { console.warn('[doLookupDiagnosis]', e) }
@@ -277,12 +317,12 @@ const doLookupDiagnosis = async (noMr, noReg) => {
 const submitSpri = () => fmSpri.post(route('icu.menu_petugas.spri.store'), { onSuccess: closeModal })
 const canSubmit  = computed(() => fmSpri.No_MR.trim() && fmSpri.No_Reg.trim() && fmSpri.Diagnosis.trim() && fmSpri.IndikasiRI.trim() && lookupResult.value?.found)
 
-// ── Edit SPRI ────────────────────────────────────────────────────────────────
+// Edit SPRI
 const fmEditSpri = useForm({ No_MR:'', No_Reg:'', Diagnosis:'', Diagnosis_ICD:'', IndikasiRI:'', asal_ruang:'', Dokter:'', spesialis:'', Keterangan:'' })
-const editingSpriId = ref(null) // ID yang sedang diedit — terpisah dari selectedItem
+const editingSpriId = ref(null)
 const openEditSpri = (item) => {
     selectedItem.value = item
-    editingSpriId.value = item.id  // simpan ID secara eksplisit
+    editingSpriId.value = item.id 
     fmEditSpri.No_MR         = item.No_MR       ?? ''
     fmEditSpri.No_Reg        = item.No_Reg      ?? ''
     fmEditSpri.Diagnosis     = item.Diagnosis   ?? item.diagnosa ?? ''
@@ -301,7 +341,7 @@ const submitEditSpri = () => {
     })
 }
 
-// ── Batal SPRI ────────────────────────────────────────────────────────────────
+// Batal SPRI
 const fmBatalSpri = useForm({ alasan_batal: '' })
 const openBatalSpriModal = (item) => {
     fmBatalSpri.alasan_batal = ''
@@ -315,7 +355,7 @@ const submitBatalSpri = () => {
     })
 }
 
-// ── Hapus SPRI ────────────────────────────────────────────────────────────────
+// Hapus SPRI
 const hapusSpri = (item) => {
     if (!confirm(`Hapus permanen booking untuk ${item.nama_pasien}? Tindakan tidak dapat dibatalkan.`)) return
     router.delete(route('icu.menu_petugas.spri.delete', item.id), {
@@ -338,11 +378,14 @@ const hapusSpri = (item) => {
         <div style="min-width:0">
           <p style="color:rgba(255,255,255,.6);font-size:11px;font-weight:500">
             ICU Command Center
-            <span v-if="isSSO"> · <strong style="color:#fff">{{ wardIds.join(', ') || '-' }}</strong></span>
+            <span v-if="isSSO && isIgdUser"> · <strong style="color:#fff">IGD</strong></span>
+            <span v-else-if="isSSO && wardIds.length"> · <strong style="color:#fff">{{ wardIds.join(', ') }}</strong></span>
           </p>
           <h1 style="color:#fff;font-size:clamp(18px,4vw,30px);font-weight:900;letter-spacing:-.02em;line-height:1.1">Booking ICU Internal</h1>
           <p style="color:rgba(255,255,255,.45);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:320px">
-            {{ isSSO ? (isIgdUser ? 'Pasien IGD · Klik baris untuk request ICU' : 'Pasien Bangsal · Klik baris untuk request ICU') : 'Request Booking ICU untuk pasien rawat inap' }}
+            {{ isSSO
+              ? (isIgdUser ? 'Pasien IGD · Klik baris untuk request ICU' : 'Pasien Bangsal · Klik baris untuk request ICU')
+              : 'Request Booking ICU untuk pasien rawat inap' }}
           </p>
         </div>
       </div>
@@ -397,7 +440,7 @@ const hapusSpri = (item) => {
   <!-- ══ MAIN GRID ══════════════════════════════════════════════════════════ -->
   <div class="mp-grid">
 
-    <!-- ── Panel Pasien Bangsal (SSO) — collapsible mobile, always visible desktop ── -->
+    <!-- Panel Pasien Bangsal (SSO) — collapsible mobile, always visible desktop -->
     <Transition name="slide-down">
       <div v-if="isSSO && (showPasienPanel || true)" class="mp-left-panel"
         :class="showPasienPanel ? 'mp-left-panel--mobile-open' : 'mp-left-panel--mobile-hidden'">
@@ -409,10 +452,16 @@ const hapusSpri = (item) => {
               </svg>
             </div>
             <div>
-              <p class="text-sm font-bold" style="color:var(--text-primary)">
-                {{ isIgdUser ? 'Pasien IGD' : 'Pasien Bangsal' }}
+              <div class="flex items-center gap-2">
+                <p class="text-sm font-bold" style="color:var(--text-primary)">
+                  {{ isIgdUser ? 'Pasien IGD' : 'Pasien Bangsal' }}
+                </p>
+                <span v-if="isIgdUser" class="text-xs font-bold px-2 py-0.5 rounded-full" style="background:rgba(239,68,68,.12);color:#EF4444;border:1px solid rgba(239,68,68,.25)">IGD</span>
+                <span v-else class="text-xs font-semibold px-2 py-0.5 rounded-full" style="background:rgba(0,168,132,.12);color:#00A884;border:1px solid rgba(0,168,132,.25)">{{ wardIds.join(', ') }}</span>
+              </div>
+              <p class="text-xs mt-0.5" style="color:var(--text-muted)">
+                {{ isIgdUser ? 'Pasien aktif IGD (3 hari terakhir)' : 'Klik untuk request ICU' }}
               </p>
-              <p class="text-xs" style="color:var(--text-muted)">Klik untuk request ICU</p>
             </div>
           </div>
           <!-- Search pasien -->
@@ -435,9 +484,10 @@ const hapusSpri = (item) => {
           <template v-for="(pasiens, ruang) in pasienPerRuang" :key="ruang">
             <div v-if="pasiens.length > 0" class="mb-4">
               <div class="mp-ruang-header">
-                <span>🏥</span>
+                <span>{{ isIgdUser ? '🚑' : '🏥' }}</span>
                 <span class="text-xs font-bold uppercase tracking-wider" style="color:var(--text-accent)">{{ ruang }}</span>
                 <span class="mp-ruang-badge">{{ pasiens.length }}</span>
+                <span v-if="isIgdUser" class="text-xs font-bold px-1.5 py-0.5 rounded" style="background:rgba(239,68,68,.1);color:#EF4444;font-size:9px">IGD</span>
               </div>
               <div class="space-y-1.5">
                 <div v-for="p in pasiens" :key="p.No_MR + (p.No_Reg ?? '')"
@@ -479,7 +529,7 @@ const hapusSpri = (item) => {
     </div>
 
 
-    <!-- ── Panel Kanan: Tabs + Filter + List + Detail ── -->
+    <!-- Panel Kanan: Tabs + Filter + List + Detail -->
     <div class="mp-right-panel">
 
       <!-- Tab bar -->
@@ -841,7 +891,7 @@ const hapusSpri = (item) => {
               </div>
             </template>
 
-            <!-- ── Tombol Aksi ── -->
+            <!-- Tombol Aksi -->
             <template v-if="canBuatSpriInternal || isAdmin">
               <div class="mp-divider"></div>
               <div class="p-4 space-y-2">
@@ -1064,7 +1114,7 @@ const hapusSpri = (item) => {
       </div>
     </Transition>
 
-    <!-- ── Modal: Edit Booking Internal ──────────────────────────────────── -->
+    <!-- Modal: Edit Booking Internal -->
     <Transition enter-active-class="transition-all duration-200" enter-from-class="opacity-0 scale-95" leave-to-class="opacity-0 scale-95">
       <div v-if="modal.type==='edit_spri'" class="mp-modal">
         <div class="flex items-center gap-3 px-5 py-4 rounded-t-2xl" style="background:#0EA5E9">
@@ -1140,7 +1190,7 @@ const hapusSpri = (item) => {
       </div>
     </Transition>
 
-    <!-- ── Modal: Batalkan Booking Internal ──────────────────────────────── -->
+    <!-- Modal: Batalkan Booking Internal -->
     <Transition enter-active-class="transition-all duration-200" enter-from-class="opacity-0 scale-95" leave-to-class="opacity-0 scale-95">
       <div v-if="modal.type==='batal_spri'" class="mp-modal" style="max-width:480px">
         <div class="flex items-center gap-3 px-5 py-4 rounded-t-2xl" style="background:#D97706">
@@ -1205,11 +1255,11 @@ const hapusSpri = (item) => {
 </template>
 
 <style scoped>
-/* ── Page wrapper ─────────────────────────────────────────────────────────── */
+/* Page wrapper─ */
 .mp-page { padding:20px 16px 32px; background:var(--bg-main); min-height:100%; font-family:'Inter','Plus Jakarta Sans',sans-serif; display:flex; flex-direction:column; gap:20px; }
 @media(min-width:640px) { .mp-page { padding:24px 24px 40px; } }
 
-/* ── Hero (shared with MenuAdmisi) ────────────────────────────────────────── */
+/* Hero (shared with MenuAdmisi) */
 .db-hero { background:#00A884; border-radius:16px; padding:22px 28px 18px; position:relative; overflow:hidden;
   border:1px solid rgba(255,255,255,.1); box-shadow:0 12px 32px rgba(0,168,132,.15);
   display:grid; grid-template-columns:1fr; gap:18px; align-items:center; }
@@ -1223,11 +1273,11 @@ const hapusSpri = (item) => {
 @media(min-width:860px) { .db-hero-vis { display:block; } }
 .db-char { position:absolute; right:0; bottom:-16px; width:min(200px,100%); aspect-ratio:1; }
 
-/* ── Main grid ────────────────────────────────────────────────────────────── */
+/* Main grid */
 .mp-grid { display:grid; grid-template-columns:1fr; gap:16px; }
 @media(min-width:1024px) { .mp-grid { grid-template-columns:500px 1fr; align-items:start; } }
 
-/* ── Left panel (pasien bangsal) ─────────────────────────────────────────── */
+/* Left panel (pasien bangsal)─ */
 .mp-left-panel { background:var(--bg-card); border:1px solid var(--border-default); border-radius:14px;
   box-shadow:var(--shadow-card); overflow:hidden; display:flex; flex-direction:column; height:580px; }
 /* Mobile: hidden by default, toggle via class */
@@ -1240,17 +1290,17 @@ const hapusSpri = (item) => {
   display:flex; align-items:center; justify-content:center; flex-shrink:0; }
 .mp-panel-body { flex:1; overflow-y:auto; padding:10px; }
 
-/* ── Local note ─────────────────────────────────────────────────────────── */
+/* Local note─ */
 .mp-local-note { display:flex; flex-direction:column; align-items:center; justify-content:center;
   padding:40px 24px; background:var(--bg-card); border:1px solid var(--border-default);
   border-radius:14px; text-align:center; }
 @media(min-width:1024px) { .mp-local-note { height:200px; } }
 
-/* ── Right panel ─────────────────────────────────────────────────────────── */
+/* Right panel─ */
 .mp-right-panel { background:var(--bg-card); border:1px solid var(--border-default); border-radius:14px;
   box-shadow:var(--shadow-card); overflow:hidden; display:flex; flex-direction:column; }
 
-/* ── Tabs ────────────────────────────────────────────────────────────────── */
+/* Tabs */
 .mp-tab-bar { display:flex; align-items:center; justify-content:space-between;
   padding:0 14px; border-bottom:1px solid var(--border-default); background:var(--bg-surface); flex-shrink:0; }
 .mp-tabs { display:flex; }
@@ -1268,7 +1318,7 @@ const hapusSpri = (item) => {
 .mp-filter-dot { position:absolute; top:4px; right:4px; width:6px; height:6px;
   border-radius:50%; background:#E74C3C; border:1.5px solid white; }
 
-/* ── Filter panel ────────────────────────────────────────────────────────── */
+/* Filter panel */
 .mp-filter-panel { padding:12px 14px; border-bottom:1px solid var(--border-default); background:rgba(0,168,132,.02); flex-shrink:0; }
 .mp-preset-group { display:flex; gap:2px; padding:3px; border-radius:9px; background:var(--bg-input); }
 .mp-preset-btn { padding:4px 10px; border-radius:7px; border:none; font-size:11px; font-weight:600;
@@ -1280,40 +1330,40 @@ const hapusSpri = (item) => {
 .mp-reset-btn { display:flex; align-items:center; gap:4px; padding:5px 9px; border-radius:8px;
   background:#FEF2F2; color:#DC2626; border:1.5px solid rgba(220,38,38,.15); cursor:pointer; font-size:11px; font-weight:700; }
 
-/* ── Content (list + detail) ─────────────────────────────────────────────── */
+/* Content (list + detail)─ */
 .mp-content { display:flex; flex:1; overflow:hidden; min-height:400px; }
 .mp-list { flex:1; overflow-y:auto; display:flex; flex-direction:column; min-width:0; transition:flex .2s; }
 .mp-list--narrow { flex:0 0 55%; }
 
-/* ── Table header ────────────────────────────────────────────────────────── */
+/* Table header */
 .mp-list-header { grid-template-columns:1.2fr 1fr 0.7fr 0.8fr 0.9fr 0.8fr 28px;
   padding:9px 14px; font-size:10px; font-weight:700; color:var(--text-muted);
   text-transform:uppercase; letter-spacing:.06em; border-bottom:1px solid var(--border-default);
   background:var(--bg-surface); flex-shrink:0; gap:8px; }
 
-/* ── Row desktop ─────────────────────────────────────────────────────────── */
+/* Row desktop─ */
 .mp-row { grid-template-columns:1.2fr 1fr 0.7fr 0.8fr 0.9fr 0.8fr 28px;
   padding:10px 14px; border-bottom:1px solid var(--border-default); cursor:pointer;
   align-items:center; transition:background .12s; gap:8px; }
 .mp-row:hover { background:var(--bg-row-hover); }
 .mp-row--active { background:rgba(0,168,132,.04) !important; }
 
-/* ── Row mobile card ─────────────────────────────────────────────────────── */
+/* Row mobile card─ */
 .mp-mobile-card { padding:12px 14px; border-bottom:1px solid var(--border-default); cursor:pointer; transition:background .12s; }
 .mp-mobile-card:hover { background:var(--bg-row-hover); }
 .mp-mobile-card.mp-row--active { background:rgba(0,168,132,.04) !important; }
 
-/* ── Pill ────────────────────────────────────────────────────────────────── */
+/* Pill */
 .mp-pill { display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:700; padding:3px 8px; border-radius:20px; white-space:nowrap; }
 .mp-pill-dot { width:5px; height:5px; border-radius:50%; flex-shrink:0; }
 
-/* ── Avatar ──────────────────────────────────────────────────────────────── */
+/* Avatar */
 .mp-av { width:36px; height:36px; border-radius:10px; display:flex; align-items:center;
   justify-content:center; font-size:14px; font-weight:700; flex-shrink:0; }
 .mp-av-sm { width:30px; height:30px; border-radius:8px; display:flex; align-items:center;
   justify-content:center; font-size:12px; font-weight:700; flex-shrink:0; }
 
-/* ── Detail panel ────────────────────────────────────────────────────────── */
+/* Detail panel */
 .mp-detail { width:45%; border-left:1px solid var(--border-default); background:var(--bg-surface);
   overflow-y:auto; flex-shrink:0; display:flex; flex-direction:column; }
 .mp-detail-head { display:flex; align-items:center; justify-content:space-between;
@@ -1326,7 +1376,7 @@ const hapusSpri = (item) => {
 .mp-detail-sub { font-size:11px; color:var(--text-secondary); margin-top:1px; }
 .mp-divider { height:1px; background:var(--border-default); flex-shrink:0; }
 
-/* ── Pasien bangsal list ─────────────────────────────────────────────────── */
+/* Pasien bangsal list─ */
 .mp-ruang-header { display:flex; align-items:center; gap:6px; padding:5px 10px; border-radius:8px;
   background:var(--bg-card); border:1px solid var(--border-default);
   position:sticky; top:0; z-index:5; margin-bottom:6px; }
@@ -1339,14 +1389,14 @@ const hapusSpri = (item) => {
 .mp-arrow-btn { width:24px; height:24px; border-radius:7px; background:#00A884;
   display:flex; align-items:center; justify-content:center; }
 
-/* ── Search input ────────────────────────────────────────────────────────── */
+/* Search input */
 .mp-search-wrap { position:relative; }
 .mp-search-icon { position:absolute; left:10px; top:50%; transform:translateY(-50%); width:15px; height:15px; color:var(--text-muted); }
 .mp-search-input { width:100%; padding:9px 12px 9px 34px; border:1.5px solid var(--border-default);
   border-radius:10px; font-size:13px; color:var(--text-primary); background:var(--bg-input); outline:none; }
 .mp-search-input:focus { border-color:#00A884; box-shadow:0 0 0 3px rgba(0,168,132,.1); }
 
-/* ── Form elements ───────────────────────────────────────────────────────── */
+/* Form elements─ */
 .mp-label { display:block; font-size:10px; font-weight:700; color:var(--text-muted); margin-bottom:5px; text-transform:uppercase; letter-spacing:.05em; }
 .mp-input { width:100%; padding:9px 12px; border:1.5px solid var(--border-default); border-radius:11px;
   font-size:13px; color:var(--text-primary); background:var(--bg-input); outline:none; transition:border-color .2s; }
@@ -1359,16 +1409,16 @@ const hapusSpri = (item) => {
   font-size:13px; color:var(--text-primary); background:var(--bg-input); outline:none; resize:none; }
 .mp-form-step { background:var(--bg-surface); border:1px solid var(--border-default); border-radius:14px; padding:16px; }
 
-/* ── Empty state ─────────────────────────────────────────────────────────── */
+/* Empty state─ */
 .mp-empty-state { display:flex; flex-direction:column; align-items:center; text-align:center; padding:32px 16px; }
 
-/* ── Modal ───────────────────────────────────────────────────────────────── */
+/* Modal─ */
 .mp-modal-overlay { position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center; padding:16px; background:rgba(0,0,0,.6); backdrop-filter:blur(6px); }
 .mp-modal { width:100%; max-width:680px; max-height:92vh; border-radius:20px;
   background:var(--bg-card); border:1px solid var(--border-default); box-shadow:0 24px 64px rgba(0,0,0,.3);
   display:flex; flex-direction:column; overflow:hidden; }
 
-/* ── Transitions ─────────────────────────────────────────────────────────── */
+/* Transitions─ */
 .slide-down-enter-active, .slide-down-leave-active { transition:all .2s ease; }
 .slide-down-enter-from, .slide-down-leave-to { opacity:0; transform:translateY(-8px); }
 .slide-left-enter-active, .slide-left-leave-active { transition:all .2s ease; }

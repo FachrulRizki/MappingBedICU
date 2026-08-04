@@ -21,6 +21,7 @@ class IcuBookingExternal extends Model
         'created_by', 'confirmed_by', 'confirmed_at',
         'verified_by', 'verified_at',
         'masuk_at', 'masuk_by',
+        'keluar_at', 'keluar_by',
     ];
 
     protected $casts = [
@@ -29,6 +30,7 @@ class IcuBookingExternal extends Model
         'verified_at'      => 'datetime',
         'pindah_at'        => 'datetime',
         'masuk_at'         => 'datetime',
+        'keluar_at'        => 'datetime',
         'dibatalkan_at'    => 'datetime',
     ];
 

@@ -35,11 +35,14 @@ class NotifikasiController extends Controller
 
         // ─── Helper: ambil nama pasien dari No_MR ────────────────────────────
         $getNamaPasien = function (string $noMr): string {
-            try {
-                return RegistrasiPasien::where('No_MR', $noMr)->value('Nama_Pasien') ?? $noMr;
-            } catch (\Exception) {
-                return $noMr;
-            }
+            // Cache per No_MR — TTL 5 menit, biar polling 10 detik tidak hammering RSUS
+            return Cache::remember('pasien_nama:' . $noMr, 300, function () use ($noMr) {
+                try {
+                    return RegistrasiPasien::where('No_MR', $noMr)->value('Nama_Pasien') ?? $noMr;
+                } catch (\Exception) {
+                    return $noMr;
+                }
+            });
         };
 
         // ─── ICU ─────────────────────────────────────────────────────────────

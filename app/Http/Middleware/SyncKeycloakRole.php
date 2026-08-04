@@ -81,9 +81,17 @@ class SyncKeycloakRole
             Auth::setUser($user->fresh());
         }
 
-        // Sync permissions dari token ke session — semua role dapat permissions sesuai Keycloak
-        $permissions = $this->keycloak->extractPermissionsFromToken($payload);
-        $request->session()->put('keycloak_permissions', $permissions);
+        // Sync permissions dari token ke session — hanya tulis jika ada perubahan
+        // agar tidak force-dirty session setiap request (hemat 1 DB write/request)
+        $permissions    = $this->keycloak->extractPermissionsFromToken($payload);
+        $existingPerms  = $request->session()->get('keycloak_permissions', []);
+        $permsDiffer    = count($permissions) !== count($existingPerms)
+                       || array_diff($permissions, $existingPerms)
+                       || array_diff($existingPerms, $permissions);
+
+        if ($permsDiffer) {
+            $request->session()->put('keycloak_permissions', $permissions);
+        }
 
         return null;
     }

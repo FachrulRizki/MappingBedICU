@@ -122,33 +122,39 @@ class MRuangMaster extends Model
             ->values();
     }
 
-    /**
-     * Bed KOSONG + BOOKING (untuk konfirmasi ICU dengan fitur preempt).
-     * Bed ISI tidak dimasukkan — pasien sudah fisik di bed.
-     * Field `status_bed` ditambahkan agar Vue bisa menampilkan label peringatan.
-     */
     public static function bedTersediaUntukKonfirmasi(): \Illuminate\Support\Collection
     {
-        // Cari pasien yang saat ini memegang booking bed (untuk label di dropdown)
+        // Kumpulkan semua bed yang sudah di-alokasi di tabel lokal (app booking, bukan RSUS)
         $pemegangExt = \App\Models\IcuBookingExternal::whereIn('status', ['bed_confirmed', 'admisi_verified'])
             ->whereNotNull('allocated_bed_id')
-            ->get(['allocated_bed_id', 'nama_pasien'])
+            ->get(['allocated_bed_id', 'nama_pasien', 'id'])
             ->keyBy('allocated_bed_id');
 
         $pemegangInt = \App\Models\IcuSpriInternal::where('status', 'bed_verified')
             ->whereNotNull('allocated_bed_id')
-            ->get(['allocated_bed_id', 'No_MR'])
+            ->get(['allocated_bed_id', 'No_MR', 'id'])
             ->keyBy('allocated_bed_id');
 
         return static::bedIcuDenganStatus()
             ->whereIn('Status', ['KOSONG', 'BOOKING'])
             ->map(function ($row) use ($pemegangExt, $pemegangInt) {
-                $kode       = $row->Kode_RuangM;
-                $isBooking  = strtoupper($row->Status) === 'BOOKING';
-                $pemegang   = $pemegangExt->get($kode) ?? $pemegangInt->get($kode);
+                $kode      = $row->Kode_RuangM;
+                $rsusStatus = strtoupper($row->Status);
+
+                // Cek apakah ada pasien di tabel lokal yang memegang bed ini
+                $pemegang = $pemegangExt->get($kode) ?? $pemegangInt->get($kode);
+
+                // Jika bed sudah di-alokasi lokal → tampilkan sebagai "BOOKING" (bisa dipreempt)
+                // meski RSUS masih bilang KOSONG — ini cegah duplikasi
+                $effectiveStatus = $pemegang ? 'BOOKING' : $rsusStatus;
+
                 $namaPasienPemegang = null;
+                $pemegangId         = null;
+                $pemegangSumber     = null;
                 if ($pemegang) {
                     $namaPasienPemegang = $pemegang->nama_pasien ?? $pemegang->No_MR ?? null;
+                    $pemegangId         = $pemegang->id;
+                    $pemegangSumber     = isset($pemegang->nama_pasien) ? 'external' : 'internal';
                 }
 
                 return [
@@ -156,8 +162,10 @@ class MRuangMaster extends Model
                     'nama_ruang'         => $row->Nama_RuangM,
                     'kode_kelas'         => $row->kelas_master ?? $row->Kode_Kelas,
                     'nama_kelas'         => $row->Nama_Kelas,
-                    'status_bed'         => strtoupper($row->Status), // 'KOSONG' | 'BOOKING'
-                    'pasien_pemegang'    => $namaPasienPemegang,       // nama pasien yang akan di-preempt
+                    'status_bed'         => $effectiveStatus,  // 'KOSONG' | 'BOOKING'
+                    'pasien_pemegang'    => $namaPasienPemegang,
+                    'pemegang_id'        => $pemegangId,
+                    'pemegang_sumber'    => $pemegangSumber,
                 ];
             })
             ->values();
