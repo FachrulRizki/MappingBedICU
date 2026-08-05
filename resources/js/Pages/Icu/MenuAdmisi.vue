@@ -60,15 +60,45 @@ const resetFilter = () => {
 };
 const sortIcon = (col) => sortBy.value !== col ? '↕' : sortDir.value === 'asc' ? '↑' : '↓';
 
-// ── Filter antrian client-side (status + jenis) ────────────
-const antrianFiltered = computed(() => {
-    let list = props.antrian;
-    // filter jenis duplikat kalau sudah server-filter, tapi tetap handle
+// ── Tab view ────────────────────────────────────────────────
+const viewTab = ref('antrian'); // 'antrian' | 'terverifikasi_icu' | 'perlu_verif' | 'pasien_keluar'
+
+// ── Computed views per tab ─────────────────────────────────
+const antrianTabView = computed(() => {
+    let list = props.antrian.filter(i => ['pending_icu', 'waiting_list', 'pending_admisi'].includes(i.status));
     if (fJenis.value) list = list.filter(i => i.sumber === fJenis.value);
-    if (!fStatus.value) return list;
-    if (fStatus.value === '__bed') return list.filter(i => ['bed_confirmed','bed_verified'].includes(i.status));
-    return list.filter(i => i.status === fStatus.value);
+    if (fStatus.value === 'pending_icu')   return list.filter(i => i.status === 'pending_icu');
+    if (fStatus.value === 'waiting_list')  return list.filter(i => i.status === 'waiting_list');
+    if (fStatus.value === 'pending_admisi') return list.filter(i => i.status === 'pending_admisi');
+    if (fStatus.value === 'ditolak')       return props.antrian.filter(i => i.status === 'ditolak' && (!fJenis.value || i.sumber === fJenis.value));
+    if (fStatus.value === 'dibatalkan')    return props.antrian.filter(i => i.status === 'dibatalkan' && (!fJenis.value || i.sumber === fJenis.value));
+    return list;
 });
+const terverifikasiIcuView = computed(() => {
+    let list = props.antrian.filter(i => ['bed_confirmed', 'bed_verified'].includes(i.status));
+    if (fJenis.value) list = list.filter(i => i.sumber === fJenis.value);
+    return list;
+});
+const perluVerifView = computed(() => {
+    let list = props.antrian.filter(i => i.status === 'admisi_verified');
+    if (fJenis.value) list = list.filter(i => i.sumber === fJenis.value);
+    return list;
+});
+const pasienKeluarView = computed(() => {
+    let list = props.antrian.filter(i => i.status === 'selesai');
+    if (fJenis.value) list = list.filter(i => i.sumber === fJenis.value);
+    return list;
+});
+
+const currentView = computed(() => {
+    if (viewTab.value === 'terverifikasi_icu') return terverifikasiIcuView.value;
+    if (viewTab.value === 'perlu_verif')       return perluVerifView.value;
+    if (viewTab.value === 'pasien_keluar')     return pasienKeluarView.value;
+    return antrianTabView.value;
+});
+
+// ── Filter antrian client-side (status + jenis) — backward compat ──────────
+const antrianFiltered = computed(() => currentView.value);
 
 // ── Style helpers ──────────────────────────────────────────
 const SS = {
@@ -120,8 +150,19 @@ const activeCardKey = ref('');
 
 const clickCard = (key) => {
     activeCardKey.value = key;
-    fStatus.value = key === '__bed' ? '__bed' : key;
-    // TIDAK memanggil applyFilters() — filter dilakukan client-side oleh antrianFiltered
+    if (key === '__bed') {
+        viewTab.value = 'terverifikasi_icu';
+        fStatus.value = '';
+    } else if (key === 'admisi_verified') {
+        viewTab.value = 'perlu_verif';
+        fStatus.value = '';
+    } else if (key === 'selesai') {
+        viewTab.value = 'pasien_keluar';
+        fStatus.value = '';
+    } else {
+        viewTab.value = 'antrian';
+        fStatus.value = key;
+    }
 };
 
 // ── Aksi yang tersedia per item — setiap tombol dijaga permission sendiri ──
@@ -493,6 +534,69 @@ const jenisOptions = [
         </div>
 
 
+        <!-- ═══ TAB VIEW ══════════════════════════════════════════════ -->
+        <div class="flex items-center gap-2 flex-wrap">
+            <div class="flex gap-1 p-1 rounded-xl" style="background:var(--bg-surface); border:1px solid var(--border-default)">
+                <!-- Tab: Antrian Menunggu -->
+                <button @click="viewTab='antrian'; activeCardKey=''"
+                    class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+                    :style="viewTab==='antrian' ? 'background:#E67E22;color:#fff;box-shadow:0 2px 8px rgba(230,126,34,.3)' : 'color:var(--text-secondary)'">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    Antrian Menunggu
+                    <span class="px-1.5 py-0.5 rounded-full text-xs font-bold"
+                        :style="viewTab==='antrian' ? 'background:rgba(255,255,255,.25);color:#fff' : 'background:rgba(230,126,34,.15);color:#E67E22'">
+                        {{ antrianTabView.length }}
+                    </span>
+                </button>
+                <!-- Tab: Terverifikasi ICU -->
+                <button @click="viewTab='terverifikasi_icu'; activeCardKey='__bed'"
+                    class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+                    :style="viewTab==='terverifikasi_icu' ? 'background:#0EA5E9;color:#fff;box-shadow:0 2px 8px rgba(14,165,233,.3)' : 'color:var(--text-secondary)'">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    Terverifikasi ICU
+                    <span class="px-1.5 py-0.5 rounded-full text-xs font-bold"
+                        :style="viewTab==='terverifikasi_icu' ? 'background:rgba(255,255,255,.25);color:#fff' : 'background:rgba(14,165,233,.15);color:#0EA5E9'">
+                        {{ terverifikasiIcuView.length }}
+                    </span>
+                </button>
+                <!-- Tab: Perlu Verif Admisi -->
+                <button @click="viewTab='perlu_verif'; activeCardKey='admisi_verified'"
+                    class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+                    :style="viewTab==='perlu_verif' ? 'background:#00A884;color:#fff;box-shadow:0 2px 8px rgba(0,168,132,.3)' : 'color:var(--text-secondary)'">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                    </svg>
+                    Perlu Verif Admisi
+                    <span class="px-1.5 py-0.5 rounded-full text-xs font-bold"
+                        :style="viewTab==='perlu_verif' ? 'background:rgba(255,255,255,.25);color:#fff' : 'background:rgba(0,168,132,.15);color:#00A884'">
+                        {{ perluVerifView.length }}
+                    </span>
+                </button>
+                <!-- Tab: Pasien Keluar -->
+                <button @click="viewTab='pasien_keluar'; activeCardKey='selesai'"
+                    class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+                    :style="viewTab==='pasien_keluar' ? 'background:#475569;color:#fff;box-shadow:0 2px 8px rgba(71,85,105,.3)' : 'color:var(--text-secondary)'">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                    </svg>
+                    Pasien Keluar
+                    <span class="px-1.5 py-0.5 rounded-full text-xs font-bold"
+                        :style="viewTab==='pasien_keluar' ? 'background:rgba(255,255,255,.25);color:#fff' : 'background:rgba(71,85,105,.12);color:#475569'">
+                        {{ pasienKeluarView.length }}
+                    </span>
+                </button>
+            </div>
+            <!-- Deskripsi tab -->
+            <p v-if="viewTab==='antrian'" class="text-xs" style="color:var(--text-muted)">Permintaan menunggu konfirmasi bed</p>
+            <p v-else-if="viewTab==='terverifikasi_icu'" class="text-xs" style="color:var(--text-muted)">Pasien dengan bed terverifikasi ICU · menunggu verifikasi admisi</p>
+            <p v-else-if="viewTab==='perlu_verif'" class="text-xs" style="color:var(--text-muted)">Pasien yang sudah diverifikasi admisi · siap masuk ICU</p>
+            <p v-else class="text-xs" style="color:var(--text-muted)">Pasien yang sudah selesai dirawat di ICU</p>
+        </div>
+
         <!-- Empty state -->
         <div v-if="!antrianFiltered.length" class="card-dark text-center py-16">
             <div class="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4" style="background:var(--bg-input)">
@@ -501,7 +605,12 @@ const jenisOptions = [
                 </svg>
             </div>
             <p class="font-semibold" style="color:var(--text-secondary)">Tidak ada antrian</p>
-            <p class="text-sm mt-1" style="color:var(--text-muted)">Coba reset filter atau tambah booking baru</p>
+            <p class="text-sm mt-1" style="color:var(--text-muted)">
+                {{ viewTab==='terverifikasi_icu' ? 'Belum ada pasien dengan bed terverifikasi ICU.'
+                 : viewTab==='perlu_verif' ? 'Belum ada pasien yang perlu verifikasi admisi.'
+                 : viewTab==='pasien_keluar' ? 'Belum ada pasien yang keluar ICU pada periode ini.'
+                 : 'Coba reset filter atau tambah booking baru' }}
+            </p>
         </div>
 
         <!-- Content Area -->
