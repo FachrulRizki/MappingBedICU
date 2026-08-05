@@ -98,18 +98,13 @@ class MenuPetugasController extends Controller
                 : $spriList->sortByDesc(fn ($i) => strtolower($i['nama_pasien']))->values();
         }
 
-        // Summary ikut filter tanggal yang sama dengan data list
-        $summaryQ = IcuSpriInternal::query()->whereIn('NameUser', $this->actorNames())
-            ->whereBetween('created_at', [$fTglDari . ' 00:00:00', $fTglAkh . ' 23:59:59']);
-        $allData = $summaryQ->get();
+        $allData = IcuSpriInternal::query()->whereIn('NameUser', $this->actorNames())->get();
         $summary = [
             'total'        => $allData->count(),
             'pending_icu'  => $allData->where('status', 'pending_icu')->count(),
             'waiting_list' => $allData->where('status', 'waiting_list')->count(),
             'bed_verified' => $allData->where('status', 'bed_verified')->count(),
             'ditolak'      => $allData->where('status', 'ditolak')->count(),
-            'dibatalkan'   => $allData->where('status', 'dibatalkan')->count(),
-            'selesai'      => $allData->where('status', 'selesai')->count(),
         ];
 
         /** @var \App\Models\User|null $authUser */
@@ -169,6 +164,52 @@ class MenuPetugasController extends Controller
         if (empty($wardIds) && ! $isIgd) return [];
 
         try {
+            if ($isIgd) {
+                $batasWaktu = now()->subDays(3)->toDateString();
+
+                $q = DB::connection('sqlsrv_rsus')
+                    ->table('PENDAFTARAN as p')
+                    ->join('REGISTER_PASIEN as rp', 'p.No_MR', '=', 'rp.No_MR')
+                    ->join('ASESMEN_IGD as ag', 'p.No_Reg', '=', 'ag.No_Reg')
+                    ->leftJoin('DOKTER as d', 'p.Kode_Dokter', '=', 'd.Kode_Dokter')
+                    ->where('p.Kode_Masuk', '1')
+                    ->where('p.Status', '1')
+                    ->where('p.Tanggal', '>=', $batasWaktu)
+                    ->whereRaw('NOT EXISTS (SELECT 1 FROM TR_KAMAR tk WHERE tk.No_Reg = p.No_Reg AND tk.Tgl_Mulai IS NOT NULL)')
+                    ->where('p.No_MR', '<>', '000000')
+                    ->select([
+                        'p.No_MR', 'p.No_Reg', 'p.Kode_Masuk', 'p.Kode_Ruang',
+                        'rp.Nama_Pasien', 'rp.jenis_kelamin',
+                        DB::raw("'' as Kode_RuangM"),
+                        DB::raw("'IGD' as Nama_RuangM"),
+                        DB::raw("'' as Kode_Bangsal"),
+                        DB::raw("'IGD' as Nama_Bangsal"),
+                        DB::raw("ISNULL(NULLIF(LTRIM(RTRIM(d.Nama_Dokter)),''), p.PermintaanDPJP) as Nama_Dokter"),
+                    ]);
+
+                if ($cari) {
+                    $q->where(fn ($qq) => $qq
+                        ->where('rp.Nama_Pasien', 'like', "%{$cari}%")
+                        ->orWhere('p.No_MR', 'like', "%{$cari}%")
+                    );
+                }
+
+                return $q->orderBy('p.Tanggal', 'desc')->limit(200)->get()
+                    ->map(fn ($r) => [
+                        'No_MR'         => $r->No_MR,
+                        'No_Reg'        => $r->No_Reg,
+                        'Kode_Masuk'    => $r->Kode_Masuk,
+                        'Nama_Pasien'   => $r->Nama_Pasien,
+                        'jenis_kelamin' => strtoupper($r->jenis_kelamin ?? ''),
+                        'Kode_RuangM'   => $r->Kode_RuangM,
+                        'Nama_RuangM'   => $r->Nama_RuangM,
+                        'Kode_Bangsal'  => $r->Kode_Bangsal,
+                        'Nama_Bangsal'  => $r->Nama_Bangsal,
+                        'Dokter'        => $this->formatNamaDokter($r->Nama_Dokter ?? ''),
+                    ])->toArray();
+            }
+
+            // Query rawat inap: pasien aktif di bangsal sesuai ward user
             $q = DB::connection('sqlsrv_rsus')
                 ->table('PENDAFTARAN as p')
                 ->join('REGISTER_PASIEN as rp', 'p.No_MR', '=', 'rp.No_MR')
@@ -177,6 +218,8 @@ class MenuPetugasController extends Controller
                 ->leftJoin('DOKTER as d', 'p.Kode_Dokter', '=', 'd.Kode_Dokter')
                 ->where('p.Status', '1')
                 ->where('p.Status_Pulang', 'Belum')
+                ->where('p.Medis', 'RAWAT INAP')
+                ->whereIn('rm.Kode_Bangsal', $wardIds)
                 ->select([
                     'p.No_MR', 'p.No_Reg', 'p.Kode_Masuk', 'p.Kode_Ruang',
                     'rp.Nama_Pasien', 'rp.jenis_kelamin',
@@ -186,13 +229,6 @@ class MenuPetugasController extends Controller
                     DB::raw("ISNULL(b.Nama_Bangsal, '') as Nama_Bangsal"),
                     DB::raw("ISNULL(NULLIF(LTRIM(RTRIM(d.Nama_Dokter)),''), p.PermintaanDPJP) as Nama_Dokter"),
                 ]);
-
-            if ($isIgd) {
-                $q->where('p.Kode_Masuk', '1')
-                  ->where('p.Tanggal', '>=', now()->subDays(3)->startOfDay());
-            } else {
-                $q->where('p.Medis', 'RAWAT INAP')->whereIn('rm.Kode_Bangsal', $wardIds);
-            }
 
             if ($cari) {
                 $q->where(fn ($qq) => $qq
@@ -268,44 +304,29 @@ class MenuPetugasController extends Controller
 
         $kunjungans = collect();
         try {
-            // Join ASESMEN_SURAT_PERMINTAAN_RI hanya untuk pasien IGD 
             $rows = DB::connection('sqlsrv_rsus')
                 ->table('PENDAFTARAN as p')
                 ->leftJoin('M_RUANG_MASTER as rm', 'p.Kode_Ruang', '=', 'rm.Kode_RuangM')
                 ->leftJoin('DOKTER as d', 'p.Kode_Dokter', '=', 'd.Kode_Dokter')
                 ->leftJoin('M_CARABAYAR as cb', 'p.Kode_Bayar', '=', 'cb.Kode_Bayar')
-                ->leftJoin(
-                    DB::raw('(SELECT No_Reg, MAX(Diagnosis) as Diagnosis, MAX(IndikasiRI) as IndikasiRI FROM ASESMEN_SURAT_PERMINTAAN_RI GROUP BY No_Reg) as asmt'),
-                    fn ($join) => $join
-                        ->on('p.No_Reg', '=', 'asmt.No_Reg')
-                        ->where('p.Kode_Masuk', '=', '1')   // hanya IGD
-                )
+                ->leftJoin(DB::raw('(SELECT No_Reg, MAX(Diagnosis) as Diagnosis FROM ASESMEN_SURAT_PERMINTAAN_RI GROUP BY No_Reg) as asmt'), 'p.No_Reg', '=', 'asmt.No_Reg')
                 ->where('p.No_MR', $noMr)
                 ->orderByDesc('p.Tanggal')
                 ->select([
                     'p.No_Reg', 'p.Kode_Masuk', 'p.Kode_Ruang', 'p.Kode_Dokter', 'p.Kode_Bayar',
                     DB::raw("ISNULL(rm.Nama_RuangM, p.Kode_Ruang) as nama_asal_ruang"),
                     DB::raw("ISNULL(NULLIF(LTRIM(RTRIM(d.Nama_Dokter)),''), p.PermintaanDPJP) as nama_dokter"),
-                    // Jaminan dari M_CARABAYAR untuk semua cara masuk
                     DB::raw("ISNULL(cb.Ket_Bayar, p.Kode_Bayar) as ket_bayar"),
-                    // Diagnosis & IndikasiRI hanya terisi jika IGD (join ASESMEN di atas sudah conditional)
-                    DB::raw("CASE WHEN p.Kode_Masuk = '1' THEN asmt.Diagnosis   ELSE NULL END as Diagnosis"),
-                    DB::raw("CASE WHEN p.Kode_Masuk = '1' THEN asmt.IndikasiRI  ELSE NULL END as IndikasiRI"),
-                    // Diagnosis & IndikasiRI hanya terisi jika IGD (join ASESMEN di atas sudah conditional)
-                    DB::raw("CASE WHEN p.Kode_Masuk = '1' THEN asmt.Diagnosis   ELSE NULL END as Diagnosis"),
-                    DB::raw("CASE WHEN p.Kode_Masuk = '1' THEN asmt.IndikasiRI  ELSE NULL END as IndikasiRI"),
+                    'asmt.Diagnosis',
                 ])->get();
 
             $kunjungans = $rows->map(fn ($r) => [
                 'No_Reg'      => $r->No_Reg,
-                'Kode_Masuk'  => $r->Kode_Masuk ?? '',
                 'Dokter'      => $this->formatNamaDokter(trim($r->nama_dokter ?? '')),
                 'Kode_Dokter' => trim($r->Kode_Dokter   ?? ''),
                 'asal_ruang'  => trim($r->nama_asal_ruang ?? $r->Kode_Ruang ?? ''),
-                // Untuk IGD: dari ASESMEN. Untuk bangsal: kosong (diisi manual petugas)
-                'Diagnosis'   => trim($r->Diagnosis  ?? ''),
-                'IndikasiRI'  => trim($r->IndikasiRI ?? ''),
-                'Kode_Bayar'  => trim($r->Kode_Bayar ?? ''),
+                'Diagnosis'   => trim($r->Diagnosis      ?? ''),
+                'Kode_Bayar'  => trim($r->Kode_Bayar    ?? ''),
                 'jaminan'     => $this->formatNamaDokter(trim($r->ket_bayar ?? '')),
             ]);
         } catch (\Exception $e) {
@@ -370,8 +391,8 @@ class MenuPetugasController extends Controller
 
         $bu = IcuSpriInternal::findOrFail($id);
 
-        // Hanya bisa edit jika masih pending (bukan ditolak, bukan dibatalkan, bukan bed_verified)
-        if (!in_array($bu->status, ['pending_admisi', 'pending_icu'])) {
+        // Hanya bisa edit jika masih pending atau ditolak
+        if (!in_array($bu->status, ['pending_admisi', 'pending_icu', 'ditolak'])) {
             return back()->with('error', 'BU tidak dapat diedit karena sudah diproses.');
         }
 
@@ -394,7 +415,7 @@ class MenuPetugasController extends Controller
         return back()->with('success', "Booking ICU {$nama} berhasil diupdate.");
     }
 
-    public function batalSpri(Request $request, int $id): RedirectResponse
+    public function batalSpri(int $id): RedirectResponse
     {
         $bu = IcuSpriInternal::findOrFail($id);
 
@@ -402,10 +423,6 @@ class MenuPetugasController extends Controller
         if (!in_array($bu->status, ['pending_admisi', 'pending_icu', 'waiting_list'])) {
             return back()->with('error', 'Booking ICU tidak dapat dibatalkan.');
         }
-
-        $v = $request->validate([
-            'alasan_batal' => 'nullable|string|max:500',
-        ]);
 
         $nama = $bu->No_MR;
         try {
@@ -416,16 +433,13 @@ class MenuPetugasController extends Controller
         $oldStatus = $bu->status;
 
         $bu->update([
-            'status'        => 'dibatalkan',
-            'alasan_batal'  => $v['alasan_batal'] ?? null,
-            'dibatalkan_by' => $this->actor(),
-            'dibatalkan_at' => now(),
+            'status' => 'dibatalkan',
+            'alasan_tolak' => 'Dibatalkan oleh ' . $this->actor(),
         ]);
 
         $this->activityLog->log(
             'Batal BookingICU',
-            "Batalkan BookingICU {$nama} (status sebelumnya: {$oldStatus})"
-                . (!empty($v['alasan_batal']) ? " — {$v['alasan_batal']}" : ''),
+            "Batalkan BookingICU {$nama} (status sebelumnya: {$oldStatus})",
             'spri_internal',
             $bu->id,
             'IcuSpriInternal'
@@ -497,7 +511,6 @@ class MenuPetugasController extends Controller
             'nama_pasien'    => $pasien?->Nama_Pasien ?? '-',
             'jenis_kelamin'  => strtoupper($pasien?->Jenis_Kelamin ?? $pasien?->jenis_kelamin ?? ''),
             'Diagnosis'      => $s->Diagnosis,
-            'Diagnosis_ICD'  => $s->Diagnosis_ICD,
             'IndikasiRI'     => $s->IndikasiRI,
             'kebutuhan_bed'  => $s->kebutuhan_bed,
             'asal_ruang'     => $s->asal_ruang,
@@ -509,10 +522,6 @@ class MenuPetugasController extends Controller
             'status'         => $s->status,
             'status_label'   => $s->statusLabel(),
             'alasan_tolak'   => $s->alasan_tolak,
-            'alasan_batal'   => $s->alasan_batal,
-            'dibatalkan_by'  => $s->dibatalkan_by,
-            'dibatalkan_at'  => $s->dibatalkan_at?->format('Y-m-d H:i'),
-            'dibatalkan_at_fmt' => $s->dibatalkan_at?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
             'jaminan_kode'   => $jaminan['kode'] ?? null,
             'jaminan_nama'   => $jaminan['nama'] ?? null,
             // waiting list
