@@ -172,6 +172,10 @@ class MenuPetugasController extends Controller
                     ->join('REGISTER_PASIEN as rp', 'p.No_MR', '=', 'rp.No_MR')
                     ->join('ASESMEN_IGD as ag', 'p.No_Reg', '=', 'ag.No_Reg')
                     ->leftJoin('DOKTER as d', 'p.Kode_Dokter', '=', 'd.Kode_Dokter')
+                    ->leftJoin(
+                        DB::raw('(SELECT No_Reg, MAX(Diagnosis) as Diagnosis, MAX(IndikasiRI) as IndikasiRI, MAX(Spesialis) as Spesialis FROM ASESMEN_SURAT_PERMINTAAN_RI WHERE Perawatan = \'ICU\' GROUP BY No_Reg) as spri'),
+                        'p.No_Reg', '=', 'spri.No_Reg'
+                    )
                     ->where('p.Kode_Masuk', '1')
                     ->where('p.Status', '1')
                     ->where('p.Tanggal', '>=', $batasWaktu)
@@ -185,6 +189,9 @@ class MenuPetugasController extends Controller
                         DB::raw("'' as Kode_Bangsal"),
                         DB::raw("'IGD' as Nama_Bangsal"),
                         DB::raw("ISNULL(NULLIF(LTRIM(RTRIM(d.Nama_Dokter)),''), p.PermintaanDPJP) as Nama_Dokter"),
+                        DB::raw("ISNULL(spri.Diagnosis, '') as spri_diagnosis"),
+                        DB::raw("ISNULL(spri.IndikasiRI, '') as spri_indikasi"),
+                        DB::raw("ISNULL(spri.Spesialis, '') as spri_spesialis"),
                     ]);
 
                 if ($cari) {
@@ -196,16 +203,20 @@ class MenuPetugasController extends Controller
 
                 return $q->orderBy('p.Tanggal', 'desc')->limit(200)->get()
                     ->map(fn ($r) => [
-                        'No_MR'         => $r->No_MR,
-                        'No_Reg'        => $r->No_Reg,
-                        'Kode_Masuk'    => $r->Kode_Masuk,
-                        'Nama_Pasien'   => $r->Nama_Pasien,
-                        'jenis_kelamin' => strtoupper($r->jenis_kelamin ?? ''),
-                        'Kode_RuangM'   => $r->Kode_RuangM,
-                        'Nama_RuangM'   => $r->Nama_RuangM,
-                        'Kode_Bangsal'  => $r->Kode_Bangsal,
-                        'Nama_Bangsal'  => $r->Nama_Bangsal,
-                        'Dokter'        => $this->formatNamaDokter($r->Nama_Dokter ?? ''),
+                        'No_MR'          => $r->No_MR,
+                        'No_Reg'         => $r->No_Reg,
+                        'Kode_Masuk'     => $r->Kode_Masuk,
+                        'Nama_Pasien'    => $r->Nama_Pasien,
+                        'jenis_kelamin'  => strtoupper($r->jenis_kelamin ?? ''),
+                        'Kode_RuangM'    => $r->Kode_RuangM,
+                        'Nama_RuangM'    => $r->Nama_RuangM,
+                        'Kode_Bangsal'   => $r->Kode_Bangsal,
+                        'Nama_Bangsal'   => $r->Nama_Bangsal,
+                        'Dokter'         => $this->formatNamaDokter($r->Nama_Dokter ?? ''),
+                        // prefill dari ASESMEN_SURAT_PERMINTAAN_RI (Perawatan = ICU)
+                        'spri_diagnosis' => trim($r->spri_diagnosis ?? ''),
+                        'spri_indikasi'  => trim($r->spri_indikasi  ?? ''),
+                        'spri_spesialis' => trim($r->spri_spesialis ?? ''),
                     ])->toArray();
             }
 
@@ -309,7 +320,16 @@ class MenuPetugasController extends Controller
                 ->leftJoin('M_RUANG_MASTER as rm', 'p.Kode_Ruang', '=', 'rm.Kode_RuangM')
                 ->leftJoin('DOKTER as d', 'p.Kode_Dokter', '=', 'd.Kode_Dokter')
                 ->leftJoin('M_CARABAYAR as cb', 'p.Kode_Bayar', '=', 'cb.Kode_Bayar')
-                ->leftJoin(DB::raw('(SELECT No_Reg, MAX(Diagnosis) as Diagnosis FROM ASESMEN_SURAT_PERMINTAAN_RI GROUP BY No_Reg) as asmt'), 'p.No_Reg', '=', 'asmt.No_Reg')
+                ->leftJoin(
+                    // Ambil semua diagnosis dari ASESMEN (tidak filter Perawatan) untuk Diagnosis RM
+                    DB::raw("(SELECT No_Reg, MAX(Diagnosis) as Diagnosis FROM ASESMEN_SURAT_PERMINTAAN_RI GROUP BY No_Reg) as asmt"),
+                    'p.No_Reg', '=', 'asmt.No_Reg'
+                )
+                ->leftJoin(
+                    // Khusus ICU: ambil IndikasiRI & Spesialis hanya dari SPRI dengan Perawatan='ICU'
+                    DB::raw("(SELECT No_Reg, MAX(IndikasiRI) as IndikasiRI, MAX(Spesialis) as Spesialis FROM ASESMEN_SURAT_PERMINTAAN_RI WHERE Perawatan = 'ICU' GROUP BY No_Reg) as spri_icu"),
+                    'p.No_Reg', '=', 'spri_icu.No_Reg'
+                )
                 ->where('p.No_MR', $noMr)
                 ->orderByDesc('p.Tanggal')
                 ->select([
@@ -318,14 +338,19 @@ class MenuPetugasController extends Controller
                     DB::raw("ISNULL(NULLIF(LTRIM(RTRIM(d.Nama_Dokter)),''), p.PermintaanDPJP) as nama_dokter"),
                     DB::raw("ISNULL(cb.Ket_Bayar, p.Kode_Bayar) as ket_bayar"),
                     'asmt.Diagnosis',
+                    'spri_icu.IndikasiRI',
+                    'spri_icu.Spesialis',
                 ])->get();
 
             $kunjungans = $rows->map(fn ($r) => [
                 'No_Reg'      => $r->No_Reg,
+                'Kode_Masuk'  => $r->Kode_Masuk,
                 'Dokter'      => $this->formatNamaDokter(trim($r->nama_dokter ?? '')),
                 'Kode_Dokter' => trim($r->Kode_Dokter   ?? ''),
                 'asal_ruang'  => trim($r->nama_asal_ruang ?? $r->Kode_Ruang ?? ''),
                 'Diagnosis'   => trim($r->Diagnosis      ?? ''),
+                'IndikasiRI'  => trim($r->IndikasiRI     ?? ''),
+                'Spesialis'   => trim($r->Spesialis      ?? ''),
                 'Kode_Bayar'  => trim($r->Kode_Bayar    ?? ''),
                 'jaminan'     => $this->formatNamaDokter(trim($r->ket_bayar ?? '')),
             ]);

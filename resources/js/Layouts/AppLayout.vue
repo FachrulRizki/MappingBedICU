@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { router, usePage, Link } from '@inertiajs/vue3';
 import FlashMessage from '@/Components/FlashMessage.vue';
 import { useTheme } from '@/composables/useTheme.js';
-import { useNotifikasi, useNotifAlert } from '@/composables/useNotifikasi.js';
+import { useNotifikasi, useNotifAlert, soundEnabled } from '@/composables/useNotifikasi.js';
 
 defineProps({
     flash:     { type: Object, default: () => ({}) },
@@ -68,6 +68,17 @@ const { alertModal } = useNotifAlert();
 
 // Debug helper — bisa akses dari browser console: window.__notif.test()
 if (typeof window !== 'undefined') window.__notif = _debug;
+
+// ── Sound toggle — aktif/nonaktif suara notif ──
+const toggleSound = async () => {
+    if (!soundEnabled.value) {
+        // Aktifkan: unlock AudioContext dari gesture klik ini
+        await _debug.unlock();
+        soundEnabled.value = true;
+    } else {
+        soundEnabled.value = false;
+    }
+};
 
 // ── Dismiss alert modal ──
 const dismissAlert = () => { alertModal.value = null; };
@@ -167,8 +178,8 @@ const iconMoon = 'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003
                         Sudah Mengerti
                     </button>
 
-                    <!-- Progress bar auto-dismiss -->
-                    <div class="danger-progress"></div>
+                    <!-- Progress bar auto-dismiss — hanya untuk notif non-ICU -->
+                    <div v-if="!alertModal.requireClick" class="danger-progress"></div>
                 </div>
             </div>
         </Transition>
@@ -344,6 +355,21 @@ const iconMoon = 'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003
 
                 <!-- Right: clock, refresh, theme, avatar -->
                 <div class="flex items-center gap-2">
+                    <!-- Sound toggle -->
+                    <button @click="toggleSound" class="sound-toggle-btn" :title="soundEnabled ? 'Nonaktifkan suara notifikasi' : 'Aktifkan suara notifikasi'">
+                        <!-- Sound ON -->
+                        <svg v-if="soundEnabled" style="width:15px;height:15px;flex-shrink:0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" :style="{ color: 'var(--text-accent)' }">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.536 8.464a5 5 0 010 7.072M12 18.364a7 7 0 000-12.728M6.343 17.657a9 9 0 010-11.314"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5L5 9H3v6h2l4 4V5z"/>
+                        </svg>
+                        <!-- Sound OFF -->
+                        <svg v-else style="width:15px;height:15px;flex-shrink:0;color:var(--text-muted)" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5L5 9H3v6h2l4 4V5z"/>
+                            <line x1="23" y1="9" x2="17" y2="15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            <line x1="17" y1="9" x2="23" y2="15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+
                     <!-- Theme toggle -->
                     <button @click="toggle" class="theme-toggle-wrap" :title="isDark ? 'Mode Terang' : 'Mode Gelap'">
                         <svg v-if="isDark" style="width:13px;height:13px;color:var(--text-muted);flex-shrink:0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -380,6 +406,25 @@ const iconMoon = 'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003
 </template>
 
 <style scoped>
+/* ── Sound Toggle Button ── */
+.sound-toggle-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    border: 1.5px solid var(--border-default);
+    background: var(--bg-input);
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+.sound-toggle-btn:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--text-accent);
+}
+
 /* ── Overlay ── */
 .sidebar-overlay {
     background: rgba(0,0,0,0.5);

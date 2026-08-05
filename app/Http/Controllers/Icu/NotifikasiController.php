@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Icu;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\RolePermissionController;
 use App\Models\IcuBookingExternal;
 use App\Models\IcuSpriInternal;
 use App\Models\RegistrasiPasien;
@@ -13,6 +14,30 @@ use Illuminate\Support\Facades\Cache;
 
 class NotifikasiController extends Controller
 {
+    /**
+     * Resolve permissions dari session (Keycloak) atau fallback ke role user (local auth).
+     */
+    private function resolvePermissions(\App\Models\User $user, Request $request): array
+    {
+        $sessionPerms = $request->session()->get('keycloak_permissions', []);
+        if (! empty($sessionPerms)) {
+            return $sessionPerms;
+        }
+
+        // Fallback untuk local user: derive permissions dari role
+        $role   = $user->role ?? '';
+        $matrix = RolePermissionController::permissionMatrix();
+        $perms  = [];
+        foreach ($matrix as $group) {
+            foreach ($group['perms'] as $perm => $roles) {
+                if (in_array($role, $roles, true)) {
+                    $perms[] = $perm;
+                }
+            }
+        }
+        return $perms;
+    }
+
     public function poll(Request $request): JsonResponse
     {
         /** @var \App\Models\User|null $user */
@@ -21,7 +46,7 @@ class NotifikasiController extends Controller
             return response()->json(['notifs' => []]);
         }
 
-        $permissions = $request->session()->get('keycloak_permissions', []);
+        $permissions = $this->resolvePermissions($user, $request);
         $userId      = $user->id;
 
         $cacheKey    = "notif_last_seen_{$userId}";

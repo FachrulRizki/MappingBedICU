@@ -234,6 +234,7 @@ const doLookup = async (noMr, preserveFields = false) => {
                 if (k.Kode_Masuk === '1') {
                     if (!fmSpri.Diagnosis)  fmSpri.Diagnosis  = k.Diagnosis   ?? ''
                     if (!fmSpri.IndikasiRI) fmSpri.IndikasiRI = k.IndikasiRI  ?? ''
+                    if (!fmSpri.spesialis && k.Spesialis) fmSpri.spesialis = k.Spesialis
                 }
             }
             if (!preserveFields && d.prefill) {
@@ -254,6 +255,7 @@ const onKunjunganChange = (nr) => {
         if (k.Kode_Masuk === '1') {
             fmSpri.Diagnosis  = k.Diagnosis  ?? ''
             fmSpri.IndikasiRI = k.IndikasiRI ?? ''
+            if (k.Spesialis)  fmSpri.spesialis = k.Spesialis
         }
     }
 }
@@ -271,14 +273,16 @@ const pilihPasien = (p) => {
         Kode_Masuk: p.Kode_Masuk      ?? '',
         Dokter:     p.Dokter          ?? '',
         asal_ruang: p.Nama_RuangM     ?? '',
-        Diagnosis:  p.asmt_Diagnosis  ?? '',
-        IndikasiRI: p.asmt_IndikasiRI ?? '',
+        Diagnosis:  p.spri_diagnosis  ?? '',
+        IndikasiRI: p.spri_indikasi   ?? '',
+        Spesialis:  p.spri_spesialis  ?? '',
         jaminan:    '',
     }]
     // Auto-fill Step 3 dari ASESMEN (Perawatan='ICU') yang sudah di-join di controller
     if (p.Kode_Masuk === '1') {
-        fmSpri.Diagnosis  = p.asmt_Diagnosis  ?? ''
-        fmSpri.IndikasiRI = p.asmt_IndikasiRI ?? ''
+        fmSpri.Diagnosis  = p.spri_diagnosis  ?? ''
+        fmSpri.IndikasiRI = p.spri_indikasi   ?? ''
+        fmSpri.spesialis  = p.spri_spesialis  ?? ''
     }
     modal.value = { open:true, type:'spri' }
     showPasienPanel.value = false
@@ -307,6 +311,7 @@ const doLookupDiagnosis = async (noMr, noReg) => {
                 if (k.Kode_Masuk === '1') {
                     fmSpri.Diagnosis  = k.Diagnosis  ?? ''
                     fmSpri.IndikasiRI = k.IndikasiRI ?? ''
+                    if (k.Spesialis)  fmSpri.spesialis = k.Spesialis
                 }
             }
 
