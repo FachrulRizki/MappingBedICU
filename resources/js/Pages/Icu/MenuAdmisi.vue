@@ -135,7 +135,7 @@ const CARDS = computed(() => [
       color:'#D97706', icon:'M12 8v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z' },
     { key:'__bed',          label:'Terverifikasi ICU',val: props.summary.bed_aktif ?? 0,
       color:'#0EA5E9', icon:'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
-    { key:'admisi_verified',label:'Perlu Verif Admisi',   val: props.summary.admisi_verified ?? 0,
+    { key:'admisi_verified',label:'Siap Masuk ICU',   val: props.summary.admisi_verified ?? 0,
       color:'#00A884', icon:'M5 13l4 4L19 7' },
     { key:'ditolak',        label:'Ditolak',         val: props.summary.ditolak ?? 0,
       color:'#E74C3C', icon:'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z' },
@@ -563,14 +563,14 @@ const jenisOptions = [
                         {{ terverifikasiIcuView.length }}
                     </span>
                 </button>
-                <!-- Tab: Perlu Verif Admisi -->
+                <!-- Tab: Siap Masuk ICU -->
                 <button @click="viewTab='perlu_verif'; activeCardKey='admisi_verified'"
                     class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
                     :style="viewTab==='perlu_verif' ? 'background:#00A884;color:#fff;box-shadow:0 2px 8px rgba(0,168,132,.3)' : 'color:var(--text-secondary)'">
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
                     </svg>
-                    Perlu Verif Admisi
+                    Siap Masuk ICU
                     <span class="px-1.5 py-0.5 rounded-full text-xs font-bold"
                         :style="viewTab==='perlu_verif' ? 'background:rgba(255,255,255,.25);color:#fff' : 'background:rgba(0,168,132,.15);color:#00A884'">
                         {{ perluVerifView.length }}
@@ -593,7 +593,7 @@ const jenisOptions = [
             <!-- Deskripsi tab -->
             <p v-if="viewTab==='antrian'" class="text-xs" style="color:var(--text-muted)">Permintaan menunggu konfirmasi bed</p>
             <p v-else-if="viewTab==='terverifikasi_icu'" class="text-xs" style="color:var(--text-muted)">Pasien dengan bed terverifikasi ICU · menunggu verifikasi admisi</p>
-            <p v-else-if="viewTab==='perlu_verif'" class="text-xs" style="color:var(--text-muted)">Pasien yang sudah diverifikasi admisi · siap masuk ICU</p>
+            <p v-else-if="viewTab==='perlu_verif'" class="text-xs" style="color:var(--text-muted)">Pasien sudah terverifikasi admisi · menunggu masuk ICU</p>
             <p v-else class="text-xs" style="color:var(--text-muted)">Pasien yang sudah selesai dirawat di ICU</p>
         </div>
 
@@ -607,7 +607,7 @@ const jenisOptions = [
             <p class="font-semibold" style="color:var(--text-secondary)">Tidak ada antrian</p>
             <p class="text-sm mt-1" style="color:var(--text-muted)">
                 {{ viewTab==='terverifikasi_icu' ? 'Belum ada pasien dengan bed terverifikasi ICU.'
-                 : viewTab==='perlu_verif' ? 'Belum ada pasien yang perlu verifikasi admisi.'
+                 : viewTab==='perlu_verif' ? 'Belum ada pasien yang siap masuk ICU.'
                  : viewTab==='pasien_keluar' ? 'Belum ada pasien yang keluar ICU pada periode ini.'
                  : 'Coba reset filter atau tambah booking baru' }}
             </p>
