@@ -164,8 +164,8 @@ const actionsOf = (item) => {
 };
 
 // Hitung ulang count dari computed views
-const pasienDiIcuCount    = computed(() => pasienDiIcuView.value.length);
-const bedTerverifikasiCount = computed(() => bedTerverifikasiView.value.length);
+const pasienDiIcuCount    = computed(() => props.summary.masuk_icu ?? 0);
+const bedTerverifikasiCount = computed(() => props.summary.bed_aktif ?? 0);
 
 const bedTerverifikasiView = computed(() =>
   // bed_confirmed (external) atau bed_verified (internal) — menunggu masuk ICU fisik
