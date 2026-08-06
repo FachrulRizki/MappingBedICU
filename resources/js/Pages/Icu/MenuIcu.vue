@@ -95,19 +95,6 @@ const bedSudahKosong = (item) => {
   return status.toUpperCase() === 'KOSONG';
 };
 
-/**
- * Cek apakah pasien dari booking ini BENAR-BENAR ada di ICU fisik sekarang.
- * Syarat: allocated_bed_id ada di STATUS_KAMAR dengan status ISI
- * DAN No_MR di STATUS_KAMAR sama dengan No_MR booking.
- */
-const pasienBenarDiIcu = (item) => {
-  if (!item.allocated_bed_id || !item.No_MR) return false;
-  const bed = props.statusKamarMap[item.allocated_bed_id];
-  if (!bed) return false;
-  const bedObj = typeof bed === 'object' ? bed : { status: String(bed), no_mr: '' };
-  return bedObj.status === 'ISI' && bedObj.no_mr === String(item.No_MR);
-};
-
 // ── Aksi yang tersedia per item — setiap tombol dijaga permission sendiri ──
 const actionsOf = (item) => {
   const acts = [];
@@ -176,10 +163,18 @@ const actionsOf = (item) => {
   return acts;
 };
 
-// ── Summary ────────────────────────────────────────────────
-// Hitung ulang pasien_di_icu_count berdasarkan cross-check STATUS_KAMAR
-const pasienDiIcuCount = computed(() => pasienDiIcuView.value.length);
+// Hitung ulang count dari computed views
+const pasienDiIcuCount    = computed(() => pasienDiIcuView.value.length);
 const bedTerverifikasiCount = computed(() => bedTerverifikasiView.value.length);
+
+const bedTerverifikasiView = computed(() =>
+  // bed_confirmed (external) atau bed_verified (internal) — menunggu masuk ICU fisik
+  props.antrian.filter(i => ['bed_confirmed', 'bed_verified'].includes(i.status))
+);
+const pasienDiIcuView = computed(() =>
+  // masuk_icu = sudah di-set oleh sync ketika Bed Management mengisi bed dengan No_MR yang cocok
+  props.antrian.filter(i => i.status === 'masuk_icu')
+);
 
 const CARDS = computed(() => [
   { key: '',            label: 'Total',             val: props.summary.total ?? 0,         color: '#5A6B7C', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
@@ -192,8 +187,8 @@ const CARDS = computed(() => [
   { key: 'dibatalkan',  label: 'Dibatalkan',          val: props.summary.dibatalkan ?? 0,    color: '#6B7280', icon: 'M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636' },
 ]);
 
-// ── Tab view: "antrian" (pending/waiting) vs "bed_terverifikasi" (konfirmasi/verifikasi) ──
-const viewTab = ref('antrian'); // 'antrian' | 'bed_terverifikasi'
+// ── Tab view ──────────────────────────────────────────────────────────────────
+const viewTab = ref('antrian');
 
 const antrianView = computed(() =>
   props.antrian.filter(i => {
@@ -206,15 +201,6 @@ const antrianView = computed(() =>
     if (fStatus.value === 'waiting_list') return i.status === 'waiting_list';
     return inAntrian; // default: semua pending+waiting
   })
-);
-const bedTerverifikasiView = computed(() =>
-  // Hanya booking yang sudah dapat bed tapi pasien belum masuk ICU fisik
-  // bed_confirmed (external) atau bed_verified (internal) = menunggu masuk
-  props.antrian.filter(i => ['bed_confirmed', 'bed_verified'].includes(i.status))
-);
-const pasienDiIcuView = computed(() =>
-  // Hanya masuk_icu yang No_MR-nya BENAR-BENAR ada di STATUS_KAMAR ICU sekarang (cross-check Bed Management)
-  props.antrian.filter(i => i.status === 'masuk_icu' && pasienBenarDiIcu(i))
 );
 const pasienKeluarView = computed(() =>
   props.antrian.filter(i => i.status === 'selesai')

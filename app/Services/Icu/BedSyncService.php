@@ -18,9 +18,8 @@ class BedSyncService
     public function sync(): void
     {
         $this->syncKeluarIcu();
-        $this->syncMasukIcuTanpaBed();
-        $this->syncHealSelesai();     
-        $this->syncMasukIcu();       
+        $this->syncHealSelesai();
+        $this->syncMasukIcu();
     }
 
     /**
