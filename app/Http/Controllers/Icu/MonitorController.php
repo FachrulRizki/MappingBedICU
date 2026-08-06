@@ -71,6 +71,34 @@ class MonitorController extends Controller
             }
         }
 
+        // Enrichment: untuk bed yang terisi, coba cari booking aktif dari tabel lokal
+        // agar bisa menampilkan diagnosa/info tambahan di monitor
+        $noMrBookingMap = [];
+        if (! empty($noMrList)) {
+            try {
+                // Ambil booking internal yang masuk_icu berdasarkan No_MR
+                IcuSpriInternal::whereIn('No_MR', $noMrList)
+                    ->where('status', 'masuk_icu')
+                    ->get(['No_MR', 'Diagnosis', 'Dokter', 'asal_ruang', 'nama_bed'])
+                    ->each(fn ($s) => $noMrBookingMap[$s->No_MR] = [
+                        'diagnosa' => $s->Diagnosis,
+                        'dokter'   => $s->Dokter,
+                        'asal'     => $s->asal_ruang,
+                    ]);
+                // External (No_MR sudah terisi setelah verifikasi admisi)
+                IcuBookingExternal::whereIn('No_MR', $noMrList)
+                    ->where('status', 'masuk_icu')
+                    ->get(['No_MR', 'diagnosa', 'asal_rujukan', 'nama_bed'])
+                    ->each(fn ($b) => $noMrBookingMap[$b->No_MR] ??= [
+                        'diagnosa' => $b->diagnosa,
+                        'dokter'   => null,
+                        'asal'     => $b->asal_rujukan,
+                    ]);
+            } catch (\Exception $e) {
+                Log::warning('[MonitorController] getBedData booking map: ' . $e->getMessage());
+            }
+        }
+
         return $bedData
             ->map(fn ($row) => [
                 'kode'          => $row->Kode_RuangM,
@@ -81,6 +109,9 @@ class MonitorController extends Controller
                 'No_MR'         => $row->No_MR,
                 'nama_pasien'   => $row->No_MR ? ($pasienMap[$row->No_MR]->Nama_Pasien ?? null) : null,
                 'jenis_kelamin' => $row->No_MR ? ($pasienMap[$row->No_MR]->jenis_kelamin ?? null) : null,
+                'diagnosa'      => $row->No_MR ? ($noMrBookingMap[$row->No_MR]['diagnosa'] ?? null) : null,
+                'dokter'        => $row->No_MR ? ($noMrBookingMap[$row->No_MR]['dokter'] ?? null) : null,
+                'asal_ruang'    => $row->No_MR ? ($noMrBookingMap[$row->No_MR]['asal'] ?? null) : null,
             ])
             ->values()
             ->toArray();

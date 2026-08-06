@@ -18,8 +18,9 @@ class BedSyncService
     public function sync(): void
     {
         $this->syncKeluarIcu();
-        $this->syncHealSelesai();
-        $this->syncMasukIcu();
+        $this->syncMasukIcuTanpaBed();
+        $this->syncHealSelesai();     
+        $this->syncMasukIcu();       
     }
 
     /**
@@ -150,14 +151,20 @@ class BedSyncService
                 if (! $bed) continue;
 
                 if ($bed['status'] === 'ISI') {
-                    // Jika STATUS_KAMAR punya No_MR, pastikan ini pasien yang sama
-                    // (No_MR booking external bisa null sebelum verifikasi admisi)
-                    $noMrBed = $bed['no_mr'];
+                    $noMrBed     = $bed['no_mr'];
                     $noMrBooking = trim($booking->No_MR ?? '');
 
-                    // Jika bed ISI oleh No_MR berbeda → ini bukan pasien kita, skip
+                    // Jika STATUS_KAMAR punya No_MR dan booking juga punya No_MR,
+                    // tapi keduanya berbeda → bed diisi pasien lain, bukan pasien kita — skip
                     if ($noMrBed && $noMrBooking && $noMrBed !== $noMrBooking) {
-                        Log::info("[BedSyncService::syncMasukIcu] Ext #{$booking->id} ({$booking->nama_pasien}) SKIP — bed {$booking->allocated_bed_id} ISI oleh MR lain ({$noMrBed} ≠ {$noMrBooking}).");
+                        Log::info("[BedSyncService::syncMasukIcu] Ext #{$booking->id} ({$booking->nama_pasien}) SKIP masuk_icu — bed {$booking->allocated_bed_id} ISI oleh MR lain ({$noMrBed} ≠ {$noMrBooking}).");
+                        continue;
+                    }
+
+                    // Jika booking external No_MR masih kosong (belum verifikasi admisi),
+                    // tapi bed sudah ISI → tahan dulu, tunggu admisi verifikasi No_MR dulu
+                    if ($noMrBed && ! $noMrBooking) {
+                        Log::info("[BedSyncService::syncMasukIcu] Ext #{$booking->id} ({$booking->nama_pasien}) HOLD — booking belum punya No_MR, tunggu verifikasi admisi.");
                         continue;
                     }
 
@@ -185,8 +192,9 @@ class BedSyncService
                     $noMrBed = $bed['no_mr'];
                     $noMrBu  = trim($bu->No_MR ?? '');
 
+                    // Booking internal selalu punya No_MR — jika berbeda, skip
                     if ($noMrBed && $noMrBu && $noMrBed !== $noMrBu) {
-                        Log::info("[BedSyncService::syncMasukIcu] Int #{$bu->id} ({$namaPasien}) SKIP — bed {$bu->allocated_bed_id} ISI oleh MR lain ({$noMrBed} ≠ {$noMrBu}).");
+                        Log::info("[BedSyncService::syncMasukIcu] Int #{$bu->id} ({$namaPasien}) SKIP masuk_icu — bed {$bu->allocated_bed_id} ISI oleh MR lain ({$noMrBed} ≠ {$noMrBu}).");
                         continue;
                     }
 
@@ -206,6 +214,78 @@ class BedSyncService
             }
         } catch (\Throwable $e) {
             Log::warning('[BedSyncService::syncMasukIcu] ' . $e->getMessage());
+        }
+    }
+
+    public function syncMasukIcuTanpaBed(): void
+    {
+        if (! $this->isProduction()) {
+            return;
+        }
+
+        try {
+            // Ambil semua No_MR yang saat ini ada di bed ICU (STATUS = ISI)
+            $noMrDiBed = collect();
+            try {
+                $noMrDiBed = \App\Models\StatusKamar::where('Status', 'ISI')
+                    ->whereNotNull('No_MR')
+                    ->pluck('No_MR')
+                    ->filter()
+                    ->map(fn ($v) => trim($v))
+                    ->unique()
+                    ->values();
+            } catch (\Throwable $e) {
+                Log::warning('[BedSyncService::syncMasukIcuTanpaBed] Gagal query StatusKamar: ' . $e->getMessage());
+                return;
+            }
+
+            $now = now();
+
+            // External: masuk_icu tapi No_MR tidak ada di bed ICU manapun
+            IcuBookingExternal::where('status', 'masuk_icu')
+                ->whereNotNull('No_MR')
+                ->whereNotIn('No_MR', $noMrDiBed->toArray())
+                ->get(['id', 'No_MR', 'nama_pasien', 'nama_bed', 'allocated_bed_id'])
+                ->each(function ($booking) use ($now) {
+                    $booking->update([
+                        'status'    => 'selesai',
+                        'keluar_at' => $now,
+                        'keluar_by' => 'system',
+                    ]);
+                    $this->activityLog->keluarIcu(
+                        $booking->id,
+                        $booking->nama_pasien,
+                        $booking->nama_bed ?? $booking->allocated_bed_id,
+                        'booking_external',
+                        'IcuBookingExternal'
+                    );
+                    Log::info("[BedSyncService::syncMasukIcuTanpaBed] Ext #{$booking->id} ({$booking->nama_pasien}) set selesai — MR {$booking->No_MR} tidak ada di bed ICU manapun.");
+                });
+
+            // Internal: masuk_icu tapi No_MR tidak ada di bed ICU manapun
+            IcuSpriInternal::where('status', 'masuk_icu')
+                ->whereNotNull('No_MR')
+                ->whereNotIn('No_MR', $noMrDiBed->toArray())
+                ->get(['id', 'No_MR', 'nama_bed', 'allocated_bed_id'])
+                ->each(function ($bu) use ($now) {
+                    $namaPasien = (string) ($bu->pasien?->Nama_Pasien ?? $bu->No_MR);
+                    $bu->update([
+                        'status'    => 'selesai',
+                        'keluar_at' => $now,
+                        'keluar_by' => 'system',
+                    ]);
+                    $this->activityLog->keluarIcu(
+                        $bu->id,
+                        $namaPasien,
+                        $bu->nama_bed ?? $bu->allocated_bed_id,
+                        'spri_internal',
+                        'IcuSpriInternal'
+                    );
+                    Log::info("[BedSyncService::syncMasukIcuTanpaBed] Int #{$bu->id} ({$namaPasien}) set selesai — MR {$bu->No_MR} tidak ada di bed ICU manapun.");
+                });
+
+        } catch (\Throwable $e) {
+            Log::warning('[BedSyncService::syncMasukIcuTanpaBed] ' . $e->getMessage());
         }
     }
 

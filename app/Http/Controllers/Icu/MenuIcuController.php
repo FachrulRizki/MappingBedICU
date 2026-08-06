@@ -41,10 +41,13 @@ class MenuIcuController extends Controller
 
         $data = $this->service->build($request);
 
-        // Dipakai frontend untuk deteksi bed sudah kosong (pasien keluar ICU)
+        // Dipakai frontend untuk deteksi status bed dan No_MR yang menempati
         $statusKamarMap = StatusKamar::all()
-            ->pluck('Status', 'Kode_Ruang')
-            ->map(fn ($s) => strtoupper($s))
+            ->keyBy('Kode_Ruang')
+            ->map(fn ($r) => [
+                'status' => strtoupper($r->Status ?? ''),
+                'no_mr'  => trim($r->No_MR ?? ''),
+            ])
             ->toArray();
 
         return Inertia::render('Icu/MenuIcu', [
@@ -267,7 +270,7 @@ class MenuIcuController extends Controller
             ->with('success', "{$namaPasien} masuk Waiting List ICU.");
     }
 
-    // ACTION — Booking External: pindah bed (bed_confirmed -> bed baru, status tetap bed_confirmed)
+    // ACTION — Booking External: pindah bed (bed_confirmed / admisi_verified / masuk_icu → bed baru)
     public function pindahBedExt(Request $request, int $id): RedirectResponse
     {
         $v = $request->validate([
@@ -278,7 +281,7 @@ class MenuIcuController extends Controller
 
         $booking = IcuBookingExternal::findOrFail($id);
 
-        if (! in_array($booking->status, ['bed_confirmed', 'admisi_verified'])) {
+        if (! in_array($booking->status, ['bed_confirmed', 'admisi_verified', 'masuk_icu'])) {
             return back()->with('error', 'Pindah bed hanya bisa dilakukan untuk pasien yang sudah dikonfirmasi bednya.');
         }
 
@@ -289,7 +292,9 @@ class MenuIcuController extends Controller
         $bed     = StatusKamar::with('ruang')->where('Kode_Ruang', $v['Kode_Ruang'])->first();
         $namaBed = $bed?->ruang?->Nama_RuangM ?? $v['Kode_Ruang'];
 
-        if ($bed && $bed->isIsi()) {
+        // Untuk masuk_icu: bed tujuan boleh ISI jika diisi oleh sistem Bed Management sendiri
+        // Untuk non-masuk_icu: bed tujuan harus KOSONG/BOOKING
+        if ($booking->status !== 'masuk_icu' && $bed && $bed->isIsi()) {
             return back()->with('error', "Bed {$namaBed} sudah terisi pasien aktif. Tidak bisa digunakan.");
         }
 
@@ -298,8 +303,8 @@ class MenuIcuController extends Controller
 
         $bedLama = $booking->nama_bed ?? '—';
 
-        // Cukup update rekomendasi bed lokal — TANPA menyentuh STATUS_KAMAR
-        $booking->update([
+        // Untuk masuk_icu: status tetap masuk_icu, tidak di-reset ke bed_confirmed
+        $updateData = [
             'kebutuhan_bed'    => $v['kebutuhan_bed'],
             'allocated_bed_id' => $v['Kode_Ruang'],
             'nama_bed'         => $namaBed,
@@ -307,18 +312,26 @@ class MenuIcuController extends Controller
             'pindah_bed_lama'  => $bedLama,
             'pindah_by'        => $this->actor(),
             'pindah_at'        => now(),
-            'status'           => 'bed_confirmed',
-            'confirmed_by'     => $this->actor(),
-            'confirmed_at'     => now(),
-        ]);
+        ];
+
+        if ($booking->status !== 'masuk_icu') {
+            $updateData['status']       = 'bed_confirmed';
+            $updateData['confirmed_by'] = $this->actor();
+            $updateData['confirmed_at'] = now();
+        }
+
+        $booking->update($updateData);
 
         $this->activityLog->pindahBedExt($booking->id, $booking->nama_pasien, $bedLama, $namaBed);
 
-        return redirect()->route('icu.menu_icu')
-            ->with('success', "Rekomendasi bed pasien {$booking->nama_pasien} diubah: {$bedLama} → {$namaBed}. Admisi perlu memperbarui di Bed Management.");
+        $msg = $booking->status === 'masuk_icu'
+            ? "Bed pasien {$booking->nama_pasien} diupdate: {$bedLama} → {$namaBed}. Perlu diproses di Bed Management."
+            : "Rekomendasi bed pasien {$booking->nama_pasien} diubah: {$bedLama} → {$namaBed}. Admisi perlu memperbarui di Bed Management.";
+
+        return redirect()->route('icu.menu_icu')->with('success', $msg);
     }
 
-    // ACTION — BU Internal: pindah bed (bed_verified -> bed baru, status tetap bed_verified)
+    // ACTION — BU Internal: pindah bed (bed_verified / masuk_icu → bed baru)
     public function pindahBedInt(Request $request, int $id): RedirectResponse
     {
         $v = $request->validate([
@@ -329,7 +342,7 @@ class MenuIcuController extends Controller
 
         $bu = IcuSpriInternal::findOrFail($id);
 
-        if ($bu->status !== 'bed_verified') {
+        if (! in_array($bu->status, ['bed_verified', 'masuk_icu'])) {
             return back()->with('error', 'Pindah bed hanya bisa dilakukan untuk pasien yang sudah diverifikasi bednya.');
         }
 
@@ -340,7 +353,7 @@ class MenuIcuController extends Controller
         $bed     = StatusKamar::with('ruang')->where('Kode_Ruang', $v['Kode_Ruang'])->first();
         $namaBed = $bed?->ruang?->Nama_RuangM ?? $v['Kode_Ruang'];
 
-        if ($bed && $bed->isIsi()) {
+        if ($bu->status !== 'masuk_icu' && $bed && $bed->isIsi()) {
             return back()->with('error', "Bed {$namaBed} sudah terisi pasien aktif. Tidak bisa digunakan.");
         }
 
@@ -350,8 +363,7 @@ class MenuIcuController extends Controller
         $bedLama    = $bu->nama_bed ?? '—';
         $namaPasien = (string) ($bu->pasien?->Nama_Pasien ?? $bu->No_MR);
 
-        // Cukup update rekomendasi bed lokal — TANPA menyentuh STATUS_KAMAR
-        $bu->update([
+        $updateData = [
             'kebutuhan_bed'    => $v['kebutuhan_bed'],
             'allocated_bed_id' => $v['Kode_Ruang'],
             'nama_bed'         => $namaBed,
@@ -359,14 +371,23 @@ class MenuIcuController extends Controller
             'pindah_bed_lama'  => $bedLama,
             'pindah_by'        => $this->actor(),
             'pindah_at'        => now(),
-            'verified_by'      => $this->actor(),
-            'verified_at'      => now(),
-        ]);
+        ];
+
+        // Untuk masuk_icu: status tetap masuk_icu
+        if ($bu->status !== 'masuk_icu') {
+            $updateData['verified_by'] = $this->actor();
+            $updateData['verified_at'] = now();
+        }
+
+        $bu->update($updateData);
 
         $this->activityLog->pindahBedInt($bu->id, $namaPasien, $bedLama, $namaBed);
 
-        return redirect()->route('icu.menu_icu')
-            ->with('success', "Rekomendasi bed pasien {$namaPasien} diubah: {$bedLama} → {$namaBed}. Admisi perlu memperbarui di Bed Management.");
+        $msg = $bu->status === 'masuk_icu'
+            ? "Bed pasien {$namaPasien} diupdate: {$bedLama} → {$namaBed}. Perlu diproses di Bed Management."
+            : "Rekomendasi bed pasien {$namaPasien} diubah: {$bedLama} → {$namaBed}. Admisi perlu memperbarui di Bed Management.";
+
+        return redirect()->route('icu.menu_icu')->with('success', $msg);
     }
 
     private function releasePemegangBed(string $kodeRuang, int $excludeId, string $excludeSumber): void

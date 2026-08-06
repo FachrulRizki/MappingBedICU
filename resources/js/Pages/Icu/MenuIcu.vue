@@ -89,15 +89,30 @@ const gColor = (g) => g === 'L' ? '#00A884' : g === 'P' ? '#8E44AD' : 'var(--tex
 // ── Helper: cek apakah bed yang di-assign sudah KOSONG di StatusKamar ────────
 const bedSudahKosong = (item) => {
   if (!item.allocated_bed_id) return false;
-  const status = props.statusKamarMap[item.allocated_bed_id];
-  return status && status.toUpperCase() === 'KOSONG';
+  const bed = props.statusKamarMap[item.allocated_bed_id];
+  if (!bed) return false;
+  const status = typeof bed === 'object' ? bed.status : String(bed);
+  return status.toUpperCase() === 'KOSONG';
+};
+
+/**
+ * Cek apakah pasien dari booking ini BENAR-BENAR ada di ICU fisik sekarang.
+ * Syarat: allocated_bed_id ada di STATUS_KAMAR dengan status ISI
+ * DAN No_MR di STATUS_KAMAR sama dengan No_MR booking.
+ */
+const pasienBenarDiIcu = (item) => {
+  if (!item.allocated_bed_id || !item.No_MR) return false;
+  const bed = props.statusKamarMap[item.allocated_bed_id];
+  if (!bed) return false;
+  const bedObj = typeof bed === 'object' ? bed : { status: String(bed), no_mr: '' };
+  return bedObj.status === 'ISI' && bedObj.no_mr === String(item.No_MR);
 };
 
 // ── Aksi yang tersedia per item — setiap tombol dijaga permission sendiri ──
 const actionsOf = (item) => {
   const acts = [];
 
-  // ── Pindah Bed: tersedia untuk bed_confirmed (ext) atau bed_verified (int) ──
+  // ── Pindah Bed: tersedia untuk bed_confirmed (ext), bed_verified (int), dan masuk_icu (keduanya) ──
   if (item.status === 'bed_confirmed' && item.sumber === 'external') {
     if (canPindahBedExt.value || isAdmin.value) {
       acts.push({ id: 'pindah_bed', label: 'Pindah Bed', bg: 'rgba(139,92,246,.1)', color: '#7C3AED', border: 'rgba(139,92,246,.3)' });
@@ -108,6 +123,17 @@ const actionsOf = (item) => {
   if (item.status === 'bed_verified' && item.sumber === 'internal') {
     if (canPindahBedInt.value || isAdmin.value) {
       acts.push({ id: 'pindah_bed', label: 'Pindah Bed', bg: 'rgba(139,92,246,.1)', color: '#7C3AED', border: 'rgba(139,92,246,.3)' });
+    }
+    return acts;
+  }
+
+  // ── Pindah Bed untuk pasien yang sudah masuk ICU fisik ──
+  if (item.status === 'masuk_icu') {
+    const canPindah = item.sumber === 'external'
+      ? (canPindahBedExt.value || isAdmin.value)
+      : (canPindahBedInt.value || isAdmin.value);
+    if (canPindah) {
+      acts.push({ id: 'pindah_bed', label: 'Pindah Bed ICU', bg: 'rgba(139,92,246,.1)', color: '#7C3AED', border: 'rgba(139,92,246,.3)' });
     }
     return acts;
   }
@@ -151,14 +177,19 @@ const actionsOf = (item) => {
 };
 
 // ── Summary ────────────────────────────────────────────────
+// Hitung ulang pasien_di_icu_count berdasarkan cross-check STATUS_KAMAR
+const pasienDiIcuCount = computed(() => pasienDiIcuView.value.length);
+const bedTerverifikasiCount = computed(() => bedTerverifikasiView.value.length);
+
 const CARDS = computed(() => [
-  { key: '',            label: 'Total',            val: props.summary.total ?? 0,        color: '#5A6B7C', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
-  { key: 'pending_icu', label: 'Menunggu ICU',     val: props.summary.pending_icu ?? 0,  color: '#E67E22', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
-  { key: 'waiting_list',label: 'Waiting List',     val: props.summary.waiting_list ?? 0, color: '#D97706', icon: 'M12 8v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z' },
-  { key: '__bed_aktif', label: 'Bed Terverifikasi',val: props.summary.bed_aktif ?? 0,    color: '#00A884', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
-  { key: 'ditolak',     label: 'Ditolak',          val: props.summary.ditolak ?? 0,      color: '#E74C3C', icon: 'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z' },
-  { key: 'dibatalkan',  label: 'Dibatalkan',       val: props.summary.dibatalkan ?? 0,   color: '#6B7280', icon: 'M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636' },
-  { key: 'selesai',     label: 'Keluar ICU',       val: props.summary.selesai ?? 0,      color: '#475569', icon: 'M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1' },
+  { key: '',            label: 'Total',             val: props.summary.total ?? 0,         color: '#5A6B7C', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
+  { key: 'pending_icu', label: 'Menunggu ICU',      val: props.summary.pending_icu ?? 0,   color: '#E67E22', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
+  { key: 'waiting_list',label: 'Waiting List',       val: props.summary.waiting_list ?? 0,  color: '#D97706', icon: 'M12 8v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z' },
+  { key: '__bed_aktif', label: 'Bed Terverifikasi',  val: bedTerverifikasiCount.value,      color: '#00A884', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
+  { key: 'masuk_icu',   label: 'Pasien di ICU',      val: pasienDiIcuCount.value,           color: '#4F46E5', icon: 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z' },
+  { key: 'selesai',     label: 'Keluar ICU',         val: props.summary.selesai ?? 0,       color: '#475569', icon: 'M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1' },
+  { key: 'ditolak',     label: 'Ditolak',             val: props.summary.ditolak ?? 0,       color: '#E74C3C', icon: 'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z' },
+  { key: 'dibatalkan',  label: 'Dibatalkan',          val: props.summary.dibatalkan ?? 0,    color: '#6B7280', icon: 'M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636' },
 ]);
 
 // ── Tab view: "antrian" (pending/waiting) vs "bed_terverifikasi" (konfirmasi/verifikasi) ──
@@ -177,10 +208,13 @@ const antrianView = computed(() =>
   })
 );
 const bedTerverifikasiView = computed(() =>
+  // Hanya booking yang sudah dapat bed tapi pasien belum masuk ICU fisik
+  // bed_confirmed (external) atau bed_verified (internal) = menunggu masuk
   props.antrian.filter(i => ['bed_confirmed', 'bed_verified'].includes(i.status))
 );
 const pasienDiIcuView = computed(() =>
-  props.antrian.filter(i => i.status === 'masuk_icu')
+  // Hanya masuk_icu yang No_MR-nya BENAR-BENAR ada di STATUS_KAMAR ICU sekarang (cross-check Bed Management)
+  props.antrian.filter(i => i.status === 'masuk_icu' && pasienBenarDiIcu(i))
 );
 const pasienKeluarView = computed(() =>
   props.antrian.filter(i => i.status === 'selesai')
@@ -212,9 +246,14 @@ const clickCard = (key) => {
     fStatus.value = '';
     return;
   }
-  // Semua card lain tetap di tab antrian dengan filter status
+  if (key === 'ditolak' || key === 'dibatalkan') {
+    viewTab.value = 'antrian';
+    fStatus.value = key;
+    return;
+  }
+  // '' (Total), pending_icu, waiting_list → tab antrian
   viewTab.value = 'antrian';
-  fStatus.value = key; // '' untuk total, 'pending_icu', 'waiting_list', 'ditolak', dll
+  fStatus.value = key;
 };
 
 // ── Export PDF pasien keluar ────────────────────────────────────────────────
@@ -369,11 +408,14 @@ const jenisOptions = [
       </div>
 
       <!-- ═══ 2. KPI SUMMARY CARDS ════════════════════════════════════════ -->
-      <div class="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-2 sm:gap-3">
+      <div class="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-2 sm:gap-3">
         <button v-for="c in CARDS" :key="c.key" @click="clickCard(c.key)"
           class="group relative flex items-center gap-2.5 p-3 rounded-2xl text-left transition-all duration-200 hover:-translate-y-1 hover:shadow-lg"
           style="background:var(--bg-card); border:1px solid var(--border-default); box-shadow:var(--shadow-card); min-height:72px; width:100%"
-          :style="(c.key === '__bed_aktif' ? viewTab === 'bed_terverifikasi' : fStatus === c.key)
+          :style="(c.key === '__bed_aktif' && viewTab === 'bed_terverifikasi')
+              || (c.key === 'masuk_icu'   && viewTab === 'pasien_di_icu')
+              || (c.key === 'selesai'     && viewTab === 'pasien_keluar')
+              || (['','pending_icu','waiting_list','ditolak','dibatalkan'].includes(c.key) && fStatus === c.key && viewTab === 'antrian')
             ? `border:2px solid ${c.color}; box-shadow:0 0 0 3px ${c.color}15; background:var(--bg-surface)` : ''">
           <div class="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110"
             :style="`background:${c.color}12`">
