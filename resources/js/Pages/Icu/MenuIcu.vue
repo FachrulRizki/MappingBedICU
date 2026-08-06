@@ -179,11 +179,15 @@ const antrianView = computed(() =>
 const bedTerverifikasiView = computed(() =>
   props.antrian.filter(i => ['bed_confirmed', 'bed_verified'].includes(i.status))
 );
+const pasienDiIcuView = computed(() =>
+  props.antrian.filter(i => i.status === 'masuk_icu')
+);
 const pasienKeluarView = computed(() =>
   props.antrian.filter(i => i.status === 'selesai')
 );
 const currentView = computed(() => {
   if (viewTab.value === 'bed_terverifikasi') return bedTerverifikasiView.value;
+  if (viewTab.value === 'pasien_di_icu')     return pasienDiIcuView.value;
   if (viewTab.value === 'pasien_keluar')     return pasienKeluarView.value;
   // Tab antrian — filter berdasarkan fStatus
   if (fStatus.value === 'ditolak')    return props.antrian.filter(i => i.status === 'ditolak');
@@ -195,6 +199,16 @@ const currentView = computed(() => {
 const clickCard = (key) => {
   if (key === '__bed_aktif') {
     viewTab.value = 'bed_terverifikasi';
+    fStatus.value = '';
+    return;
+  }
+  if (key === 'masuk_icu') {
+    viewTab.value = 'pasien_di_icu';
+    fStatus.value = '';
+    return;
+  }
+  if (key === 'selesai') {
+    viewTab.value = 'pasien_keluar';
     fStatus.value = '';
     return;
   }
@@ -480,6 +494,19 @@ const jenisOptions = [
               {{ bedTerverifikasiView.length }}
             </span>
           </button>
+          <!-- Tab: Pasien di ICU -->
+          <button @click="viewTab='pasien_di_icu'"
+            class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+            :style="viewTab==='pasien_di_icu' ? 'background:#4F46E5;color:#fff;box-shadow:0 2px 8px rgba(79,70,229,.3)' : 'color:var(--text-secondary)'">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
+            </svg>
+            Pasien di ICU
+            <span class="px-1.5 py-0.5 rounded-full text-xs font-bold"
+              :style="viewTab==='pasien_di_icu' ? 'background:rgba(255,255,255,.25);color:#fff' : 'background:rgba(79,70,229,.12);color:#4F46E5'">
+              {{ pasienDiIcuView.length }}
+            </span>
+          </button>
           <!-- Tab: Pasien Keluar ICU -->
           <button @click="viewTab='pasien_keluar'"
             class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
@@ -498,7 +525,8 @@ const jenisOptions = [
         <!-- Teks deskripsi -->
         <p v-if="viewTab==='antrian'" class="text-xs" style="color:var(--text-muted)">Permintaan menunggu konfirmasi bed</p>
         <p v-else-if="viewTab==='bed_terverifikasi'" class="text-xs" style="color:var(--text-muted)">Pasien dengan bed terverifikasi · bisa Pindah Bed jika perlu</p>
-        <p v-else class="text-xs" style="color:var(--text-muted)">Pasien yang sudah selesai dirawat di ICU</p>
+        <p v-else-if="viewTab==='pasien_di_icu'" class="text-xs" style="color:var(--text-muted)">Pasien yang sedang dirawat di ICU · bed masih terisi di Bed Management</p>
+        <p v-else class="text-xs" style="color:var(--text-muted)">Pasien yang sudah selesai dirawat di ICU · bed sudah direlease dari Bed Management</p>
 
         <!-- Tombol Export PDF — pojok kanan, hanya saat tab Pasien Keluar -->
         <button v-if="viewTab==='pasien_keluar'" @click="exportPdfKeluar"
@@ -523,7 +551,7 @@ const jenisOptions = [
         </div>
         <p class="text-base font-bold mb-1.5" style="color:var(--text-primary)">Tidak Ada Data</p>
         <p class="text-sm max-w-xs" style="color:var(--text-muted)">
-          {{ viewTab === 'bed_terverifikasi' ? 'Belum ada pasien dengan bed terverifikasi.' : viewTab === 'pasien_keluar' ? 'Belum ada pasien yang keluar ICU pada periode ini.' : 'Belum ada antrian yang menunggu konfirmasi ICU.' }}
+          {{ viewTab === 'bed_terverifikasi' ? 'Belum ada pasien dengan bed terverifikasi.' : viewTab === 'pasien_di_icu' ? 'Tidak ada pasien yang sedang dirawat di ICU.' : viewTab === 'pasien_keluar' ? 'Belum ada pasien yang keluar ICU pada periode ini.' : 'Belum ada antrian yang menunggu konfirmasi ICU.' }}
         </p>
       </div>
 

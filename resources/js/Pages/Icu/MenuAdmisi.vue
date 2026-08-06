@@ -84,6 +84,11 @@ const perluVerifView = computed(() => {
     if (fJenis.value) list = list.filter(i => i.sumber === fJenis.value);
     return list;
 });
+const pasienDiIcuView = computed(() => {
+    let list = props.antrian.filter(i => i.status === 'masuk_icu');
+    if (fJenis.value) list = list.filter(i => i.sumber === fJenis.value);
+    return list;
+});
 const pasienKeluarView = computed(() => {
     let list = props.antrian.filter(i => i.status === 'selesai');
     if (fJenis.value) list = list.filter(i => i.sumber === fJenis.value);
@@ -93,6 +98,7 @@ const pasienKeluarView = computed(() => {
 const currentView = computed(() => {
     if (viewTab.value === 'terverifikasi_icu') return terverifikasiIcuView.value;
     if (viewTab.value === 'perlu_verif')       return perluVerifView.value;
+    if (viewTab.value === 'pasien_di_icu')     return pasienDiIcuView.value;
     if (viewTab.value === 'pasien_keluar')     return pasienKeluarView.value;
     return antrianTabView.value;
 });
@@ -137,6 +143,8 @@ const CARDS = computed(() => [
       color:'#0EA5E9', icon:'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
     { key:'admisi_verified',label:'Siap Masuk ICU',   val: props.summary.admisi_verified ?? 0,
       color:'#00A884', icon:'M5 13l4 4L19 7' },
+    { key:'masuk_icu',      label:'Pasien di ICU',   val: props.summary.masuk_icu ?? 0,
+      color:'#4F46E5', icon:'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z' },
     { key:'ditolak',        label:'Ditolak',         val: props.summary.ditolak ?? 0,
       color:'#E74C3C', icon:'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z' },
     { key:'dibatalkan',     label:'Dibatalkan',      val: props.summary.dibatalkan ?? 0,
@@ -155,6 +163,9 @@ const clickCard = (key) => {
         fStatus.value = '';
     } else if (key === 'admisi_verified') {
         viewTab.value = 'perlu_verif';
+        fStatus.value = '';
+    } else if (key === 'masuk_icu') {
+        viewTab.value = 'pasien_di_icu';
         fStatus.value = '';
     } else if (key === 'selesai') {
         viewTab.value = 'pasien_keluar';
@@ -435,7 +446,7 @@ const jenisOptions = [
         </div>
 
         <!-- ═══ KPI SUMMARY CARDS ═══════════════════════════════════════ -->
-        <div class="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-2 sm:gap-3">
+        <div class="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-2 sm:gap-3">
             <button v-for="c in CARDS" :key="c.key"
                 @click="clickCard(c.key)"
                 class="group relative flex items-center gap-2.5 p-3 rounded-2xl text-left transition-all duration-200 hover:-translate-y-1 hover:shadow-lg"
@@ -576,6 +587,19 @@ const jenisOptions = [
                         {{ perluVerifView.length }}
                     </span>
                 </button>
+                <!-- Tab: Pasien di ICU -->
+                <button @click="viewTab='pasien_di_icu'; activeCardKey='masuk_icu'"
+                    class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+                    :style="viewTab==='pasien_di_icu' ? 'background:#4F46E5;color:#fff;box-shadow:0 2px 8px rgba(79,70,229,.3)' : 'color:var(--text-secondary)'">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
+                    </svg>
+                    Pasien di ICU
+                    <span class="px-1.5 py-0.5 rounded-full text-xs font-bold"
+                        :style="viewTab==='pasien_di_icu' ? 'background:rgba(255,255,255,.25);color:#fff' : 'background:rgba(79,70,229,.12);color:#4F46E5'">
+                        {{ pasienDiIcuView.length }}
+                    </span>
+                </button>
                 <!-- Tab: Pasien Keluar -->
                 <button @click="viewTab='pasien_keluar'; activeCardKey='selesai'"
                     class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
@@ -594,7 +618,8 @@ const jenisOptions = [
             <p v-if="viewTab==='antrian'" class="text-xs" style="color:var(--text-muted)">Permintaan menunggu konfirmasi bed</p>
             <p v-else-if="viewTab==='terverifikasi_icu'" class="text-xs" style="color:var(--text-muted)">Pasien dengan bed terverifikasi ICU · menunggu verifikasi admisi</p>
             <p v-else-if="viewTab==='perlu_verif'" class="text-xs" style="color:var(--text-muted)">Pasien sudah terverifikasi admisi · menunggu masuk ICU</p>
-            <p v-else class="text-xs" style="color:var(--text-muted)">Pasien yang sudah selesai dirawat di ICU</p>
+            <p v-else-if="viewTab==='pasien_di_icu'" class="text-xs" style="color:var(--text-muted)">Pasien yang sedang dirawat di ICU · bed masih terisi di Bed Management</p>
+            <p v-else class="text-xs" style="color:var(--text-muted)">Pasien yang sudah selesai dirawat di ICU · bed sudah direlease dari Bed Management</p>
         </div>
 
         <!-- Empty state -->
