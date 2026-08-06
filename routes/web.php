@@ -72,6 +72,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/icu/menu-petugas',              [MenuPetugasController::class, 'index'])->name('icu.menu_petugas');
     Route::get('/icu/menu-petugas/pasien-aktif', [MenuPetugasController::class, 'pasienAktifSearch'])->name('icu.menu_petugas.pasien_aktif');
     Route::get('/icu/menu-petugas/lookup',       [MenuPetugasController::class, 'lookupPasien'])->name('icu.menu_petugas.lookup');
+    Route::get('/icu/menu-petugas/riwayat-icu',  [MenuPetugasController::class, 'riwayatIcu'])->name('icu.menu_petugas.riwayat_icu');
     Route::post('/icu/menu-petugas/spri',        [MenuPetugasController::class, 'storeSpri'])->name('icu.menu_petugas.spri.store')->middleware('permission:booking_int:create');
     Route::put('/icu/menu-petugas/spri/{id}',    [MenuPetugasController::class, 'updateSpri'])->name('icu.menu_petugas.spri.update')->middleware('permission:booking_int:create');
     Route::post('/icu/menu-petugas/spri/{id}/batal', [MenuPetugasController::class, 'batalSpri'])->name('icu.menu_petugas.spri.batal')->middleware('permission:booking_int:create');

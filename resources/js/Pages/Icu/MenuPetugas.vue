@@ -202,6 +202,30 @@ const kunjungans        = ref([])
 const diagnosisExisting = ref('')
 const jaminanExisting   = ref('')
 const skipLookupWatch   = ref(false)
+
+// ── Riwayat ICU ─────────────────────────────────────────────────────────────
+const riwayatIcu      = ref([])
+const adaRiwayatIcu   = ref(false)
+const riwayatLoading  = ref(false)
+const showRiwayatPanel = ref(false)
+const modalRiwayat    = ref(false)
+
+const doFetchRiwayatIcu = async (noMr) => {
+    if (!noMr) { riwayatIcu.value = []; adaRiwayatIcu.value = false; return }
+    riwayatLoading.value = true
+    try {
+        const r = await fetch(
+            route('icu.menu_petugas.riwayat_icu') + '?No_MR=' + encodeURIComponent(noMr),
+            { headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' } }
+        )
+        const d = await r.json()
+        riwayatIcu.value    = d.riwayat    ?? []
+        adaRiwayatIcu.value = d.ada_riwayat ?? false
+    } catch { riwayatIcu.value = []; adaRiwayatIcu.value = false }
+    finally  { riwayatLoading.value = false }
+}
+// ────────────────────────────────────────────────────────────────────────────
+
 const fmSpri = useForm({ No_MR:'', No_Reg:'', Diagnosis:'', Diagnosis_ICD:'', IndikasiRI:'', asal_ruang:'', Dokter:'', spesialis:'', Keterangan:'' })
 
 const resetSpri = () => {
@@ -209,6 +233,7 @@ const resetSpri = () => {
     lookupResult.value = null; lookupError.value = ''; kunjungans.value = []
     diagnosisExisting.value = ''; jaminanExisting.value = ''
     fmSpri.Diagnosis_ICD = ''
+    riwayatIcu.value = []; adaRiwayatIcu.value = false; showRiwayatPanel.value = false; modalRiwayat.value = false
 }
 watch(() => fmSpri.No_MR, (val) => {
     if (skipLookupWatch.value) return
@@ -242,6 +267,8 @@ const doLookup = async (noMr, preserveFields = false) => {
                 if (!fmSpri.asal_ruang) fmSpri.asal_ruang = d.prefill.asal_ruang ?? ''
                 if (!fmSpri.Dokter)     fmSpri.Dokter     = d.prefill.Dokter ?? ''
             }
+            // Fetch riwayat ICU setelah pasien ditemukan
+            doFetchRiwayatIcu(noMr)
         } else { lookupError.value = d.message ?? 'Pasien tidak ditemukan.' }
     } catch { lookupError.value = 'Gagal menghubungi server.' }
     finally  { lookupLoading.value = false }
@@ -284,6 +311,8 @@ const pilihPasien = (p) => {
         fmSpri.IndikasiRI = p.spri_indikasi   ?? ''
         fmSpri.spesialis  = p.spri_spesialis  ?? ''
     }
+    // Fetch riwayat ICU
+    doFetchRiwayatIcu(p.No_MR)
     modal.value = { open:true, type:'spri' }
     showPasienPanel.value = false
     nextTick(() => { skipLookupWatch.value = false; doLookupDiagnosis(p.No_MR, p.No_Reg) })
@@ -967,6 +996,20 @@ const hapusSpri = (item) => {
         <!-- Sub-header -->
         <div class="flex items-center justify-between px-5 py-2.5 border-b" style="border-color:var(--border-default);background:var(--bg-surface)">
           <p class="text-xs" style="color:var(--text-secondary)">Isi data klinis dan kirim langsung ke ICU</p>
+          <!-- Tombol riwayat ICU — buka modal khusus -->
+          <button v-if="adaRiwayatIcu && lookupResult?.found" type="button"
+            @click="modalRiwayat = true"
+            class="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-all hover:opacity-80"
+            style="background:rgba(239,68,68,.1);color:#DC2626;border:1.5px solid rgba(239,68,68,.3)">
+            <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            Riwayat ICU
+            <span class="font-black px-1.5 py-0.5 rounded-full text-white text-xs"
+              style="background:#DC2626;min-width:18px;text-align:center;line-height:1.2">
+              {{ riwayatIcu.length }}
+            </span>
+          </button>
         </div>
 
         <!-- Form -->
@@ -1253,6 +1296,186 @@ const hapusSpri = (item) => {
       </div>
     </Transition>
 
+  </div>
+</Transition>
+
+<!-- ══ MODAL RIWAYAT ICU ══════════════════════════════════════════════════ -->
+<Transition enter-active-class="transition-all duration-200" enter-from-class="opacity-0" leave-to-class="opacity-0">
+  <div v-if="modalRiwayat" class="mp-modal-overlay" style="z-index:70" @click.self="modalRiwayat = false">
+    <Transition enter-active-class="transition-all duration-200" enter-from-class="opacity-0 scale-95" leave-to-class="opacity-0 scale-95">
+      <div v-if="modalRiwayat" class="mp-modal" style="max-width:640px">
+
+        <!-- Header -->
+        <div class="flex items-center gap-3 px-5 py-4 rounded-t-2xl" style="background:#DC2626">
+          <svg class="w-5 h-5 text-white flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-bold text-white">Riwayat Perawatan ICU</p>
+            <p class="text-xs text-white/70 mt-0.5">
+              {{ lookupResult?.nama_pasien ?? '—' }}
+              <span v-if="fmSpri.No_MR" class="font-mono ml-1">· {{ fmSpri.No_MR }}</span>
+            </p>
+          </div>
+          <span class="text-xs font-black px-3 py-1 rounded-full text-white flex-shrink-0" style="background:rgba(255,255,255,.2)">
+            {{ riwayatIcu.length }} riwayat
+          </span>
+          <button @click="modalRiwayat = false"
+            class="w-7 h-7 rounded-lg flex items-center justify-center transition-all hover:bg-white/20 flex-shrink-0"
+            style="color:rgba(255,255,255,.8)">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Sub-header info -->
+        <div class="px-5 py-3 border-b flex items-center gap-2" style="border-color:var(--border-default);background:rgba(220,38,38,.04)">
+          <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="#DC2626" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <p class="text-xs" style="color:#991B1B">
+            Pasien ini memiliki riwayat perawatan ICU. Booking baru tetap bisa dilanjutkan — data di bawah untuk referensi klinis.
+          </p>
+        </div>
+
+        <!-- List riwayat -->
+        <div class="overflow-y-auto" style="max-height:calc(90vh - 180px)">
+          <div class="p-5 space-y-4">
+            <div v-for="(r, i) in riwayatIcu" :key="i" class="rounded-2xl overflow-hidden"
+              style="border:1px solid var(--border-default);box-shadow:var(--shadow-card)">
+
+              <!-- Card header: status + bed + sumber -->
+              <div class="flex items-center gap-3 px-4 py-3"
+                :style="r.status === 'selesai'
+                  ? 'background:rgba(71,85,105,.06);border-bottom:1px solid rgba(71,85,105,.12)'
+                  : 'background:rgba(0,168,132,.06);border-bottom:1px solid rgba(0,168,132,.15)'">
+                <!-- Nomor urut -->
+                <div class="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black text-white"
+                  :style="r.status === 'selesai' ? 'background:#64748B' : 'background:#00A884'">
+                  {{ i + 1 }}
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span class="text-sm font-bold"
+                      :style="r.status === 'selesai' ? 'color:#475569' : 'color:#00A884'">
+                      {{ r.status === 'selesai' ? 'Sudah Keluar ICU' : 'Sedang di ICU' }}
+                    </span>
+                    <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
+                      :style="r.sumber === 'external'
+                        ? 'background:rgba(14,165,233,.1);color:#0284C7'
+                        : 'background:rgba(90,107,124,.1);color:#5A6B7C'">
+                      {{ r.label_sumber ?? (r.sumber === 'external' ? 'Booking Luar RS' : 'Booking Internal RS') }}
+                    </span>
+                  </div>
+                  <div class="flex items-center gap-3 mt-0.5 flex-wrap">
+                    <span v-if="r.nama_bed" class="text-xs font-semibold" :style="r.status === 'selesai' ? 'color:#64748B' : 'color:#00A884'">
+                      🛏 {{ r.nama_bed }}
+                    </span>
+                    <span v-if="r.kebutuhan_bed && r.kebutuhan_bed !== r.nama_bed" class="text-xs" style="color:var(--text-muted)">
+                      ({{ r.kebutuhan_bed }})
+                    </span>
+                  </div>
+                </div>
+                <!-- Lama rawat -->
+                <div v-if="r.lama_rawat" class="text-right flex-shrink-0">
+                  <p class="text-xs font-bold" style="color:var(--text-primary)">{{ r.lama_rawat }}</p>
+                  <p class="text-xs" style="color:var(--text-muted)">lama rawat</p>
+                </div>
+              </div>
+
+              <!-- Card body: detail klinis -->
+              <div class="p-4 space-y-3" style="background:var(--bg-card)">
+
+                <!-- Diagnosa -->
+                <div>
+                  <p class="text-xs font-semibold uppercase tracking-wider mb-1" style="color:var(--text-muted)">Diagnosa</p>
+                  <p class="text-sm font-semibold" style="color:var(--text-primary)">{{ r.diagnosa }}</p>
+                  <p v-if="r.diagnosa_icd" class="text-xs mt-0.5 font-mono" style="color:#0284C7">ICD-10: {{ r.diagnosa_icd }}</p>
+                </div>
+
+                <!-- Indikasi -->
+                <div v-if="r.indikasi">
+                  <p class="text-xs font-semibold uppercase tracking-wider mb-1" style="color:var(--text-muted)">
+                    {{ r.sumber === 'internal' ? 'Indikasi Rawat ICU' : 'Rencana Tindakan' }}
+                  </p>
+                  <p class="text-sm" style="color:var(--text-secondary)">{{ r.indikasi }}</p>
+                </div>
+
+                <!-- Grid info -->
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2 border-t" style="border-color:var(--border-subtle,var(--border-default))">
+                  <div v-if="r.asal_ruang">
+                    <p class="text-xs" style="color:var(--text-muted)">Asal Ruang</p>
+                    <p class="text-sm font-semibold mt-0.5" style="color:var(--text-primary)">{{ r.asal_ruang }}</p>
+                  </div>
+                  <div v-if="r.dokter">
+                    <p class="text-xs" style="color:var(--text-muted)">Dokter DPJP</p>
+                    <p class="text-sm font-semibold mt-0.5" style="color:var(--text-primary)">{{ r.dokter }}</p>
+                  </div>
+                  <div v-if="r.spesialis">
+                    <p class="text-xs" style="color:var(--text-muted)">Spesialis</p>
+                    <p class="text-sm font-semibold mt-0.5" style="color:var(--text-primary)">{{ r.spesialis }}</p>
+                  </div>
+                  <div v-if="r.jaminan">
+                    <p class="text-xs" style="color:var(--text-muted)">Jaminan</p>
+                    <p class="text-sm font-semibold mt-0.5" style="color:var(--text-primary)">{{ r.jaminan }}</p>
+                  </div>
+                </div>
+
+                <!-- Timeline masuk/keluar -->
+                <div class="rounded-xl p-3 grid grid-cols-2 gap-3" style="background:var(--bg-input)">
+                  <div>
+                    <p class="text-xs" style="color:var(--text-muted)">Masuk ICU</p>
+                    <p class="text-sm font-bold font-mono mt-0.5" style="color:var(--text-primary)">
+                      {{ r.masuk_at ?? '—' }}
+                    </p>
+                  </div>
+                  <div>
+                    <p class="text-xs" style="color:var(--text-muted)">Keluar ICU</p>
+                    <p class="text-sm font-bold font-mono mt-0.5" :style="r.keluar_at ? 'color:var(--text-primary)' : 'color:#D97706'">
+                      {{ r.keluar_at ?? (r.status === 'masuk_icu' ? 'Masih di ICU' : '—') }}
+                    </p>
+                  </div>
+                </div>
+
+                <!-- Keterangan & catatan admisi -->
+                <div v-if="r.keterangan || r.catatan_admisi" class="space-y-2">
+                  <div v-if="r.keterangan">
+                    <p class="text-xs font-semibold uppercase tracking-wider mb-1" style="color:var(--text-muted)">Keterangan</p>
+                    <p class="text-xs" style="color:var(--text-secondary)">{{ r.keterangan }}</p>
+                  </div>
+                  <div v-if="r.catatan_admisi">
+                    <p class="text-xs font-semibold uppercase tracking-wider mb-1" style="color:var(--text-muted)">Catatan Admisi</p>
+                    <p class="text-xs" style="color:var(--text-secondary)">{{ r.catatan_admisi }}</p>
+                  </div>
+                </div>
+
+                <!-- Footer: dibuat/diproses oleh -->
+                <div class="flex items-center justify-between pt-2 border-t text-xs" style="border-color:var(--border-subtle,var(--border-default));color:var(--text-muted)">
+                  <span v-if="r.created_by">Dibuat oleh: <strong style="color:var(--text-secondary)">{{ r.created_by }}</strong>
+                    <span v-if="r.created_at_fmt"> · {{ r.created_at_fmt }}</span>
+                  </span>
+                  <span v-if="r.diproses_by" class="ml-auto">Diverifikasi: <strong style="color:var(--text-secondary)">{{ r.diproses_by }}</strong>
+                    <span v-if="r.diproses_at"> · {{ r.diproses_at }}</span>
+                  </span>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer modal -->
+        <div class="px-5 py-3.5 border-t flex justify-end" style="border-color:var(--border-default);background:var(--bg-surface)">
+          <button @click="modalRiwayat = false"
+            class="px-5 py-2.5 rounded-xl text-sm font-bold transition-all hover:-translate-y-px"
+            style="background:var(--bg-input);color:var(--text-secondary);border:1px solid var(--border-default)">
+            Tutup
+          </button>
+        </div>
+
+      </div>
+    </Transition>
   </div>
 </Transition>
 

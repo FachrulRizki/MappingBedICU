@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Icu;
 
 use App\Http\Controllers\Controller;
+use App\Models\IcuBookingExternal;
 use App\Models\IcuSpriInternal;
 use App\Models\MCaraBayar;
 use App\Models\MRuangMaster;
@@ -367,6 +368,122 @@ class MenuPetugasController extends Controller
             'kunjungans'  => $kunjungans,
             'prefill'     => $prefill?->only(['Diagnosis', 'IndikasiRI', 'asal_ruang', 'Dokter']),
         ]);
+    }
+
+    /**
+     * AJAX — Riwayat ICU pasien berdasarkan No_MR.
+     * Digunakan form booking untuk menampilkan peringatan jika pasien pernah rawat ICU.
+     */
+    public function riwayatIcu(Request $request): JsonResponse
+    {
+        $noMr = trim($request->query('No_MR', ''));
+        if (! $noMr) {
+            return response()->json(['riwayat' => [], 'ada_riwayat' => false]);
+        }
+
+        // Riwayat dari booking external (sudah punya No_MR = sudah terverifikasi)
+        $externals = IcuBookingExternal::where('No_MR', $noMr)
+            ->whereIn('status', ['masuk_icu', 'selesai'])
+            ->orderByDesc('created_at')
+            ->get([
+                'id', 'status', 'diagnosa', 'diagnosa_icd', 'rencana_tindakan',
+                'nama_bed', 'kebutuhan_bed', 'asal_rujukan',
+                'jaminan', 'keterangan',
+                'masuk_at', 'keluar_at', 'created_at',
+                'created_by', 'verified_by', 'verified_at',
+            ])
+            ->map(function ($b) {
+                $masuk  = $b->masuk_at;
+                $keluar = $b->keluar_at;
+                $lama   = ($masuk && $keluar)
+                    ? $this->hitungLamaDiIcu($masuk, $keluar)
+                    : null;
+                return [
+                    'sumber'         => 'external',
+                    'label_sumber'   => 'Booking Luar RS',
+                    'status'         => $b->status,
+                    'diagnosa'       => $b->diagnosa      ?? '-',
+                    'diagnosa_icd'   => $b->diagnosa_icd  ?? null,
+                    'indikasi'       => $b->rencana_tindakan ?? null,
+                    'nama_bed'       => $b->nama_bed       ?? '-',
+                    'kebutuhan_bed'  => $b->kebutuhan_bed  ?? null,
+                    'asal_ruang'     => $b->asal_rujukan   ?? null,
+                    'dokter'         => null,
+                    'jaminan'        => $b->jaminan        ?? null,
+                    'keterangan'     => $b->keterangan     ?? null,
+                    'masuk_at'       => $masuk?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
+                    'keluar_at'      => $keluar?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
+                    'lama_rawat'     => $lama,
+                    'created_at_fmt' => $b->created_at?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
+                    'created_by'     => $b->created_by    ?? null,
+                    'diproses_by'    => $b->verified_by   ?? null,
+                    'diproses_at'    => $b->verified_at?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
+                ];
+            })->toArray();
+
+        // Riwayat dari booking internal (pasien rawat inap)
+        $internals = IcuSpriInternal::where('No_MR', $noMr)
+            ->whereIn('status', ['masuk_icu', 'selesai'])
+            ->orderByDesc('created_at')
+            ->get([
+                'id', 'status', 'Diagnosis', 'Diagnosis_ICD', 'IndikasiRI',
+                'nama_bed', 'kebutuhan_bed', 'asal_ruang', 'Dokter', 'spesialis',
+                'Keterangan', 'catatan_admisi',
+                'masuk_at', 'keluar_at', 'created_at',
+                'NameUser', 'approved_by', 'approved_at', 'verified_by', 'verified_at',
+            ])
+            ->map(function ($s) {
+                $masuk  = $s->masuk_at;
+                $keluar = $s->keluar_at;
+                $lama   = ($masuk && $keluar)
+                    ? $this->hitungLamaDiIcu($masuk, $keluar)
+                    : null;
+                return [
+                    'sumber'         => 'internal',
+                    'label_sumber'   => 'Booking Internal RS',
+                    'status'         => $s->status,
+                    'diagnosa'       => $s->Diagnosis     ?? '-',
+                    'diagnosa_icd'   => $s->Diagnosis_ICD ?? null,
+                    'indikasi'       => $s->IndikasiRI    ?? null,
+                    'nama_bed'       => $s->nama_bed      ?? '-',
+                    'kebutuhan_bed'  => $s->kebutuhan_bed ?? null,
+                    'asal_ruang'     => $s->asal_ruang    ?? null,
+                    'dokter'         => $s->Dokter        ?? null,
+                    'spesialis'      => $s->spesialis     ?? null,
+                    'jaminan'        => null,
+                    'keterangan'     => $s->Keterangan    ?? null,
+                    'catatan_admisi' => $s->catatan_admisi ?? null,
+                    'masuk_at'       => $masuk?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
+                    'keluar_at'      => $keluar?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
+                    'lama_rawat'     => $lama,
+                    'created_at_fmt' => $s->created_at?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
+                    'created_by'     => $s->NameUser      ?? null,
+                    'diproses_by'    => $s->verified_by   ?? ($s->approved_by ?? null),
+                    'diproses_at'    => $s->verified_at?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i')
+                                       ?? $s->approved_at?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
+                ];
+            })->toArray();
+
+        // Gabung, urutkan terbaru dulu
+        $semua = collect(array_merge($externals, $internals))
+            ->sortByDesc(fn ($r) => $r['masuk_at'] ?? $r['created_at_fmt'] ?? '')
+            ->values()
+            ->toArray();
+
+        return response()->json([
+            'ada_riwayat' => count($semua) > 0,
+            'riwayat'     => $semua,
+        ]);
+    }
+
+    private function hitungLamaDiIcu(\Carbon\Carbon $masuk, \Carbon\Carbon $keluar): string
+    {
+        $diff  = $masuk->diff($keluar);
+        $hasil = [];
+        if ($diff->days > 0) $hasil[] = "{$diff->days} hari";
+        if ($diff->h > 0)    $hasil[] = "{$diff->h} jam";
+        if ($diff->i > 0)    $hasil[] = "{$diff->i} menit";
+        return empty($hasil) ? '< 1 menit' : implode(' ', $hasil);
     }
 
     public function storeSpri(Request $request): RedirectResponse
