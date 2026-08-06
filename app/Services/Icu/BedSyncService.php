@@ -17,9 +17,9 @@ class BedSyncService
     /** Panggil masuk + keluar + heal sekaligus */
     public function sync(): void
     {
-        $this->syncHealSelesai(); // koreksi data lama yang salah status dulu
-        $this->syncMasukIcu();
         $this->syncKeluarIcu();
+        $this->syncHealSelesai();
+        $this->syncMasukIcu();
     }
 
     /**
@@ -32,6 +32,29 @@ class BedSyncService
         return app()->environment('production');
     }
 
+    /**
+     * Ambil map STATUS_KAMAR lengkap: Kode_Ruang → ['status'=>..., 'no_mr'=>...]
+     * Kolom No_MR di STATUS_KAMAR berisi No_MR pasien yang SAAT INI menempati bed tsb.
+     */
+    private function buildBedMap(array $kodeRuangs): array
+    {
+        if (empty($kodeRuangs)) return [];
+
+        try {
+            return StatusKamar::whereIn('Kode_Ruang', $kodeRuangs)
+                ->get(['Kode_Ruang', 'Status', 'No_MR'])
+                ->keyBy('Kode_Ruang')
+                ->map(fn ($r) => [
+                    'status' => strtoupper($r->Status ?? ''),
+                    'no_mr'  => trim($r->No_MR ?? ''),
+                ])
+                ->toArray();
+        } catch (\Throwable $e) {
+            Log::warning('[BedSyncService::buildBedMap] ' . $e->getMessage());
+            return [];
+        }
+    }
+
     public function syncHealSelesai(): void
     {
         if (! $this->isProduction()) {
@@ -39,14 +62,14 @@ class BedSyncService
         }
 
         try {
-            // Ambil pasien selesai yang masih punya allocated_bed_id
             $selesaiExternal = IcuBookingExternal::where('status', 'selesai')
                 ->whereNotNull('allocated_bed_id')
-                ->get(['id', 'allocated_bed_id', 'nama_pasien', 'nama_bed', 'masuk_at']);
+                ->whereNotNull('No_MR')
+                ->get(['id', 'allocated_bed_id', 'No_MR', 'nama_pasien', 'nama_bed', 'masuk_at', 'masuk_by']);
 
             $selesaiInternal = IcuSpriInternal::where('status', 'selesai')
                 ->whereNotNull('allocated_bed_id')
-                ->get(['id', 'allocated_bed_id', 'No_MR', 'nama_bed', 'masuk_at']);
+                ->get(['id', 'allocated_bed_id', 'No_MR', 'nama_bed', 'masuk_at', 'masuk_by']);
 
             if ($selesaiExternal->isEmpty() && $selesaiInternal->isEmpty()) {
                 return;
@@ -56,22 +79,14 @@ class BedSyncService
                 ->concat($selesaiInternal->pluck('allocated_bed_id'))
                 ->unique()->filter()->values()->toArray();
 
-            $statusMap = [];
-            try {
-                $statusMap = StatusKamar::whereIn('Kode_Ruang', $kodeRuangs)
-                    ->pluck('Status', 'Kode_Ruang')
-                    ->map(fn ($s) => strtoupper($s ?? ''))
-                    ->toArray();
-            } catch (\Throwable $e) {
-                Log::warning('[BedSyncService::syncHealSelesai] Gagal query StatusKamar: ' . $e->getMessage());
-                return;
-            }
+            $bedMap = $this->buildBedMap($kodeRuangs);
 
             foreach ($selesaiExternal as $booking) {
-                $statusBed = $statusMap[$booking->allocated_bed_id] ?? null;
-                if ($statusBed === 'ISI') {
-                    // Bed masih terisi → pasien seharusnya masih di ICU, bukan selesai
-                    // Koreksi status tanpa duplikasi log activity
+                $bed = $bedMap[$booking->allocated_bed_id] ?? null;
+                if (! $bed) continue;
+
+                if ($bed['status'] === 'ISI' && $bed['no_mr'] === (string) $booking->No_MR) {
+                    // Bed masih diisi pasien yang SAMA → koreksi ke masuk_icu
                     $booking->update([
                         'status'    => 'masuk_icu',
                         'keluar_at' => null,
@@ -79,13 +94,15 @@ class BedSyncService
                         'masuk_at'  => $booking->masuk_at ?? now(),
                         'masuk_by'  => $booking->masuk_by ?? 'system_heal',
                     ]);
-                    Log::info("[BedSyncService::syncHealSelesai] Ext #{$booking->id} ({$booking->nama_pasien}) dikoreksi selesai→masuk_icu — bed {$booking->allocated_bed_id} masih ISI.");
+                    Log::info("[BedSyncService::syncHealSelesai] Ext #{$booking->id} ({$booking->nama_pasien}) dikoreksi selesai→masuk_icu — bed {$booking->allocated_bed_id} masih ISI oleh MR yang sama.");
                 }
             }
 
             foreach ($selesaiInternal as $bu) {
-                $statusBed = $statusMap[$bu->allocated_bed_id] ?? null;
-                if ($statusBed === 'ISI') {
+                $bed = $bedMap[$bu->allocated_bed_id] ?? null;
+                if (! $bed) continue;
+
+                if ($bed['status'] === 'ISI' && $bed['no_mr'] === (string) $bu->No_MR) {
                     $namaPasien = (string) ($bu->pasien?->Nama_Pasien ?? $bu->No_MR);
                     $bu->update([
                         'status'    => 'masuk_icu',
@@ -94,7 +111,7 @@ class BedSyncService
                         'masuk_at'  => $bu->masuk_at ?? now(),
                         'masuk_by'  => $bu->masuk_by ?? 'system_heal',
                     ]);
-                    Log::info("[BedSyncService::syncHealSelesai] Int #{$bu->id} ({$namaPasien}) dikoreksi selesai→masuk_icu — bed {$bu->allocated_bed_id} masih ISI.");
+                    Log::info("[BedSyncService::syncHealSelesai] Int #{$bu->id} ({$namaPasien}) dikoreksi selesai→masuk_icu — bed {$bu->allocated_bed_id} masih ISI oleh MR yang sama.");
                 }
             }
         } catch (\Throwable $e) {
@@ -112,7 +129,7 @@ class BedSyncService
         try {
             $activeExternal = IcuBookingExternal::whereIn('status', ['bed_confirmed', 'admisi_verified'])
                 ->whereNotNull('allocated_bed_id')
-                ->get(['id', 'allocated_bed_id', 'nama_pasien', 'nama_bed', 'confirmed_at', 'verified_at']);
+                ->get(['id', 'allocated_bed_id', 'No_MR', 'nama_pasien', 'nama_bed', 'confirmed_at', 'verified_at']);
 
             $activeInternal = IcuSpriInternal::where('status', 'bed_verified')
                 ->whereNotNull('allocated_bed_id')
@@ -126,22 +143,24 @@ class BedSyncService
                 ->concat($activeInternal->pluck('allocated_bed_id'))
                 ->unique()->filter()->values()->toArray();
 
-            $statusMap = [];
-            try {
-                $statusMap = StatusKamar::whereIn('Kode_Ruang', $kodeRuangs)
-                    ->pluck('Status', 'Kode_Ruang')
-                    ->map(fn ($s) => strtoupper($s ?? ''))
-                    ->toArray();
-            } catch (\Throwable $e) {
-                Log::warning('[BedSyncService::syncMasukIcu] Gagal query StatusKamar: ' . $e->getMessage());
-                return;
-            }
+            $bedMap = $this->buildBedMap($kodeRuangs);
 
             foreach ($activeExternal as $booking) {
-                $statusBed = $statusMap[$booking->allocated_bed_id] ?? null;
+                $bed = $bedMap[$booking->allocated_bed_id] ?? null;
+                if (! $bed) continue;
 
-                if ($statusBed === 'ISI') {
-                    // Bed Management sudah isi bed → pasien masuk ICU
+                if ($bed['status'] === 'ISI') {
+                    // Jika STATUS_KAMAR punya No_MR, pastikan ini pasien yang sama
+                    // (No_MR booking external bisa null sebelum verifikasi admisi)
+                    $noMrBed = $bed['no_mr'];
+                    $noMrBooking = trim($booking->No_MR ?? '');
+
+                    // Jika bed ISI oleh No_MR berbeda → ini bukan pasien kita, skip
+                    if ($noMrBed && $noMrBooking && $noMrBed !== $noMrBooking) {
+                        Log::info("[BedSyncService::syncMasukIcu] Ext #{$booking->id} ({$booking->nama_pasien}) SKIP — bed {$booking->allocated_bed_id} ISI oleh MR lain ({$noMrBed} ≠ {$noMrBooking}).");
+                        continue;
+                    }
+
                     $booking->update([
                         'status'   => 'masuk_icu',
                         'masuk_at' => now(),
@@ -155,15 +174,22 @@ class BedSyncService
                         'IcuBookingExternal'
                     );
                 }
-                // Status KOSONG/BOOKING/null saat masuk: bed belum aktif atau masih diproses
-                // — jangan auto-selesai di sini, tunggu pasien benar-benar masuk ICU dulu
             }
 
             foreach ($activeInternal as $bu) {
-                $statusBed = $statusMap[$bu->allocated_bed_id] ?? null;
+                $bed = $bedMap[$bu->allocated_bed_id] ?? null;
+                if (! $bed) continue;
                 $namaPasien = (string) ($bu->pasien?->Nama_Pasien ?? $bu->No_MR);
 
-                if ($statusBed === 'ISI') {
+                if ($bed['status'] === 'ISI') {
+                    $noMrBed = $bed['no_mr'];
+                    $noMrBu  = trim($bu->No_MR ?? '');
+
+                    if ($noMrBed && $noMrBu && $noMrBed !== $noMrBu) {
+                        Log::info("[BedSyncService::syncMasukIcu] Int #{$bu->id} ({$namaPasien}) SKIP — bed {$bu->allocated_bed_id} ISI oleh MR lain ({$noMrBed} ≠ {$noMrBu}).");
+                        continue;
+                    }
+
                     $bu->update([
                         'status'   => 'masuk_icu',
                         'masuk_at' => now(),
@@ -177,7 +203,6 @@ class BedSyncService
                         'IcuSpriInternal'
                     );
                 }
-                // Status KOSONG/BOOKING/null saat masuk: biarkan, jangan auto-selesai
             }
         } catch (\Throwable $e) {
             Log::warning('[BedSyncService::syncMasukIcu] ' . $e->getMessage());
@@ -194,7 +219,7 @@ class BedSyncService
         try {
             $masukExternal = IcuBookingExternal::where('status', 'masuk_icu')
                 ->whereNotNull('allocated_bed_id')
-                ->get(['id', 'allocated_bed_id', 'nama_pasien', 'nama_bed', 'masuk_at']);
+                ->get(['id', 'allocated_bed_id', 'No_MR', 'nama_pasien', 'nama_bed', 'masuk_at']);
 
             $masukInternal = IcuSpriInternal::where('status', 'masuk_icu')
                 ->whereNotNull('allocated_bed_id')
@@ -208,23 +233,23 @@ class BedSyncService
                 ->concat($masukInternal->pluck('allocated_bed_id'))
                 ->unique()->filter()->values()->toArray();
 
-            $statusMap = [];
-            try {
-                $statusMap = StatusKamar::whereIn('Kode_Ruang', $kodeRuangs)
-                    ->pluck('Status', 'Kode_Ruang')
-                    ->map(fn ($s) => strtoupper($s ?? ''))
-                    ->toArray();
-            } catch (\Throwable $e) {
-                Log::warning('[BedSyncService::syncKeluarIcu] Gagal query StatusKamar: ' . $e->getMessage());
-                return;
-            }
+            $bedMap = $this->buildBedMap($kodeRuangs);
 
             $now = now();
 
             foreach ($masukExternal as $booking) {
-                $statusBed = $statusMap[$booking->allocated_bed_id] ?? null;
-                if ($statusBed === 'KOSONG') {
-                    // Bed Management release bed → pasien keluar ICU
+                $bed = $bedMap[$booking->allocated_bed_id] ?? null;
+                if (! $bed) continue;
+
+                $noMrBed     = $bed['no_mr'];
+                $noMrBooking = trim($booking->No_MR ?? '');
+                $bedStatus   = $bed['status'];
+
+                $harus_keluar =
+                    $bedStatus === 'KOSONG'
+                    || ($bedStatus === 'ISI' && $noMrBed && $noMrBooking && $noMrBed !== $noMrBooking);
+
+                if ($harus_keluar) {
                     $booking->update([
                         'status'    => 'selesai',
                         'keluar_at' => $now,
@@ -237,13 +262,26 @@ class BedSyncService
                         'booking_external',
                         'IcuBookingExternal'
                     );
+                    if ($bedStatus === 'ISI') {
+                        Log::info("[BedSyncService::syncKeluarIcu] Ext #{$booking->id} ({$booking->nama_pasien}) set selesai — bed {$booking->allocated_bed_id} ISI oleh MR lain ({$noMrBed}).");
+                    }
                 }
             }
 
             foreach ($masukInternal as $bu) {
-                $statusBed = $statusMap[$bu->allocated_bed_id] ?? null;
-                if ($statusBed === 'KOSONG') {
-                    $namaPasien = (string) ($bu->pasien?->Nama_Pasien ?? $bu->No_MR);
+                $bed = $bedMap[$bu->allocated_bed_id] ?? null;
+                if (! $bed) continue;
+
+                $noMrBed   = $bed['no_mr'];
+                $noMrBu    = trim($bu->No_MR ?? '');
+                $bedStatus = $bed['status'];
+                $namaPasien = (string) ($bu->pasien?->Nama_Pasien ?? $bu->No_MR);
+
+                $harus_keluar =
+                    $bedStatus === 'KOSONG'
+                    || ($bedStatus === 'ISI' && $noMrBed && $noMrBu && $noMrBed !== $noMrBu);
+
+                if ($harus_keluar) {
                     $bu->update([
                         'status'    => 'selesai',
                         'keluar_at' => $now,
@@ -256,6 +294,9 @@ class BedSyncService
                         'spri_internal',
                         'IcuSpriInternal'
                     );
+                    if ($bedStatus === 'ISI') {
+                        Log::info("[BedSyncService::syncKeluarIcu] Int #{$bu->id} ({$namaPasien}) set selesai — bed {$bu->allocated_bed_id} ISI oleh MR lain ({$noMrBed}).");
+                    }
                 }
             }
         } catch (\Throwable $e) {
