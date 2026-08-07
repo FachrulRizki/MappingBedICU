@@ -153,18 +153,37 @@ class BedSyncService
                     $noMrBed     = $bed['no_mr'];
                     $noMrBooking = trim($booking->No_MR ?? '');
 
-                    // Jika STATUS_KAMAR punya No_MR dan booking juga punya No_MR,
-                    // tapi keduanya berbeda → bed diisi pasien lain, bukan pasien kita — skip
-                    if ($noMrBed && $noMrBooking && $noMrBed !== $noMrBooking) {
-                        Log::info("[BedSyncService::syncMasukIcu] Ext #{$booking->id} ({$booking->nama_pasien}) SKIP masuk_icu — bed {$booking->allocated_bed_id} ISI oleh MR lain ({$noMrBed} ≠ {$noMrBooking}).");
-                        continue;
-                    }
-
-                    // Jika booking external No_MR masih kosong (belum verifikasi admisi),
-                    // tapi bed sudah ISI → tahan dulu, tunggu admisi verifikasi No_MR dulu
-                    if ($noMrBed && ! $noMrBooking) {
-                        Log::info("[BedSyncService::syncMasukIcu] Ext #{$booking->id} ({$booking->nama_pasien}) HOLD — booking belum punya No_MR, tunggu verifikasi admisi.");
-                        continue;
+                    // Booking external dengan status bed_confirmed belum punya No_MR yang terverifikasi
+                    // admisi. Hanya admisi_verified (sudah punya No_MR) yang boleh masuk ICU via sync.
+                    if ($booking->status === 'bed_confirmed') {
+                        // Jika No_MR booking kosong → belum diverifikasi admisi, tahan
+                        if (! $noMrBooking) {
+                            Log::info("[BedSyncService::syncMasukIcu] Ext #{$booking->id} ({$booking->nama_pasien}) HOLD — bed_confirmed belum terverifikasi admisi (No_MR kosong).");
+                            continue;
+                        }
+                        // Jika No_MR booking ada tapi STATUS_KAMAR No_MR berbeda → bed diisi pasien lain
+                        if ($noMrBed && $noMrBed !== $noMrBooking) {
+                            Log::info("[BedSyncService::syncMasukIcu] Ext #{$booking->id} ({$booking->nama_pasien}) SKIP — bed {$booking->allocated_bed_id} ISI oleh MR lain ({$noMrBed} ≠ {$noMrBooking}).");
+                            continue;
+                        }
+                    } else {
+                        // admisi_verified: punya No_MR, lakukan pengecekan penuh
+                        // Jika No_MR kosong (seharusnya tidak terjadi) → tahan
+                        if (! $noMrBooking) {
+                            Log::info("[BedSyncService::syncMasukIcu] Ext #{$booking->id} ({$booking->nama_pasien}) HOLD — admisi_verified tapi No_MR kosong, perlu dicek.");
+                            continue;
+                        }
+                        // Jika STATUS_KAMAR tidak menyimpan No_MR → tidak bisa verifikasi siapa yang di bed
+                        // Tahan agar tidak salah set masuk_icu untuk pasien yang bukan di bed ini
+                        if (! $noMrBed) {
+                            Log::info("[BedSyncService::syncMasukIcu] Ext #{$booking->id} ({$booking->nama_pasien}) HOLD — STATUS_KAMAR bed {$booking->allocated_bed_id} tidak ada No_MR, tidak bisa verifikasi.");
+                            continue;
+                        }
+                        // Jika STATUS_KAMAR punya No_MR berbeda → bed diisi pasien lain
+                        if ($noMrBed !== $noMrBooking) {
+                            Log::info("[BedSyncService::syncMasukIcu] Ext #{$booking->id} ({$booking->nama_pasien}) SKIP masuk_icu — bed {$booking->allocated_bed_id} ISI oleh MR lain ({$noMrBed} ≠ {$noMrBooking}).");
+                            continue;
+                        }
                     }
 
                     $booking->update([
@@ -191,8 +210,18 @@ class BedSyncService
                     $noMrBed = $bed['no_mr'];
                     $noMrBu  = trim($bu->No_MR ?? '');
 
-                    // Booking internal selalu punya No_MR — jika berbeda, skip
-                    if ($noMrBed && $noMrBu && $noMrBed !== $noMrBu) {
+                    // Booking internal selalu punya No_MR
+                    if (! $noMrBu) {
+                        Log::info("[BedSyncService::syncMasukIcu] Int #{$bu->id} ({$namaPasien}) HOLD — No_MR kosong.");
+                        continue;
+                    }
+                    // Jika STATUS_KAMAR tidak menyimpan No_MR → tidak bisa verifikasi
+                    if (! $noMrBed) {
+                        Log::info("[BedSyncService::syncMasukIcu] Int #{$bu->id} ({$namaPasien}) HOLD — STATUS_KAMAR bed {$bu->allocated_bed_id} tidak ada No_MR, tidak bisa verifikasi.");
+                        continue;
+                    }
+                    // Jika No_MR berbeda → bed diisi pasien lain
+                    if ($noMrBed !== $noMrBu) {
                         Log::info("[BedSyncService::syncMasukIcu] Int #{$bu->id} ({$namaPasien}) SKIP masuk_icu — bed {$bu->allocated_bed_id} ISI oleh MR lain ({$noMrBed} ≠ {$noMrBu}).");
                         continue;
                     }
