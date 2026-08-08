@@ -222,34 +222,14 @@ class MenuPetugasController extends Controller
         return $result;
     }
 
-    private function buildJaminanMap(array $noRegs): array
+    /**
+     * Invalidate cache bed setelah aksi yang mengubah alokasi bed.
+     * Dipanggil setelah storeSpri/batalSpri agar daftar bed kosong langsung fresh.
+     */
+    private function invalidateBedCache(): void
     {
-        if (empty($noRegs)) return [];
-
-        try {
-            $rows = DB::connection('sqlsrv_rsus')
-                ->table('PENDAFTARAN as p')
-                ->leftJoin('M_CARABAYAR as cb', 'p.Kode_Bayar', '=', 'cb.Kode_Bayar')
-                ->whereIn('p.No_Reg', $noRegs)
-                ->select([
-                    'p.No_Reg',
-                    'p.Kode_Bayar',
-                    DB::raw("ISNULL(cb.Ket_Bayar, p.Kode_Bayar) as ket_bayar"),
-                ])
-                ->get();
-
-            $map = [];
-            foreach ($rows as $row) {
-                $map[$row->No_Reg] = [
-                    'kode' => $row->Kode_Bayar ?? '',
-                    'nama' => $this->formatNamaDokter(trim($row->ket_bayar ?? $row->Kode_Bayar ?? '')),
-                ];
-            }
-            return $map;
-        } catch (\Exception $e) {
-            Log::warning('[buildJaminanMap] ' . $e->getMessage());
-            return [];
-        }
+        \Illuminate\Support\Facades\Cache::forget('bed_kosong_list');
+        \Illuminate\Support\Facades\Cache::forget('bed_tersedia_konfirmasi');
     }
 
     private function getPasienAktif(string $cari): array
@@ -609,6 +589,7 @@ class MenuPetugasController extends Controller
         } catch (\Exception) {}
 
         $this->activityLog->buatSpri($bu->id, $nama);
+        $this->invalidateBedCache();
 
         return back()->with('success', "BU (Booking ICU) untuk {$nama} berhasil dikirim ke ICU.");
     }
@@ -693,6 +674,11 @@ class MenuPetugasController extends Controller
             $bu->id,
             'IcuSpriInternal'
         );
+
+        // Jika bed dilepas, invalidate cache agar daftar bed langsung fresh
+        if ($oldStatus === 'bed_verified') {
+            $this->invalidateBedCache();
+        }
 
         return back()->with('success', "Booking ICU {$nama} berhasil dibatalkan.");
     }

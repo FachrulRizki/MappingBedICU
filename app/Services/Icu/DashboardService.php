@@ -92,24 +92,44 @@ class DashboardService
                 ->latest()->get();
         }
 
-        // Lookup nama pasien via DB RS
+        // Lookup nama pasien via DB RS — cache per-record 10 menit
         $noMRs = $intList->pluck('No_MR')->filter()->unique()->values()->toArray();
 
         $pasienMap = [];
         if (!empty($noMRs)) {
-            try {
-                $rows = DB::connection('sqlsrv_rsus')
-                    ->table('REGISTER_PASIEN')
-                    ->select('No_MR', 'Nama_Pasien', 'jenis_kelamin')
-                    ->whereIn('No_MR', $noMRs)
-                    ->get();
-
-                foreach ($rows as $row) {
-                    $key = $this->val($row, 'No_MR');
-                    $pasienMap[$key] = $row;
+            $missing = [];
+            foreach ($noMRs as $noMr) {
+                $cached = \Illuminate\Support\Facades\Cache::get("pasien:{$noMr}");
+                if ($cached !== null) {
+                    $pasienMap[$noMr] = (object) $cached;
+                } else {
+                    $missing[] = $noMr;
                 }
-            } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::warning('[DashboardService] Lookup pasien gagal: ' . $e->getMessage());
+            }
+
+            if (!empty($missing)) {
+                try {
+                    $rows = DB::connection('sqlsrv_rsus')
+                        ->table('REGISTER_PASIEN')
+                        ->select('No_MR', 'Nama_Pasien', 'jenis_kelamin')
+                        ->whereIn('No_MR', $missing)
+                        ->get();
+
+                    foreach ($rows as $row) {
+                        $key = $this->val($row, 'No_MR');
+                        $arr = is_array($row) ? $row : (array) $row;
+                        \Illuminate\Support\Facades\Cache::put("pasien:{$key}", $arr, 600);
+                        $pasienMap[$key] = $row;
+                    }
+                    // Cache entri yang tidak ditemukan agar tidak di-query ulang
+                    foreach ($missing as $noMr) {
+                        if (!isset($pasienMap[$noMr])) {
+                            \Illuminate\Support\Facades\Cache::put("pasien:{$noMr}", [], 600);
+                        }
+                    }
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::warning('[DashboardService] Lookup pasien gagal: ' . $e->getMessage());
+                }
             }
         }
 

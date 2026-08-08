@@ -339,6 +339,10 @@ class MenuAdmisiController extends Controller
 
         $this->activityLog->verifikasiPasien($booking->id, $booking->nama_pasien, $v['No_MR']);
 
+        // Invalidate cache bed — status alokasi berubah ke admisi_verified
+        \Illuminate\Support\Facades\Cache::forget('bed_kosong_list');
+        \Illuminate\Support\Facades\Cache::forget('bed_tersedia_konfirmasi');
+
         return back()->with('success', "Pasien No. MR {$v['No_MR']} terverifikasi. Bed {$booking->nama_bed} aktif.");
     }
 

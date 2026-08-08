@@ -24,21 +24,28 @@ class MCaraBayar extends Model
 
     /**
      * Ambil semua cara bayar sebagai list [kode, nama].
+     * Di-cache 10 menit — data ini sangat jarang berubah.
+     * Disimpan sebagai plain array agar aman di semua cache driver (file, redis, database).
      */
     public static function list(): \Illuminate\Support\Collection
     {
-        try {
-            return static::orderBy('KODE_BAYAR')
-                ->whereNotIn('KET_BAYAR', ['COVID'])
-                ->get(['KODE_BAYAR', 'KET_BAYAR'])
-                ->map(fn($row) => [
-                    'kode' => $row->KODE_BAYAR,
-                    'nama' => $row->KET_BAYAR,
-                ])
-                ->values();
-        } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('[MCaraBayar::list] ' . $e->getMessage());
-            return collect();
-        }
+        $data = \Illuminate\Support\Facades\Cache::remember('m_cara_bayar_list', 600, function () {
+            try {
+                return static::orderBy('KODE_BAYAR')
+                    ->whereNotIn('KET_BAYAR', ['COVID'])
+                    ->get(['KODE_BAYAR', 'KET_BAYAR'])
+                    ->map(fn($row) => [
+                        'kode' => $row->KODE_BAYAR,
+                        'nama' => $row->KET_BAYAR,
+                    ])
+                    ->values()
+                    ->toArray(); // plain array — aman di-serialize
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('[MCaraBayar::list] ' . $e->getMessage());
+                return [];
+            }
+        });
+
+        return collect(is_array($data) ? $data : []);
     }
 }

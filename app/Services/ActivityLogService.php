@@ -17,25 +17,39 @@ class ActivityLogService
         ?string $subjectType = null,
         ?array  $properties  = null,
     ): void {
-        try {
-            $user = Auth::user();
+        // Kumpulkan data sekarang (dalam request context) sebelum dispatch
+        $user      = Auth::user();
+        $userId    = $user?->id;
+        $userName  = $user?->name;
+        $userRole  = $user?->role;
+        $ipAddress = Request::ip();
+        $userAgent = substr(Request::userAgent() ?? '', 0, 300);
 
-            ActivityLog::create([
-                'user_id'         => $user?->id,
-                'user_name'       => $user?->name,
-                'user_role'       => $user?->role,
-                'jenis_aktivitas' => $jenisAktivitas,
-                'aktivitas'       => $aktivitas,
-                'module'          => $module,
-                'subject_id'      => $subjectId,
-                'subject_type'    => $subjectType,
-                'properties'      => $properties,
-                'ip_address'      => Request::ip(),
-                'user_agent'      => substr(Request::userAgent() ?? '', 0, 300),
-            ]);
-        } catch (\Throwable $e) {
-            Log::error('[ActivityLog] ' . $e->getMessage());
-        }
+        // Dispatch ke queue agar tidak memblokir response — fire-and-forget
+        dispatch(static function () use (
+            $userId, $userName, $userRole,
+            $jenisAktivitas, $aktivitas, $module,
+            $subjectId, $subjectType, $properties,
+            $ipAddress, $userAgent
+        ) {
+            try {
+                ActivityLog::create([
+                    'user_id'         => $userId,
+                    'user_name'       => $userName,
+                    'user_role'       => $userRole,
+                    'jenis_aktivitas' => $jenisAktivitas,
+                    'aktivitas'       => $aktivitas,
+                    'module'          => $module,
+                    'subject_id'      => $subjectId,
+                    'subject_type'    => $subjectType,
+                    'properties'      => $properties,
+                    'ip_address'      => $ipAddress,
+                    'user_agent'      => $userAgent,
+                ]);
+            } catch (\Throwable $e) {
+                Log::error('[ActivityLog] ' . $e->getMessage());
+            }
+        })->afterResponse();
     }
 
     // Auth

@@ -6,12 +6,14 @@ use App\Services\KeycloakService;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
 
 class SyncKeycloakRole
 {
-    private const INTROSPECT_INTERVAL = 300; // 5 menit
+    private const INTROSPECT_INTERVAL = 300;
+    private const ROLE_SYNC_INTERVAL  = 120;
 
     public function __construct(
         private readonly KeycloakService $keycloak,
@@ -73,21 +75,27 @@ class SyncKeycloakRole
 
         if (empty($payload)) return null;
 
-        // Sync role — ambil langsung dari token, tidak hardcode
-        $newRole = $this->keycloak->resolveRoleFromToken($payload);
+        // Sync role — throttle DB write tiap ROLE_SYNC_INTERVAL detik per user
+        $newRole       = $this->keycloak->resolveRoleFromToken($payload);
+        $roleSyncKey   = "keycloak_role_synced_{$user->id}";
+        $roleSyncDone  = Cache::get($roleSyncKey);
+
         if ($user->role !== $newRole) {
             Log::info("[SyncKeycloakRole] Role sync: {$user->name} [{$user->role}→{$newRole}]");
             $user->update(['role' => $newRole]);
             Auth::setUser($user->fresh());
+            Cache::put($roleSyncKey, $newRole, self::ROLE_SYNC_INTERVAL);
+        } elseif (! $roleSyncDone) {
+            // Role sama tapi cache belum ada — refresh cache tanpa DB write
+            Cache::put($roleSyncKey, $newRole, self::ROLE_SYNC_INTERVAL);
         }
 
         // Sync permissions dari token ke session — hanya tulis jika ada perubahan
-        // agar tidak force-dirty session setiap request (hemat 1 DB write/request)
-        $permissions    = $this->keycloak->extractPermissionsFromToken($payload);
-        $existingPerms  = $request->session()->get('keycloak_permissions', []);
-        $permsDiffer    = count($permissions) !== count($existingPerms)
-                       || array_diff($permissions, $existingPerms)
-                       || array_diff($existingPerms, $permissions);
+        $permissions   = $this->keycloak->extractPermissionsFromToken($payload);
+        $existingPerms = $request->session()->get('keycloak_permissions', []);
+        $permsDiffer   = count($permissions) !== count($existingPerms)
+                      || array_diff($permissions, $existingPerms)
+                      || array_diff($existingPerms, $permissions);
 
         if ($permsDiffer) {
             $request->session()->put('keycloak_permissions', $permissions);

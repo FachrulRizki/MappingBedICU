@@ -80,30 +80,35 @@ class MRuangMaster extends Model
 
     public static function bedKosong(): \Illuminate\Support\Collection
     {
-        // Ambil semua kode bed yang sudah di-booking di tabel lokal (double-check)
-        $bedSudahDialokasi = collect();
-        try {
-            $extBeds = \App\Models\IcuBookingExternal::whereIn('status', ['bed_confirmed', 'admisi_verified'])
-                ->whereNotNull('allocated_bed_id')
-                ->pluck('allocated_bed_id');
-            $intBeds = \App\Models\IcuSpriInternal::where('status', 'bed_verified')
-                ->whereNotNull('allocated_bed_id')
-                ->pluck('allocated_bed_id');
-            $bedSudahDialokasi = $extBeds->merge($intBeds)->filter()->unique();
-        } catch (\Exception $e) {
-            Log::warning('[MRuangMaster::bedKosong] Gagal cek alokasi lokal: ' . $e->getMessage());
-        }
+        // Simpan sebagai plain array — Collection tidak aman di-serialize ke cache
+        $data = \Illuminate\Support\Facades\Cache::remember('bed_kosong_list', 15, function () {
+            $bedSudahDialokasi = collect();
+            try {
+                $extBeds = \App\Models\IcuBookingExternal::whereIn('status', ['bed_confirmed', 'admisi_verified'])
+                    ->whereNotNull('allocated_bed_id')
+                    ->pluck('allocated_bed_id');
+                $intBeds = \App\Models\IcuSpriInternal::where('status', 'bed_verified')
+                    ->whereNotNull('allocated_bed_id')
+                    ->pluck('allocated_bed_id');
+                $bedSudahDialokasi = $extBeds->merge($intBeds)->filter()->unique();
+            } catch (\Exception $e) {
+                Log::warning('[MRuangMaster::bedKosong] Gagal cek alokasi lokal: ' . $e->getMessage());
+            }
 
-        return static::bedIcuDenganStatus()
-            ->where('Status', 'KOSONG')
-            ->filter(fn($row) => ! $bedSudahDialokasi->contains($row->Kode_RuangM))
-            ->map(fn($row) => [
-                'Kode_Ruang' => $row->Kode_RuangM,
-                'nama_ruang' => $row->Nama_RuangM,
-                'kode_kelas' => $row->kelas_master ?? $row->Kode_Kelas,
-                'nama_kelas' => $row->Nama_Kelas,
-            ])
-            ->values();
+            return static::bedIcuDenganStatus()
+                ->where('Status', 'KOSONG')
+                ->filter(fn($row) => ! $bedSudahDialokasi->contains($row->Kode_RuangM))
+                ->map(fn($row) => [
+                    'Kode_Ruang' => $row->Kode_RuangM,
+                    'nama_ruang' => $row->Nama_RuangM,
+                    'kode_kelas' => $row->kelas_master ?? $row->Kode_Kelas,
+                    'nama_kelas' => $row->Nama_Kelas,
+                ])
+                ->values()
+                ->toArray(); // simpan plain array
+        });
+
+        return collect(is_array($data) ? $data : []);
     }
 
     public static function jenisIcuTersedia(): \Illuminate\Support\Collection
@@ -149,50 +154,51 @@ class MRuangMaster extends Model
 
     public static function bedTersediaUntukKonfirmasi(): \Illuminate\Support\Collection
     {
-        // Kumpulkan semua bed yang sudah di-alokasi di tabel lokal (app booking, bukan RSUS)
-        $pemegangExt = \App\Models\IcuBookingExternal::whereIn('status', ['bed_confirmed', 'admisi_verified'])
-            ->whereNotNull('allocated_bed_id')
-            ->get(['allocated_bed_id', 'nama_pasien', 'id'])
-            ->keyBy('allocated_bed_id');
+        // Simpan sebagai plain array — Collection/Eloquent model tidak aman di-serialize ke cache
+        $data = \Illuminate\Support\Facades\Cache::remember('bed_tersedia_konfirmasi', 15, function () {
+            $pemegangExt = \App\Models\IcuBookingExternal::whereIn('status', ['bed_confirmed', 'admisi_verified'])
+                ->whereNotNull('allocated_bed_id')
+                ->get(['allocated_bed_id', 'nama_pasien', 'id'])
+                ->keyBy('allocated_bed_id');
 
-        $pemegangInt = \App\Models\IcuSpriInternal::where('status', 'bed_verified')
-            ->whereNotNull('allocated_bed_id')
-            ->get(['allocated_bed_id', 'No_MR', 'id'])
-            ->keyBy('allocated_bed_id');
+            $pemegangInt = \App\Models\IcuSpriInternal::where('status', 'bed_verified')
+                ->whereNotNull('allocated_bed_id')
+                ->get(['allocated_bed_id', 'No_MR', 'id'])
+                ->keyBy('allocated_bed_id');
 
-        return static::bedIcuDenganStatus()
-            ->whereIn('Status', ['KOSONG', 'BOOKING'])
-            ->map(function ($row) use ($pemegangExt, $pemegangInt) {
-                $kode      = $row->Kode_RuangM;
-                $rsusStatus = strtoupper($row->Status);
+            return static::bedIcuDenganStatus()
+                ->whereIn('Status', ['KOSONG', 'BOOKING'])
+                ->map(function ($row) use ($pemegangExt, $pemegangInt) {
+                    $kode        = $row->Kode_RuangM;
+                    $rsusStatus  = strtoupper($row->Status);
+                    $pemegang    = $pemegangExt->get($kode) ?? $pemegangInt->get($kode);
 
-                // Cek apakah ada pasien di tabel lokal yang memegang bed ini
-                $pemegang = $pemegangExt->get($kode) ?? $pemegangInt->get($kode);
+                    $effectiveStatus    = $pemegang ? 'BOOKING' : $rsusStatus;
+                    $namaPasienPemegang = null;
+                    $pemegangId         = null;
+                    $pemegangSumber     = null;
 
-                // Jika bed sudah di-alokasi lokal → tampilkan sebagai "BOOKING" (bisa dipreempt)
-                // meski RSUS masih bilang KOSONG — ini cegah duplikasi
-                $effectiveStatus = $pemegang ? 'BOOKING' : $rsusStatus;
+                    if ($pemegang) {
+                        $namaPasienPemegang = $pemegang->nama_pasien ?? $pemegang->No_MR ?? null;
+                        $pemegangId         = $pemegang->id;
+                        $pemegangSumber     = isset($pemegang->nama_pasien) ? 'external' : 'internal';
+                    }
 
-                $namaPasienPemegang = null;
-                $pemegangId         = null;
-                $pemegangSumber     = null;
-                if ($pemegang) {
-                    $namaPasienPemegang = $pemegang->nama_pasien ?? $pemegang->No_MR ?? null;
-                    $pemegangId         = $pemegang->id;
-                    $pemegangSumber     = isset($pemegang->nama_pasien) ? 'external' : 'internal';
-                }
+                    return [
+                        'Kode_Ruang'      => $kode,
+                        'nama_ruang'      => $row->Nama_RuangM,
+                        'kode_kelas'      => $row->kelas_master ?? $row->Kode_Kelas,
+                        'nama_kelas'      => $row->Nama_Kelas,
+                        'status_bed'      => $effectiveStatus,
+                        'pasien_pemegang' => $namaPasienPemegang,
+                        'pemegang_id'     => $pemegangId,
+                        'pemegang_sumber' => $pemegangSumber,
+                    ];
+                })
+                ->values()
+                ->toArray(); // simpan plain array
+        });
 
-                return [
-                    'Kode_Ruang'         => $kode,
-                    'nama_ruang'         => $row->Nama_RuangM,
-                    'kode_kelas'         => $row->kelas_master ?? $row->Kode_Kelas,
-                    'nama_kelas'         => $row->Nama_Kelas,
-                    'status_bed'         => $effectiveStatus,  // 'KOSONG' | 'BOOKING'
-                    'pasien_pemegang'    => $namaPasienPemegang,
-                    'pemegang_id'        => $pemegangId,
-                    'pemegang_sumber'    => $pemegangSumber,
-                ];
-            })
-            ->values();
+        return collect(is_array($data) ? $data : []);
     }
 }

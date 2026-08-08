@@ -132,6 +132,10 @@ class MenuIcuController extends Controller
 
         $this->activityLog->konfirmasibed($booking->id, $booking->nama_pasien, $namaBed);
 
+        // Invalidate cache bed agar halaman lain langsung melihat status terbaru
+        \Illuminate\Support\Facades\Cache::forget('bed_kosong_list');
+        \Illuminate\Support\Facades\Cache::forget('bed_tersedia_konfirmasi');
+
         return redirect()->route('icu.menu_icu')
             ->with('success', "Bed {$namaBed} ({$v['kebutuhan_bed']}) dikonfirmasi untuk {$booking->nama_pasien}. Admisi akan memproses melalui Bed Management.");
     }
@@ -199,6 +203,10 @@ class MenuIcuController extends Controller
         ]);
 
         $this->activityLog->verifikasibed($bu->id, $namaPasien, $namaBed);
+
+        // Invalidate cache bed agar halaman lain langsung melihat status terbaru
+        \Illuminate\Support\Facades\Cache::forget('bed_kosong_list');
+        \Illuminate\Support\Facades\Cache::forget('bed_tersedia_konfirmasi');
 
         return redirect()->route('icu.menu_icu')
             ->with('success', "Bed {$namaBed} terverifikasi untuk {$namaPasien}. Admisi akan memproses melalui Bed Management.");
@@ -353,6 +361,10 @@ class MenuIcuController extends Controller
 
         $this->activityLog->pindahBedExt($booking->id, $booking->nama_pasien, $bedLama, $namaBed);
 
+        // Invalidate cache bed
+        \Illuminate\Support\Facades\Cache::forget('bed_kosong_list');
+        \Illuminate\Support\Facades\Cache::forget('bed_tersedia_konfirmasi');
+
         $msg = $booking->status === 'masuk_icu'
             ? "Bed pasien {$booking->nama_pasien} diupdate: {$bedLama} → {$namaBed}. Perlu diproses di Bed Management."
             : "Rekomendasi bed pasien {$booking->nama_pasien} diubah: {$bedLama} → {$namaBed}. Admisi perlu memperbarui di Bed Management.";
@@ -411,6 +423,10 @@ class MenuIcuController extends Controller
         $bu->update($updateData);
 
         $this->activityLog->pindahBedInt($bu->id, $namaPasien, $bedLama, $namaBed);
+
+        // Invalidate cache bed
+        \Illuminate\Support\Facades\Cache::forget('bed_kosong_list');
+        \Illuminate\Support\Facades\Cache::forget('bed_tersedia_konfirmasi');
 
         $msg = $bu->status === 'masuk_icu'
             ? "Bed pasien {$namaPasien} diupdate: {$bedLama} → {$namaBed}. Perlu diproses di Bed Management."
