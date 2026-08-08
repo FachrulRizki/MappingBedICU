@@ -234,7 +234,7 @@ const doFetchRiwayatIcu = async (noMr) => {
 }
 // ────────────────────────────────────────────────────────────────────────────
 
-const fmSpri = useForm({ No_MR:'', No_Reg:'', Diagnosis:'', Diagnosis_ICD:'', IndikasiRI:'', asal_ruang:'', Dokter:'', spesialis:'', Keterangan:'' })
+const fmSpri = useForm({ No_MR:'', No_Reg:'', Diagnosis:'', Diagnosis_ICD:'', IndikasiRI:'', jenis_icu:'', asal_ruang:'', Dokter:'', spesialis:'', Keterangan:'' })
 
 const resetSpri = () => {
     skipLookupWatch.value = false; fmSpri.reset()
@@ -360,7 +360,7 @@ const submitSpri = () => fmSpri.post(route('icu.menu_petugas.spri.store'), { onS
 const canSubmit  = computed(() => fmSpri.No_MR.trim() && fmSpri.No_Reg.trim() && fmSpri.Diagnosis.trim() && fmSpri.IndikasiRI.trim() && lookupResult.value?.found)
 
 // Edit SPRI
-const fmEditSpri = useForm({ No_MR:'', No_Reg:'', Diagnosis:'', Diagnosis_ICD:'', IndikasiRI:'', asal_ruang:'', Dokter:'', spesialis:'', Keterangan:'' })
+const fmEditSpri = useForm({ No_MR:'', No_Reg:'', Diagnosis:'', Diagnosis_ICD:'', IndikasiRI:'', jenis_icu:'', asal_ruang:'', Dokter:'', spesialis:'', Keterangan:'' })
 const editingSpriId = ref(null)
 const openEditSpri = (item) => {
     selectedItem.value = item
@@ -370,6 +370,7 @@ const openEditSpri = (item) => {
     fmEditSpri.Diagnosis     = item.Diagnosis   ?? item.diagnosa ?? ''
     fmEditSpri.Diagnosis_ICD = item.Diagnosis_ICD ?? item.diagnosa_icd ?? ''
     fmEditSpri.IndikasiRI    = item.IndikasiRI  ?? ''
+    fmEditSpri.jenis_icu     = item.jenis_icu   ?? ''
     fmEditSpri.asal_ruang    = item.asal_ruang  ?? ''
     fmEditSpri.Dokter        = item.Dokter      ?? ''
     fmEditSpri.spesialis     = item.spesialis   ?? ''
@@ -828,6 +829,14 @@ const hapusSpri = (item) => {
                   <p class="mp-detail-val font-mono text-xs">{{ selectedItem.created_at_fmt }}</p>
                 </div>
               </div>
+              <!-- Jenis ICU badge -->
+              <div v-if="selectedItem.jenis_icu" class="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold"
+                style="background:rgba(0,168,132,.12);color:#00A884;border:1px solid rgba(0,168,132,.25)">
+                <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                </svg>
+                Jenis ICU: {{ selectedItem.jenis_icu }}
+              </div>
             </div>
 
             <!-- Timeline aksi -->
@@ -1109,8 +1118,8 @@ const hapusSpri = (item) => {
                 </p>
               </div>
 
-              <!-- Indikasi & ICD-10 - berdampingan di sm+, stack di mobile -->
-              <div>
+              <!-- Indikasi -->
+              <div class="sm:col-span-2">
                 <label class="mp-label">Indikasi Rawat ICU <span style="color:#E74C3C">*</span></label>
                 <input
                   v-model="fmSpri.IndikasiRI"
@@ -1119,6 +1128,16 @@ const hapusSpri = (item) => {
                   class="mp-input w-full"
                   :style="fmSpri.errors.IndikasiRI ? 'border-color:#E74C3C' : ''"
                 />
+              </div>
+
+              <!-- Jenis ICU & ICD-10 - berdampingan -->
+              <div>
+                <label class="mp-label">Jenis ICU</label>
+                <select v-model="fmSpri.jenis_icu" class="mp-select w-full">
+                  <option value="">-- Pilih Jenis ICU --</option>
+                  <option v-for="k in masterKelas" :key="k.kode" :value="k.nama">{{ k.nama }}</option>
+                </select>
+                <p class="text-xs mt-1" style="color:var(--text-muted)">Tipe ruangan yang dibutuhkan</p>
               </div>
 
               <div>
@@ -1135,9 +1154,7 @@ const hapusSpri = (item) => {
                   :has-error="false"
                   class="w-full"
                 />
-                <p class="text-xs mt-1" style="color:var(--text-muted)">
-                  Opsional diisi untuk keperluan klaim BPJS
-                </p>
+                <p class="text-xs mt-1" style="color:var(--text-muted)">Opsional — keperluan klaim BPJS</p>
               </div>
 
               <!-- Keterangan - full width -->
@@ -1204,15 +1221,24 @@ const hapusSpri = (item) => {
               <input v-model="fmEditSpri.Diagnosis" required placeholder="Diagnosis pasien" class="mp-input w-full"/>
             </div>
             <div>
-              <label class="mp-label">
-                Kode ICD-10
-                <span class="ml-1 normal-case font-normal text-xs px-2 py-0.5 rounded-full" style="background:rgba(14,165,233,.1);color:#0EA5E9">Opsional</span>
-              </label>
-              <Icd10Search v-model="fmEditSpri.Diagnosis_ICD" placeholder="Cari kode ICD-10 (opsional)..." :required="false" :has-error="false"/>
-            </div>
-            <div>
               <label class="mp-label">Indikasi Rawat Inap <span style="color:#E74C3C">*</span></label>
               <textarea v-model="fmEditSpri.IndikasiRI" required rows="2" placeholder="Indikasi ICU..." class="mp-textarea w-full resize-none"></textarea>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="mp-label">Jenis ICU</label>
+                <select v-model="fmEditSpri.jenis_icu" class="mp-select w-full">
+                  <option value="">-- Pilih --</option>
+                  <option v-for="k in masterKelas" :key="k.kode" :value="k.nama">{{ k.nama }}</option>
+                </select>
+              </div>
+              <div>
+                <label class="mp-label">
+                  Kode ICD-10
+                  <span class="ml-1 normal-case font-normal text-xs px-2 py-0.5 rounded-full" style="background:rgba(14,165,233,.1);color:#0EA5E9">Opsional</span>
+                </label>
+                <Icd10Search v-model="fmEditSpri.Diagnosis_ICD" placeholder="Cari kode ICD-10..." :required="false" :has-error="false"/>
+              </div>
             </div>
             <div class="grid grid-cols-2 gap-3">
               <div>

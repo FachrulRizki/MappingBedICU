@@ -961,6 +961,17 @@ watch([viewTab, fStatus, fJenis, fNama, fTglDari, fTglAkh], resetPage);
                     <p v-if="modal.item.kebutuhan_bed" class="text-xs mt-0.5" style="color:var(--text-muted)">{{
                       modal.item.kebutuhan_bed }}</p>
                   </div>
+                  <!-- Jenis ICU — tampil jika ada, span 2 kolom -->
+                  <div v-if="modal.item.jenis_icu" class="sm:col-span-2 space-y-1">
+                    <p class="text-xs font-medium" style="color:var(--text-muted)">Jenis Booking ICU/HCU</p>
+                    <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold"
+                      style="background:rgba(0,168,132,.12);color:#00A884;border:1px solid rgba(0,168,132,.25)">
+                      <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                      </svg>
+                      {{ modal.item.jenis_icu }}
+                    </span>
+                  </div>
                   <div class="sm:col-span-2 space-y-0.5">
                     <p class="text-xs font-medium" style="color:var(--text-muted)">Waktu Booking</p>
                     <p class="text-sm font-bold font-mono" style="color:var(--text-primary)">{{

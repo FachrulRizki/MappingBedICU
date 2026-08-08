@@ -10,7 +10,7 @@ class IcuSpriInternal extends Model
 
     protected $fillable = [
         'No_MR', 'No_Reg',
-        'Diagnosis', 'Diagnosis_ICD', 'IndikasiRI', 'kebutuhan_bed',
+        'Diagnosis', 'Diagnosis_ICD', 'IndikasiRI', 'kebutuhan_bed', 'jenis_icu',
         'asal_ruang', 'Dokter', 'spesialis', 'Keterangan',
         'NameUser',
         'catatan_admisi',

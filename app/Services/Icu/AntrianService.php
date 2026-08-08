@@ -437,6 +437,7 @@ class AntrianService
             'IndikasiRI'     => $s->IndikasiRI,
             'spesialis'      => $s->spesialis,
             'kebutuhan_bed'  => $s->kebutuhan_bed,
+            'jenis_icu'      => $s->jenis_icu,
             'nama_bed'       => $s->nama_bed,
             'jaminan'        => $jaminan,
             'catatan_admisi' => $s->catatan_admisi,

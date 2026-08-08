@@ -130,6 +130,23 @@ class MRuangMaster extends Model
             ->values();
     }
 
+    /**
+     * Semua jenis ICU dari tabel (tanpa filter ketersediaan bed).
+     * Dipakai untuk dropdown pilihan jenis ICU saat booking.
+     */
+    public static function jenisIcuSemua(): \Illuminate\Support\Collection
+    {
+        return static::bedIcuDenganStatus()
+            ->whereNotNull('Nama_Kelas')
+            ->unique('kelas_master')
+            ->map(fn($row) => [
+                'kode' => $row->kelas_master ?? $row->Kode_Kelas,
+                'nama' => $row->Nama_Kelas,
+            ])
+            ->sortBy('nama')
+            ->values();
+    }
+
     public static function bedTersediaUntukKonfirmasi(): \Illuminate\Support\Collection
     {
         // Kumpulkan semua bed yang sudah di-alokasi di tabel lokal (app booking, bukan RSUS)
