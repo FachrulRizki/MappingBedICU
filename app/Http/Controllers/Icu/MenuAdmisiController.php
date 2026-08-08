@@ -36,9 +36,22 @@ class MenuAdmisiController extends Controller
 
     public function index(Request $request): Response
     {
-        // Sync status bed agar data antrian yang tampil selalu up-to-date
-        // (pasien yang sudah masuk ICU hilang dari antrian, pasien keluar masuk laporan)
-        $this->bedSync->sync();
+        // Sync dijalankan hanya jika data stale > 60 detik atau di dev.
+        // Di production, scheduler 'icu:sync-bed' yang handle setiap 30 detik.
+        $lastSync = \Illuminate\Support\Facades\Cache::get('icu_bed_last_sync', 0);
+        $stale    = (time() - $lastSync) > 60;
+
+        if (! app()->environment('production') || $stale) {
+            $lock = \Illuminate\Support\Facades\Cache::lock('icu_bed_sync_running', 30);
+            if ($lock->get()) {
+                try {
+                    $this->bedSync->sync();
+                    \Illuminate\Support\Facades\Cache::put('icu_bed_last_sync', time(), 120);
+                } finally {
+                    $lock->release();
+                }
+            }
+        }
 
         $data = $this->service->build($request);
 
@@ -219,8 +232,8 @@ class MenuAdmisiController extends Controller
     {
         $bu = IcuSpriInternal::findOrFail($id);
 
-        // Hanya bisa batalkan jika belum terlalu jauh diproses
-        if (!in_array($bu->status, ['pending_admisi', 'pending_icu', 'waiting_list'])) {
+        // Hanya bisa batalkan jika belum terlalu jauh diproses (termasuk bed_verified)
+        if (!in_array($bu->status, ['pending_admisi', 'pending_icu', 'waiting_list', 'bed_verified'])) {
             return back()->with('error', 'Booking ICU tidak dapat dibatalkan.');
         }
 
@@ -231,12 +244,22 @@ class MenuAdmisiController extends Controller
         $namaPasien = (string) ($bu->pasien?->Nama_Pasien ?? $bu->No_MR);
         $oldStatus  = $bu->status;
 
-        $bu->update([
+        $updateData = [
             'status'        => 'dibatalkan',
             'alasan_batal'  => $v['alasan_batal'] ?? null,
             'dibatalkan_by' => $this->actor(),
             'dibatalkan_at' => now(),
-        ]);
+        ];
+
+        // Release allocated bed jika bed_verified
+        if ($oldStatus === 'bed_verified') {
+            $updateData['allocated_bed_id'] = null;
+            $updateData['nama_bed']         = null;
+            $updateData['verified_by']      = null;
+            $updateData['verified_at']      = null;
+        }
+
+        $bu->update($updateData);
 
         $this->activityLog->log(
             'Batal Booking Internal',

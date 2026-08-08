@@ -3,6 +3,8 @@ import { ref, computed, watch, nextTick } from 'vue'
 import { router, useForm } from '@inertiajs/vue3'
 import AppLayout   from '@/Layouts/AppLayout.vue'
 import Icd10Search from '@/Components/Icd10Search.vue'
+import Pagination  from '@/Components/Pagination.vue'
+import { usePagination } from '@/composables/usePagination.js'
 import { useAuth } from '@/composables/useAuth.js'
 
 const { canBuatSpriInternal, isAdmin } = useAuth()
@@ -183,6 +185,12 @@ const tabCounts = computed(() => ({
     riwayat:      spriRiwayat.value.length,
     waiting_list: spriWaitingList.value.length,
 }))
+
+// ── Pagination ─────────────────────────────────────────────────────────────
+const { page, perPage, totalPages, paginated: paginatedList, pageRange, goTo, next, prev, reset: resetPage } = usePagination(tabList, 10);
+
+// Reset ke hal. 1 saat tab atau filter status berubah
+watch([activeTab, fStatus, fNama, fTglDari, fTglAkh], resetPage);
 const selectDetail = (item) => {
     selectedItem.value = selectedItem.value?.id === item.id ? null : item
 }
@@ -664,7 +672,7 @@ const hapusSpri = (item) => {
           </div>
 
           <!-- Row desktop -->
-          <div v-for="item in tabList" :key="`row-${item.id}`"
+          <div v-for="item in paginatedList" :key="`row-${item.id}`"
             class="mp-row hidden sm:grid"
             :class="selectedItem?.id===item.id ? 'mp-row--active' : ''"
             :style="`border-left:3px solid ${ss(item.status).dot}`"
@@ -717,7 +725,7 @@ const hapusSpri = (item) => {
           </div>
 
           <!-- Row mobile card -->
-          <div v-for="item in tabList" :key="`mob-${item.id}`"
+          <div v-for="item in paginatedList" :key="`mob-${item.id}`"
             class="mp-mobile-card sm:hidden"
             :class="selectedItem?.id===item.id ? 'mp-row--active' : ''"
             :style="`border-left:3px solid ${ss(item.status).dot}`"
@@ -940,8 +948,8 @@ const hapusSpri = (item) => {
                   </svg>
                   Edit Booking
                 </button>
-                <!-- Batal -->
-                <button v-if="['pending_admisi','pending_icu','waiting_list'].includes(selectedItem.status)"
+                <!-- Batal — termasuk saat bed_verified -->
+                <button v-if="['pending_admisi','pending_icu','waiting_list','bed_verified'].includes(selectedItem.status)"
                   @click="openBatalSpriModal(selectedItem)"
                   class="w-full text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all hover:-translate-y-px"
                   style="background:rgba(217,119,6,.08); color:#D97706; border:1.5px solid rgba(217,119,6,.2)">
@@ -950,16 +958,6 @@ const hapusSpri = (item) => {
                   </svg>
                   Batalkan Booking
                 </button>
-                <!-- Hapus -->
-                <button v-if="['pending_admisi','pending_icu','ditolak','dibatalkan'].includes(selectedItem.status)"
-                  @click="hapusSpri(selectedItem)"
-                  class="w-full text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all hover:-translate-y-px"
-                  style="background:rgba(231,76,60,.05); color:#E74C3C; border:1.5px solid rgba(231,76,60,.2)">
-                  <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                  </svg>
-                  Hapus Permanen
-                </button>
               </div>
             </template>
           </div>
@@ -967,9 +965,17 @@ const hapusSpri = (item) => {
 
       </div><!-- /mp-content -->
 
-      <!-- Footer row count -->
-      <div class="px-4 py-3 border-t text-xs" style="border-color:var(--border-default);color:var(--text-secondary)">
-        Menampilkan <strong style="color:var(--text-primary)">{{ tabList.length }}</strong> data
+      <!-- Footer: info + pagination -->
+      <div class="px-4 py-3 border-t flex flex-col sm:flex-row sm:items-center gap-2"
+        style="border-color:var(--border-default);color:var(--text-secondary)">
+        <p class="text-xs flex-shrink-0">
+          Menampilkan <strong style="color:var(--text-primary)">{{ tabList.length }}</strong> data
+        </p>
+        <div class="sm:ml-auto">
+          <Pagination :page="page" :total-pages="totalPages" :page-range="pageRange"
+            :total="tabList.length" :per-page="perPage"
+            @go="goTo" @prev="prev" @next="next" />
+        </div>
       </div>
 
     </div><!-- /mp-right-panel -->

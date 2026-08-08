@@ -81,11 +81,14 @@ class MenuPetugasController extends Controller
         }
 
         $data      = $q->get();
-        $pasienMap = RegistrasiPasien::whereIn('No_MR', $data->pluck('No_MR')->unique())->get()->keyBy('No_MR');
 
-        // Batch-lookup jaminan dari SQL Server RS
+        // Cache nama pasien per-record di RSUS — hemat query berulang
+        $noMrList  = $data->pluck('No_MR')->filter()->unique()->values()->toArray();
+        $pasienMap = $this->fetchPasienMapCached($noMrList);
+
+        // Cache jaminan per-record — hemat query RSUS berulang
         $noRegs     = $data->pluck('No_Reg')->filter()->unique()->values()->toArray();
-        $jaminanMap = $this->buildJaminanMap($noRegs);
+        $jaminanMap = $this->buildJaminanMapCached($noRegs);
 
         $spriList = $data->map(fn ($s) => $this->format($s, $pasienMap, $jaminanMap[$s->No_Reg] ?? null));
 
@@ -99,13 +102,18 @@ class MenuPetugasController extends Controller
                 : $spriList->sortByDesc(fn ($i) => strtolower($i['nama_pasien']))->values();
         }
 
-        $allData = IcuSpriInternal::query()->whereIn('NameUser', $this->actorNames())->get();
+        // Summary: gunakan $data yang sudah di-query, tidak perlu query ulang
+        $allData = IcuSpriInternal::query()->whereIn('NameUser', $this->actorNames())
+            ->selectRaw('status, COUNT(*) as cnt')
+            ->groupBy('status')
+            ->pluck('cnt', 'status');
+
         $summary = [
-            'total'        => $allData->count(),
-            'pending_icu'  => $allData->where('status', 'pending_icu')->count(),
-            'waiting_list' => $allData->where('status', 'waiting_list')->count(),
-            'bed_verified' => $allData->where('status', 'bed_verified')->count(),
-            'ditolak'      => $allData->where('status', 'ditolak')->count(),
+            'total'        => $allData->sum(),
+            'pending_icu'  => $allData->get('pending_icu', 0),
+            'waiting_list' => $allData->get('waiting_list', 0),
+            'bed_verified' => $allData->get('bed_verified', 0),
+            'ditolak'      => $allData->get('ditolak', 0),
         ];
 
         /** @var \App\Models\User|null $authUser */
@@ -115,7 +123,7 @@ class MenuPetugasController extends Controller
             'spriList'        => $spriList,
             'summary'         => $summary,
             'filters'         => compact('fNama', 'fTgl', 'fTglDari', 'fTglAkh', 'fStatus', 'fJaminan', 'sortBy', 'sortDir'),
-            'pasienAktif'     => $this->getPasienAktif(''),
+            'pasienAktif'     => $this->getPasienAktifCached(),
             'wardIds'         => $this->userWardIds(),
             'authProvider'    => $authUser?->auth_provider ?? 'local',
             'isIgdUser'       => $this->isIgdUser(),
@@ -125,6 +133,93 @@ class MenuPetugasController extends Controller
             'masterCaraBayar' => MCaraBayar::list(),
             'flash'           => ['success' => session('success'), 'error' => session('error')],
         ]);
+    }
+
+    private function fetchPasienMapCached(array $noMrs): \Illuminate\Database\Eloquent\Collection|\Illuminate\Support\Collection
+    {
+        if (empty($noMrs)) return collect();
+
+        $result  = collect();
+        $missing = [];
+
+        foreach ($noMrs as $noMr) {
+            $cached = \Illuminate\Support\Facades\Cache::get("pasien:{$noMr}");
+            if ($cached !== null) {
+                $result[$noMr] = (object) $cached;
+            } else {
+                $missing[] = $noMr;
+            }
+        }
+
+        if (! empty($missing)) {
+            try {
+                $rows = RegistrasiPasien::whereIn('No_MR', $missing)->get()->keyBy('No_MR');
+                foreach ($missing as $noMr) {
+                    $row = $rows->get($noMr);
+                    \Illuminate\Support\Facades\Cache::put("pasien:{$noMr}", $row ? $row->toArray() : [], 600);
+                    if ($row) $result[$noMr] = $row;
+                }
+            } catch (\Exception $e) {
+                Log::warning('[MenuPetugas::fetchPasienMapCached] ' . $e->getMessage());
+            }
+        }
+
+        return $result;
+    }
+
+    private function buildJaminanMapCached(array $noRegs): array
+    {
+        if (empty($noRegs)) return [];
+
+        $result  = [];
+        $missing = [];
+
+        foreach ($noRegs as $noReg) {
+            $cached = \Illuminate\Support\Facades\Cache::get("jaminan_petugas:{$noReg}");
+            if ($cached !== null) {
+                $result[$noReg] = $cached;
+            } else {
+                $missing[] = $noReg;
+            }
+        }
+
+        if (! empty($missing)) {
+            try {
+                $rows = DB::connection('sqlsrv_rsus')
+                    ->table('PENDAFTARAN as p')
+                    ->leftJoin('M_CARABAYAR as cb', 'p.Kode_Bayar', '=', 'cb.Kode_Bayar')
+                    ->whereIn('p.No_Reg', $missing)
+                    ->select(['p.No_Reg', 'p.Kode_Bayar', DB::raw("ISNULL(cb.Ket_Bayar, p.Kode_Bayar) as ket_bayar")])
+                    ->get();
+
+                $indexed = $rows->keyBy('No_Reg');
+                foreach ($missing as $noReg) {
+                    $row = $indexed->get($noReg);
+                    $val = $row ? ['kode' => $row->Kode_Bayar ?? '', 'nama' => $this->formatNamaDokter(trim($row->ket_bayar ?? ''))] : ['kode' => '', 'nama' => ''];
+                    \Illuminate\Support\Facades\Cache::put("jaminan_petugas:{$noReg}", $val, 300);
+                    $result[$noReg] = $val;
+                }
+            } catch (\Exception $e) {
+                Log::warning('[MenuPetugas::buildJaminanMapCached] ' . $e->getMessage());
+            }
+        }
+
+        return $result;
+    }
+
+    private function getPasienAktifCached(): array
+    {
+        /** @var \App\Models\User|null $user */
+        $user    = Auth::user();
+        $userId  = $user?->id ?? 'guest';
+        $cacheKey = "pasien_aktif:{$userId}";
+
+        $cached = \Illuminate\Support\Facades\Cache::get($cacheKey);
+        if ($cached !== null) return $cached;
+
+        $result = $this->getPasienAktif('');
+        \Illuminate\Support\Facades\Cache::put($cacheKey, $result, 120); // 2 menit
+        return $result;
     }
 
     private function buildJaminanMap(array $noRegs): array
@@ -561,8 +656,8 @@ class MenuPetugasController extends Controller
     {
         $bu = IcuSpriInternal::findOrFail($id);
 
-        // Hanya bisa batalkan jika masih pending atau waiting_list
-        if (!in_array($bu->status, ['pending_admisi', 'pending_icu', 'waiting_list'])) {
+        // Hanya bisa batalkan jika belum terlalu jauh diproses (termasuk bed_verified)
+        if (!in_array($bu->status, ['pending_admisi', 'pending_icu', 'waiting_list', 'bed_verified'])) {
             return back()->with('error', 'Booking ICU tidak dapat dibatalkan.');
         }
 
@@ -574,10 +669,20 @@ class MenuPetugasController extends Controller
 
         $oldStatus = $bu->status;
 
-        $bu->update([
-            'status' => 'dibatalkan',
+        $updateData = [
+            'status'       => 'dibatalkan',
             'alasan_tolak' => 'Dibatalkan oleh ' . $this->actor(),
-        ]);
+        ];
+
+        // Jika bed sudah diverifikasi, release allocated bed agar tidak menggantung
+        if ($oldStatus === 'bed_verified') {
+            $updateData['allocated_bed_id'] = null;
+            $updateData['nama_bed']         = null;
+            $updateData['verified_by']      = null;
+            $updateData['verified_at']      = null;
+        }
+
+        $bu->update($updateData);
 
         $this->activityLog->log(
             'Batal BookingICU',

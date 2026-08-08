@@ -220,8 +220,10 @@ export function useNotifikasi() {
 
     function doAutoRefresh() {
         try {
+            // Hanya refresh data antrian & summary — TIDAK menyentuh kamarKosong/statusKamarMap
+            // karena keduanya query RSUS dan di-cache terpisah
             router.reload({
-                only          : ['antrian', 'summary', 'spriList', 'kamarKosong', 'statusKamarMap'],
+                only          : ['antrian', 'summary', 'spriList'],
                 preserveScroll: true,
                 preserveState : true,
             });

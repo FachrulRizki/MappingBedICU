@@ -3,6 +3,8 @@ import { ref, computed, watch } from 'vue';
 import { router, useForm }  from '@inertiajs/vue3';
 import AppLayout  from '@/Layouts/AppLayout.vue';
 import Icd10Search from '@/Components/Icd10Search.vue';
+import Pagination from '@/Components/Pagination.vue';
+import { usePagination } from '@/composables/usePagination.js';
 import { useAuth } from '@/composables/useAuth.js';
 
 const { canBuatBookingExternal, canVerifikasiAdmisiExt, canApproveAdmisi, canTolakAdmisi, isAdmin } = useAuth();
@@ -182,8 +184,7 @@ const canAct = computed(() => canVerifikasiAdmisiExt.value || canApproveAdmisi.v
 const actionsOf = (item) => {
     if (!canAct.value) return [];
     const acts = [];
-    // ── Internal: HANYA tampil data, TIDAK ada aksi approve/tolak/edit/batal di menu Admisi ──
-    // Aksi internal dikelola di Menu Petugas (oleh petugas ruang yang mengajukan)
+    // ── External: verifikasi, edit, batal ──────────────────────────────────
     if (item.sumber === 'external' && item.status === 'bed_confirmed') {
         if (canVerifikasiAdmisiExt.value || isAdmin.value) {
             acts.push({ id:'verifikasi', label:'Verifikasi Pasien', color:'#00A884', bg:'rgba(0,168,132,.12)', border:'rgba(0,168,132,.3)' });
@@ -195,18 +196,19 @@ const actionsOf = (item) => {
             acts.push({ id:'edit', label:'Edit Booking', color:'#0EA5E9', bg:'rgba(14,165,233,.08)', border:'rgba(14,165,233,.25)' });
         }
     }
-    // Batal — hanya booking external yang masih bisa dibatalkan
+    // Batal external — pending, waiting_list, bed_confirmed
     if (item.sumber === 'external' && ['pending_icu', 'waiting_list', 'bed_confirmed'].includes(item.status)) {
         if (canBuatBookingExternal.value || isAdmin.value) {
             acts.push({ id:'batal', label:'Batal Booking', color:'#D97706', bg:'rgba(217,119,6,.08)', border:'rgba(217,119,6,.25)' });
         }
     }
-    // Hapus — hanya booking external pending, ditolak, atau dibatalkan
-    if (item.sumber === 'external' && ['pending_icu', 'ditolak', 'dibatalkan'].includes(item.status)) {
-        if (canBuatBookingExternal.value || isAdmin.value) {
-            acts.push({ id:'hapus', label:'Hapus Booking', color:'#E74C3C', bg:'rgba(231,76,60,.05)', border:'rgba(231,76,60,.2)' });
+    // ── Internal: admisi bisa batalkan termasuk saat bed_verified ──────────
+    if (item.sumber === 'internal' && ['pending_admisi', 'pending_icu', 'waiting_list', 'bed_verified'].includes(item.status)) {
+        if (canApproveAdmisi.value || isAdmin.value) {
+            acts.push({ id:'batal_internal', label:'Batalkan Booking Internal', color:'#D97706', bg:'rgba(217,119,6,.08)', border:'rgba(217,119,6,.25)' });
         }
     }
+    // Hapus dihilangkan — data tidak boleh dihapus permanen dari UI
     return acts;
 };
 
@@ -408,6 +410,12 @@ const jenisOptions = [
     { value:'external', label:'Booking Eksternal' },
     { value:'internal', label:'Booking Internal' },
 ];
+
+// ── Pagination ─────────────────────────────────────────────────────────────
+const { page, perPage, totalPages, paginated: paginatedFiltered, pageRange, goTo, next, prev, reset: resetPage } = usePagination(currentView, 10);
+
+// Reset ke hal. 1 saat tab, filter, atau jenis berubah
+watch([viewTab, fStatus, fJenis, fNama, fTglDari, fTglAkh], resetPage);
 </script>
 
 <template>
@@ -666,7 +674,7 @@ const jenisOptions = [
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="(item, idx) in antrianFiltered" :key="`${item.sumber}-${item.id}`"
+                        <tr v-for="(item, idx) in paginatedFiltered" :key="`${item.sumber}-${item.id}`"
                             @click="openModal('detail', item)"
                             class="cursor-pointer group"
                             style="border-bottom:1px solid var(--border-row); transition:background .15s ease, transform .15s ease, box-shadow .15s ease"
@@ -677,7 +685,7 @@ const jenisOptions = [
                             <td class="px-4 py-4">
                                 <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
                                     style="background:var(--bg-input); color:var(--text-muted); font-family:'DM Mono',monospace">
-                                    {{ idx+1 }}
+                                    {{ (page - 1) * perPage + idx + 1 }}
                                 </span>
                             </td>
                             <!-- Pasien -->
@@ -764,11 +772,17 @@ const jenisOptions = [
                         </tr>
                     </tbody>
                 </table>
+                <!-- Pagination desktop -->
+                <div class="px-4 py-3">
+                    <Pagination :page="page" :total-pages="totalPages" :page-range="pageRange"
+                        :total="currentView.length" :per-page="perPage" label="data"
+                        @go="goTo" @prev="prev" @next="next" />
+                </div>
             </div>
 
             <!-- TAMPILAN MOBILE — Kartu vertikal -->
             <div class="block md:hidden divide-y" style="border-color:var(--border-default)">
-                <div v-for="(item, idx) in antrianFiltered" :key="`mob-${item.sumber}-${item.id}`"
+                <div v-for="(item, idx) in paginatedFiltered" :key="`mob-${item.sumber}-${item.id}`"
                     @click="openModal('detail', item)"
                     class="p-5 cursor-pointer relative"
                     style="border-left:4px solid transparent; transition:background .15s ease"
@@ -821,8 +835,14 @@ const jenisOptions = [
             <!-- Footer -->
             <div class="px-5 py-3.5 flex items-center justify-between" style="border-top:1px solid var(--border-default); background:var(--bg-surface-2)">
                 <p class="text-xs" style="color:var(--text-secondary)">
-                    Menampilkan <strong style="color:var(--text-primary)">{{ antrianFiltered.length }}</strong> data
+                    Menampilkan <strong style="color:var(--text-primary)">{{ currentView.length }}</strong> data
                 </p>
+            </div>
+            <!-- Pagination mobile -->
+            <div class="block md:hidden px-4 py-3" style="border-top:1px solid var(--border-default)">
+                <Pagination :page="page" :total-pages="totalPages" :page-range="pageRange"
+                    :total="currentView.length" :per-page="perPage" label="data"
+                    @go="goTo" @prev="prev" @next="next" />
             </div>
         </div>
     </div>
@@ -1056,7 +1076,7 @@ const jenisOptions = [
                         <p class="text-xs font-bold uppercase tracking-widest" style="color:var(--text-muted)">Tindakan Tersedia</p>
                         <div class="flex flex-col gap-2.5">
                             <template v-for="act in actionsOf(modal.item)" :key="act.id">
-                                <button @click="act.id==='verifikasi' ? openVerifModal(modal.item) : act.id==='edit' ? openEditModal(modal.item) : act.id==='batal' ? openBatalModal(modal.item) : act.id==='hapus' ? hapusBooking(modal.item) : openModal(act.id, modal.item)"
+                                <button @click="act.id==='verifikasi' ? openVerifModal(modal.item) : act.id==='edit' ? openEditModal(modal.item) : act.id==='batal' ? openBatalModal(modal.item) : act.id==='batal_internal' ? openBatalInternalModal(modal.item) : openModal(act.id, modal.item)"
                                     class="w-full text-sm font-bold py-3 rounded-xl flex items-center justify-center transition-all duration-150 hover:-translate-y-px hover:brightness-105"
                                     :style="`background:${act.bg}; color:${act.color}; border:1.5px solid ${act.border}`">
                                     {{ act.label }}

@@ -1,7 +1,9 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { router } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import Pagination from '@/Components/Pagination.vue';
+import { usePagination } from '@/composables/usePagination.js';
 import { Pie } from 'vue-chartjs';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 ChartJS.register(ArcElement, Tooltip, Legend);
@@ -104,6 +106,14 @@ const statusOptions = [
   {value:'bed_confirmed',label:'Bed Dikonfirmasi'},{value:'bed_verified',label:'Bed Terverifikasi'},
   {value:'admisi_verified',label:'Terverifikasi'},
 ];
+
+// ── Pagination ─────────────────────────────────────────────────────────────
+// MenuYanmed tidak punya tab, langsung paginate props.pasien
+const pasienList = computed(() => props.pasien);
+const { page, perPage, totalPages, paginated: paginatedPasien, pageRange, goTo, next, prev, reset: resetPage } = usePagination(pasienList, 10);
+
+// Reset ke hal. 1 saat filter berubah
+watch([fJenis, fStatus, fAsal, fNama, fTglDari, fTglAkh], resetPage);
 </script>
 
 <template>
@@ -303,13 +313,13 @@ const statusOptions = [
               </tr>
             </thead>
             <tbody>
-              <tr v-for="(item,idx) in pasien" :key="`${item.sumber}-${item.id}`"
+              <tr v-for="(item,idx) in paginatedPasien" :key="`${item.sumber}-${item.id}`"
                 @click="openDetail(item)" class="group cursor-pointer transition-all"
                 style="border-bottom:1px solid var(--border-row)"
                 :style="`border-left:4px solid ${ss(item.status).dot}`"
                 onmouseenter="this.style.background='var(--bg-row-hover)'"
                 onmouseleave="this.style.background=''">
-                <td class="px-4 py-3.5 font-mono text-xs" style="color:var(--text-muted)">{{ idx+1 }}</td>
+                <td class="px-4 py-3.5 font-mono text-xs" style="color:var(--text-muted)">{{ (page - 1) * perPage + idx + 1 }}</td>
                 <td class="px-4 py-3.5">
                   <div class="flex items-center gap-2.5">
                     <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-sm"
@@ -360,10 +370,16 @@ const statusOptions = [
               </tr>
             </tbody>
           </table>
+          <!-- Pagination desktop -->
+          <div class="px-4 py-3">
+            <Pagination :page="page" :total-pages="totalPages" :page-range="pageRange"
+              :total="pasien.length" :per-page="perPage" label="pasien"
+              @go="goTo" @prev="prev" @next="next" />
+          </div>
         </div>
         <!-- Mobile -->
         <div class="block md:hidden divide-y" style="border-color:var(--border-row)">
-          <div v-for="item in pasien" :key="`mob-${item.sumber}-${item.id}`"
+          <div v-for="item in paginatedPasien" :key="`mob-${item.sumber}-${item.id}`"
             @click="openDetail(item)"
             class="p-4 cursor-pointer relative transition-all hover:bg-[var(--bg-row-hover)]"
             :style="`border-left:4px solid ${ss(item.status).dot}`">
@@ -407,6 +423,12 @@ const statusOptions = [
             Menampilkan <strong style="color:var(--text-primary)">{{ pasien.length }}</strong> pasien
             <span style="color:var(--text-muted)">({{ summary.total_ext??0 }} Ext · {{ summary.total_int??0 }} Int)</span>
           </p>
+        </div>
+        <!-- Pagination mobile -->
+        <div class="block md:hidden px-4 py-3" style="border-top:1px solid var(--border-default)">
+          <Pagination :page="page" :total-pages="totalPages" :page-range="pageRange"
+            :total="pasien.length" :per-page="perPage" label="pasien"
+            @go="goTo" @prev="prev" @next="next" />
         </div>
       </div>
     </div>

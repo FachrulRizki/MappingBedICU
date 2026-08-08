@@ -46,28 +46,36 @@ class MRuangMaster extends Model
         $mk       = (new MKelas())->getTable();
         $sk       = (new StatusKamar())->getTable();
 
-        try {
-            return DB::connection('sqlsrv_rsus')
-                ->table("{$sk} as sk")
-                ->join("{$rm} as rm", 'sk.Kode_Ruang', '=', 'rm.Kode_RuangM')
-                ->join("{$mk} as mk", 'rm.Kode_Kelas', '=', 'mk.Kode_Kelas')
-                ->where('rm.Kode_Bangsal', 'ICU')
-                ->select([
-                    'rm.Kode_RuangM',
-                    'rm.Nama_RuangM',
-                    'rm.Kode_Kelas',
-                    'mk.Kode_Kelas as kelas_master',
-                    'mk.Nama_Kelas',
-                    'sk.Status',
-                    'sk.No_MR',
-                ])
-                ->orderBy('mk.Nama_Kelas')
-                ->orderBy('rm.Nama_RuangM')
-                ->get();
-        } catch (\Exception $e) {
-            Log::error('[MRuangMaster::bedIcuDenganStatus] ' . $e->getMessage());
-            return collect();
-        }
+        // Cache 30 detik sebagai array plain (bukan objek Eloquent) agar tidak ada masalah deserialize
+        $cached = \Illuminate\Support\Facades\Cache::remember('bed_icu_dengan_status', 30, function () use ($rm, $mk, $sk) {
+            try {
+                return DB::connection('sqlsrv_rsus')
+                    ->table("{$sk} as sk")
+                    ->join("{$rm} as rm", 'sk.Kode_Ruang', '=', 'rm.Kode_RuangM')
+                    ->join("{$mk} as mk", 'rm.Kode_Kelas', '=', 'mk.Kode_Kelas')
+                    ->where('rm.Kode_Bangsal', 'ICU')
+                    ->select([
+                        'rm.Kode_RuangM',
+                        'rm.Nama_RuangM',
+                        'rm.Kode_Kelas',
+                        'mk.Kode_Kelas as kelas_master',
+                        'mk.Nama_Kelas',
+                        'sk.Status',
+                        'sk.No_MR',
+                    ])
+                    ->orderBy('mk.Nama_Kelas')
+                    ->orderBy('rm.Nama_RuangM')
+                    ->get()
+                    ->map(fn ($r) => (array) $r) // simpan sebagai array plain, bukan stdClass
+                    ->toArray();
+            } catch (\Exception $e) {
+                Log::error('[MRuangMaster::bedIcuDenganStatus] ' . $e->getMessage());
+                return [];
+            }
+        });
+
+        // Kembalikan sebagai Collection of stdClass agar kode konsumen tetap kompatibel
+        return collect($cached)->map(fn ($r) => (object) $r);
     }
 
     public static function bedKosong(): \Illuminate\Support\Collection

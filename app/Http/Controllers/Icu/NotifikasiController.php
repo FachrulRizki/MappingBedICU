@@ -56,6 +56,14 @@ class NotifikasiController extends Controller
             : now()->subMinutes(5);
 
         $now    = now();
+
+        // Cache hasil poll 8 detik per user — cegah query berulang saat banyak tab terbuka
+        $pollCacheKey = "notif_poll_result_{$userId}";
+        $cached = Cache::get($pollCacheKey);
+        if ($cached !== null) {
+            return response()->json($cached);
+        }
+
         $notifs = [];
 
         // ─── Helper: ambil nama pasien dari No_MR ────────────────────────────
@@ -227,27 +235,14 @@ class NotifikasiController extends Controller
 
         Cache::put($cacheKey, $now->toIso8601String(), now()->addHours(12));
 
-        return response()->json([
+        $result = [
             'notifs'    => $notifs,
             'server_ts' => $now->toIso8601String(),
-            '_debug'    => [
-                'permissions'   => $permissions,
-                'is_icu'        => $isIcu,
-                'is_admisi'     => $isAdmisi,
-                'is_petugas'    => $isPetugas,
-                'petugas_names' => $petugasNames,
-                'last_seen'     => $lastSeen->toIso8601String(),
-                // Debug: cek berapa BU milik user ini
-                'my_bu_total'   => $isPetugas
-                    ? IcuSpriInternal::whereIn('NameUser', $petugasNames)->count()
-                    : null,
-                'my_bu_verified'=> $isPetugas
-                    ? IcuSpriInternal::whereIn('NameUser', $petugasNames)
-                        ->where('status', 'bed_verified')
-                        ->where('verified_at', '>', $lastSeen)
-                        ->count()
-                    : null,
-            ],
-        ]);
+        ];
+
+        // Cache hasil 8 detik — di bawah interval poll 10 detik
+        Cache::put($pollCacheKey, $result, 8);
+
+        return response()->json($result);
     }
 }

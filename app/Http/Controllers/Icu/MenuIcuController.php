@@ -34,21 +34,21 @@ class MenuIcuController extends Controller
     // READ
     public function index(Request $request): Response
     {
-        // Sync status bed dari Bed Management — pastikan:
-        // 1. Pasien yang bednya sudah ISI → status 'masuk_icu' (hilang dari tab Bed Terverifikasi)
-        // 2. Pasien yang sudah keluar (bed KOSONG) → status 'selesai' (masuk Laporan Pasien Keluar)
-        $this->bedSync->sync();
+        // Sync hanya dijalankan jika scheduler belum jalan (dev/local) atau data sudah stale > 60 detik.
+        $this->syncIfNeeded();
 
         $data = $this->service->build($request);
 
-        // Dipakai frontend untuk deteksi status bed dan No_MR yang menempati
-        $statusKamarMap = StatusKamar::all()
-            ->keyBy('Kode_Ruang')
-            ->map(fn ($r) => [
-                'status' => strtoupper($r->Status ?? ''),
-                'no_mr'  => trim($r->No_MR ?? ''),
-            ])
-            ->toArray();
+        // Cache StatusKamarMap 30 detik — tidak perlu query ulang setiap request
+        $statusKamarMap = \Illuminate\Support\Facades\Cache::remember('status_kamar_map', 30, function () {
+            return \App\Models\StatusKamar::all()
+                ->keyBy('Kode_Ruang')
+                ->map(fn ($r) => [
+                    'status' => strtoupper($r->Status ?? ''),
+                    'no_mr'  => trim($r->No_MR ?? ''),
+                ])
+                ->toArray();
+        });
 
         return Inertia::render('Icu/MenuIcu', [
             'antrian'        => $data['antrian'],
@@ -64,6 +64,35 @@ class MenuIcuController extends Controller
                 'error'   => session('error'),
             ],
         ]);
+    }
+
+    /**
+     * Jalankan bedSync hanya jika:
+     * - Environment lokal/dev (scheduler tidak jalan), ATAU
+     * - Sync terakhir sudah lebih dari 60 detik yang lalu (fallback jika scheduler mati)
+     */
+    private function syncIfNeeded(): void
+    {
+        $lastSync = \Illuminate\Support\Facades\Cache::get('icu_bed_last_sync', 0);
+        $stale    = (time() - $lastSync) > 60; // lebih dari 60 detik
+
+        // Di production scheduler sudah handle — skip kecuali benar-benar stale
+        if (app()->environment('production') && ! $stale) {
+            return;
+        }
+
+        // Lock: hindari sync bersamaan dari beberapa request sekaligus
+        $lock = \Illuminate\Support\Facades\Cache::lock('icu_bed_sync_running', 30);
+        if (! $lock->get()) {
+            return; // ada proses lain yang sync, lewati
+        }
+
+        try {
+            $this->bedSync->sync();
+            \Illuminate\Support\Facades\Cache::put('icu_bed_last_sync', time(), 120);
+        } finally {
+            $lock->release();
+        }
     }
 
     // ACTION — Booking External: pending_icu / waiting_list -> bed_confirmed

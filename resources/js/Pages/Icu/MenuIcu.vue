@@ -2,6 +2,8 @@
 import { ref, computed, watch } from 'vue';
 import { router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import Pagination from '@/Components/Pagination.vue';
+import { usePagination } from '@/composables/usePagination.js';
 import { useAuth } from '@/composables/useAuth.js';
 
 const { canKonfirmasiIcu, canTolakBookingExt, canWaitingListExt, canTolakIcu, canWaitingListInt, canVerifikasiIcuInt, canPindahBedExt, canPindahBedInt, isAdmin } = useAuth();
@@ -359,6 +361,12 @@ const jenisOptions = [
   { value: 'external', label: 'Booking Eksternal' },
   { value: 'internal', label: 'Booking Internal' },
 ];
+
+// ── Pagination ─────────────────────────────────────────────────────────────
+const { page, perPage, totalPages, paginated: paginatedView, pageRange, goTo, next, prev, reset: resetPage } = usePagination(currentView, 10);
+
+// Reset ke hal. 1 HANYA saat filter/tab yang mengubah konten list berubah
+watch([viewTab, fStatus, fJenis, fNama, fTglDari, fTglAkh], resetPage);
 </script>
 
 <template>
@@ -632,13 +640,13 @@ const jenisOptions = [
               </tr>
             </thead>
             <tbody>
-              <tr v-for="(item, idx) in currentView" :key="`${item.sumber}-${item.id}`" @click="openModal('detail', item)"
+              <tr v-for="(item, idx) in paginatedView" :key="`${item.sumber}-${item.id}`" @click="openModal('detail', item)"
                 class="group cursor-pointer transition-all duration-150"
                 style="border-bottom:1px solid var(--border-row)"
                 :style="`border-left:4px solid ${ss(item.status).dot}`"
                 onmouseenter="this.style.transform='translateY(-1px)'; this.style.background='var(--bg-row-hover)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.06)'"
                 onmouseleave="this.style.transform=''; this.style.background=''; this.style.boxShadow=''">
-                <td class="px-5 py-4 font-mono text-xs" style="color:var(--text-muted)">{{ idx + 1 }}</td>
+                <td class="px-5 py-4 font-mono text-xs" style="color:var(--text-muted)">{{ (page - 1) * perPage + idx + 1 }}</td>
                 <td class="px-5 py-4">
                   <div class="flex items-center gap-3">
                     <div class="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold"
@@ -739,11 +747,17 @@ const jenisOptions = [
               </tr>
             </tbody>
           </table>
+          <!-- Pagination desktop -->
+          <div class="px-4 py-3">
+            <Pagination :page="page" :total-pages="totalPages" :page-range="pageRange"
+              :total="currentView.length" :per-page="perPage" label="data"
+              @go="goTo" @prev="prev" @next="next" />
+          </div>
         </div>
 
         <!-- ── 7. MOBILE CARDS ───────────────────────────────────────────── -->
         <div class="block md:hidden divide-y" style="border-color:var(--border-row)">
-          <div v-for="(item, idx) in currentView" :key="`mob-${item.sumber}-${item.id}`" @click="openModal('detail', item)"
+          <div v-for="(item, idx) in paginatedView" :key="`mob-${item.sumber}-${item.id}`" @click="openModal('detail', item)"
             class="p-5 cursor-pointer group relative transition-all duration-150 hover:bg-[var(--bg-row-hover)]"
             :style="`border-left:4px solid ${ss(item.status).dot}`">
 
@@ -821,12 +835,18 @@ const jenisOptions = [
         <div class="flex items-center justify-between px-5 py-3.5"
           style="border-top:1px solid var(--border-default); background:var(--bg-surface-2)">
           <p class="text-xs" style="color:var(--text-secondary)">
-            Menampilkan <strong style="color:var(--text-primary)">{{ antrian.length }}</strong> data antrian
+            Menampilkan <strong style="color:var(--text-primary)">{{ currentView.length }}</strong> data antrian
           </p>
           <div class="flex items-center gap-1.5 text-xs" style="color:var(--text-muted)">
             <span class="w-2 h-2 rounded-full animate-pulse inline-block" style="background:#00A884"></span>
             Auto-refresh aktif
           </div>
+        </div>
+        <!-- Pagination mobile -->
+        <div class="block md:hidden px-4 py-3" style="border-top:1px solid var(--border-default)">
+          <Pagination :page="page" :total-pages="totalPages" :page-range="pageRange"
+            :total="currentView.length" :per-page="perPage" label="data"
+            @go="goTo" @prev="prev" @next="next" />
         </div>
       </div>
 

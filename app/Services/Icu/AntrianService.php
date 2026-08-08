@@ -53,7 +53,7 @@ class AntrianService
             $sortDir === 'desc'
         )->values();
 
-        // ── Summary — ikut filter tanggal jika ada, all-time jika tidak ────────
+        // ── Summary — ikut filter tanggal & jenis jika ada ────────────────────
         $dari   = ($fTglDari && $fTglAkh) ? $fTglDari . ' 00:00:00' : null;
         $sampai = ($fTglDari && $fTglAkh) ? $fTglAkh  . ' 23:59:59' : null;
 
@@ -75,8 +75,24 @@ class AntrianService
                 ->orWhereBetween('updated_at',   [$dari, $sampai]));
         }
 
-        $allExternal = $qSummaryExt->get()->map(fn ($b) => ['status' => $b->status, 'sumber' => 'external']);
-        $allInternal = $qSummaryInt->get()->map(fn ($s) => ['status' => $s->status, 'sumber' => 'internal']);
+        // Filter nama di summary juga agar konsisten dengan tabel
+        if ($fNama) {
+            $qSummaryExt->where(fn ($q) => $q->where('nama_pasien', 'like', "%{$fNama}%")
+                ->orWhere('No_MR', 'like', "%{$fNama}%"));
+
+            $pasienIdsForSummary = RegistrasiPasien::where('Nama_Pasien', 'like', "%{$fNama}%")
+                ->pluck('No_MR')->toArray();
+            $qSummaryInt->where(fn ($q) => $q->whereIn('No_MR', $pasienIdsForSummary)
+                ->orWhere('No_MR', 'like', "%{$fNama}%"));
+        }
+
+        // Filter jenis: hanya ambil sumber yang sesuai
+        $allExternal = $fJenis !== 'internal'
+            ? $qSummaryExt->get()->map(fn ($b) => ['status' => $b->status, 'sumber' => 'external'])
+            : collect();
+        $allInternal = $fJenis !== 'external'
+            ? $qSummaryInt->get()->map(fn ($s) => ['status' => $s->status, 'sumber' => 'internal'])
+            : collect();
 
         $allData = $allExternal->concat($allInternal);
 
@@ -84,6 +100,7 @@ class AntrianService
             'antrian' => $merged,
             'summary' => $this->summary($allData),
             'filters' => [
+                'filterStatus' => $request->query('status', ''),
                 'filterJenis'  => $fJenis,
                 'filterNama'   => $fNama,
                 'filterTglDari'=> $fTglDari,
@@ -148,83 +165,141 @@ class AntrianService
     }
 
     /**
-     * Batch-load RegistrasiPasien dari RSUS — di-cache 5 menit per kombinasi No_MR.
-     * Menghindari N+1 query ke SQL Server RSUS.
+     * Batch-load RegistrasiPasien dari RSUS.
+     * Cache per-record (No_MR) 10 menit — data nama pasien jarang berubah.
+     * Ini lebih efisien dari cache per-kombinasi: record lama tetap ter-cache meski ada record baru.
      */
     private function fetchPasienMap(array $noMrs): array
     {
         if (empty($noMrs)) return [];
 
-        $cacheKey = 'pasien_map:' . md5(implode(',', $noMrs));
-        return Cache::remember($cacheKey, 300, function () use ($noMrs) {
+        $result  = [];
+        $missing = [];
+
+        foreach ($noMrs as $noMr) {
+            $cached = Cache::get("pasien:{$noMr}");
+            if ($cached !== null) {
+                $result[$noMr] = $cached;
+            } else {
+                $missing[] = $noMr;
+            }
+        }
+
+        if (! empty($missing)) {
             try {
-                return RegistrasiPasien::whereIn('No_MR', $noMrs)
+                $rows = RegistrasiPasien::whereIn('No_MR', $missing)
                     ->get(['No_MR', 'Nama_Pasien', 'Jenis_Kelamin', 'jenis_kelamin'])
                     ->keyBy('No_MR')
                     ->toArray();
+
+                foreach ($missing as $noMr) {
+                    $val = $rows[$noMr] ?? [];
+                    Cache::put("pasien:{$noMr}", $val, 600); // 10 menit
+                    $result[$noMr] = $val;
+                }
             } catch (\Exception $e) {
                 \Illuminate\Support\Facades\Log::warning('[fetchPasienMap] ' . $e->getMessage());
-                return [];
             }
-        });
+        }
+
+        return $result;
     }
 
     private function buildJaminanMap(array $noRegs): array
     {
         if (empty($noRegs)) return [];
 
-        // Cache per kombinasi No_Reg — TTL 2 menit agar tidak query RSUS setiap page load
-        $cacheKey = 'jaminan_map:' . md5(implode(',', $noRegs));
-        return Cache::remember($cacheKey, 120, function () use ($noRegs) {
+        $result  = [];
+        $missing = [];
+
+        foreach ($noRegs as $noReg) {
+            $cached = Cache::get("jaminan:{$noReg}");
+            if ($cached !== null) {
+                $result[$noReg] = $cached;
+            } else {
+                $missing[] = $noReg;
+            }
+        }
+
+        if (! empty($missing)) {
             try {
                 $rows = DB::connection('sqlsrv_rsus')
                     ->table('PENDAFTARAN as p')
                     ->leftJoin('M_CARABAYAR as cb', 'p.Kode_Bayar', '=', 'cb.Kode_Bayar')
-                    ->whereIn('p.No_Reg', $noRegs)
+                    ->whereIn('p.No_Reg', $missing)
                     ->select([
                         'p.No_Reg',
                         DB::raw("ISNULL(cb.Ket_Bayar, p.Kode_Bayar) as ket_bayar"),
                     ])
                     ->get();
 
-                return $rows->pluck('ket_bayar', 'No_Reg')->toArray();
+                foreach ($missing as $noReg) {
+                    $val = $rows->firstWhere('No_Reg', $noReg)?->ket_bayar ?? null;
+                    Cache::put("jaminan:{$noReg}", $val ?? '', 300); // 5 menit
+                    $result[$noReg] = $val;
+                }
             } catch (\Exception) {
-                return [];
+                // fallback: isi null agar tidak retry terus
+                foreach ($missing as $noReg) {
+                    $result[$noReg] = null;
+                }
             }
-        });
+        }
+
+        return $result;
     }
 
     private function fetchDokterKolab(array $noRegs): array
     {
         if (empty($noRegs)) return [];
 
-        // Cache per kombinasi No_Reg — TTL 2 menit
-        $cacheKey = 'dokter_kolab:' . md5(implode(',', $noRegs));
-        return Cache::remember($cacheKey, 120, function () use ($noRegs) {
+        $result  = [];
+        $missing = [];
+
+        foreach ($noRegs as $noReg) {
+            $cached = Cache::get("dokter_kolab:{$noReg}");
+            if ($cached !== null) {
+                $result[$noReg] = $cached;
+            } else {
+                $missing[] = $noReg;
+            }
+        }
+
+        if (! empty($missing)) {
             try {
                 $rows = DB::connection('sqlsrv_rsus')
                     ->table('ASESMEN_DOKTER_KOLABORASI as adk')
                     ->leftJoin('DOKTER as d', 'adk.Dokter', '=', 'd.Kode_Dokter')
                     ->where('adk.Ket', '!=', 'Sayhello')
-                    ->whereIn('adk.No_Reg', $noRegs)
+                    ->whereIn('adk.No_Reg', $missing)
                     ->select(['adk.No_Reg', 'd.Nama_Dokter', 'adk.Dokter as Kode_Dokter', 'adk.Ket'])
                     ->get();
 
-                $map = [];
+                // Kelompokkan per No_Reg
+                $grouped = [];
                 foreach ($rows as $row) {
                     if ($row->No_Reg) {
-                        $map[$row->No_Reg][] = [
+                        $grouped[$row->No_Reg][] = [
                             'nama' => $row->Nama_Dokter ?? $row->Kode_Dokter,
                             'ket'  => $row->Ket,
                         ];
                     }
                 }
-                return $map;
+
+                foreach ($missing as $noReg) {
+                    $val = $grouped[$noReg] ?? [];
+                    Cache::put("dokter_kolab:{$noReg}", $val, 300); // 5 menit
+                    $result[$noReg] = $val;
+                }
             } catch (\Exception $e) {
                 \Illuminate\Support\Facades\Log::warning('[fetchDokterKolab] ' . $e->getMessage());
-                return [];
+                foreach ($missing as $noReg) {
+                    $result[$noReg] = [];
+                }
             }
-        });
+        }
+
+        return $result;
     }
 
     private function hitungLamaProses($mulai, $selesai): ?string

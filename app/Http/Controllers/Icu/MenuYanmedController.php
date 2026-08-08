@@ -67,25 +67,41 @@ class MenuYanmedController extends Controller
 
         $internals = $qInt->oldest()->get();
 
-        // ── Lookup nama pasien Internal dari DB RS ────────────────────────────
-        $noMrList = $internals->pluck('No_MR')->filter()->unique()->values()->toArray();
+        // ── Lookup nama pasien Internal dari DB RS (cached per-record) ──────────
+        $noMrList  = $internals->pluck('No_MR')->filter()->unique()->values()->toArray();
         $pasienMap = [];
         if (!empty($noMrList)) {
-            try {
-                $pasienMap = RegistrasiPasien::whereIn('No_MR', $noMrList)
-                    ->get(['No_MR', 'Nama_Pasien', 'Jenis_Kelamin'])
-                    ->keyBy('No_MR')
-                    ->toArray();
-            } catch (\Exception $e) {
-                Log::warning('[MenuYanmedController] lookup pasien: ' . $e->getMessage());
+            $missing = [];
+            foreach ($noMrList as $noMr) {
+                $cached = \Illuminate\Support\Facades\Cache::get("pasien:{$noMr}");
+                if ($cached !== null) {
+                    $pasienMap[$noMr] = $cached;
+                } else {
+                    $missing[] = $noMr;
+                }
+            }
+            if (!empty($missing)) {
+                try {
+                    $rows = RegistrasiPasien::whereIn('No_MR', $missing)
+                        ->get(['No_MR', 'Nama_Pasien', 'Jenis_Kelamin'])
+                        ->keyBy('No_MR');
+                    foreach ($missing as $noMr) {
+                        $row = $rows->get($noMr);
+                        $val = $row ? $row->toArray() : [];
+                        \Illuminate\Support\Facades\Cache::put("pasien:{$noMr}", $val, 600);
+                        $pasienMap[$noMr] = $val;
+                    }
+                } catch (\Exception $e) {
+                    Log::warning('[MenuYanmedController] lookup pasien: ' . $e->getMessage());
+                }
             }
         }
 
-        // ── Lookup dokter kolab ───────────────────────────────────────────────
+        // ── Lookup dokter kolab (cached per-record) ───────────────────────────
         $allNoRegs = $externals->pluck('No_Reg')
             ->merge($internals->pluck('No_Reg'))
             ->filter()->unique()->values()->toArray();
-        $dokterKolabMap = $this->fetchDokterKolab($allNoRegs);
+        $dokterKolabMap = $this->fetchDokterKolabCached($allNoRegs);
 
         // ── Format External ───────────────────────────────────────────────────
         $fmtExt = $externals->map(function ($b) use ($dokterKolabMap) {
@@ -195,6 +211,58 @@ class MenuYanmedController extends Controller
                 'error'   => session('error'),
             ],
         ]);
+    }
+
+    private function fetchDokterKolabCached(array $noRegs): array
+    {
+        if (empty($noRegs)) return [];
+
+        $result  = [];
+        $missing = [];
+
+        foreach ($noRegs as $noReg) {
+            $cached = \Illuminate\Support\Facades\Cache::get("dokter_kolab:{$noReg}");
+            if ($cached !== null) {
+                $result[$noReg] = $cached;
+            } else {
+                $missing[] = $noReg;
+            }
+        }
+
+        if (!empty($missing)) {
+            try {
+                $rows = DB::connection('sqlsrv_rsus')
+                    ->table('ASESMEN_DOKTER_KOLABORASI as adk')
+                    ->leftJoin('DOKTER as d', 'adk.Dokter', '=', 'd.Kode_Dokter')
+                    ->where('adk.Ket', '!=', 'Sayhello')
+                    ->whereIn('adk.No_Reg', $missing)
+                    ->select(['adk.No_Reg', 'd.Nama_Dokter', 'adk.Dokter as Kode_Dokter', 'adk.Ket'])
+                    ->get();
+
+                $grouped = [];
+                foreach ($rows as $row) {
+                    if ($row->No_Reg) {
+                        $grouped[$row->No_Reg][] = [
+                            'nama' => $row->Nama_Dokter ?? $row->Kode_Dokter,
+                            'ket'  => $row->Ket,
+                        ];
+                    }
+                }
+
+                foreach ($missing as $noReg) {
+                    $val = $grouped[$noReg] ?? [];
+                    \Illuminate\Support\Facades\Cache::put("dokter_kolab:{$noReg}", $val, 300);
+                    $result[$noReg] = $val;
+                }
+            } catch (\Exception $e) {
+                Log::warning('[MenuYanmedController::fetchDokterKolabCached] ' . $e->getMessage());
+                foreach ($missing as $noReg) {
+                    $result[$noReg] = [];
+                }
+            }
+        }
+
+        return $result;
     }
 
     private function fetchDokterKolab(array $noRegs): array
