@@ -398,6 +398,25 @@ const submitBatalSpri = () => {
     })
 }
 
+// Booking Ulang SPRI (dari status dibatalkan → pending_icu)
+const modalBookingUlang = ref({ open: false, item: null })
+const openBookingUlangModal = (item) => { modalBookingUlang.value = { open: true, item } }
+const closeBookingUlangModal = () => { modalBookingUlang.value = { open: false, item: null } }
+const bookingUlangLoading = ref(false)
+const bookingUlang = () => {
+    const item = modalBookingUlang.value.item
+    if (!item) return
+    bookingUlangLoading.value = true
+    router.post(route('icu.menu_petugas.spri.booking_ulang', item.id), {}, {
+        onSuccess: () => {
+            closeBookingUlangModal()
+            selectedItem.value = null
+            bookingUlangLoading.value = false
+        },
+        onError: () => { bookingUlangLoading.value = false },
+    })
+}
+
 // Hapus SPRI
 const hapusSpri = (item) => {
     if (!confirm(`Hapus permanen booking untuk ${item.nama_pasien}? Tindakan tidak dapat dibatalkan.`)) return
@@ -967,6 +986,16 @@ const hapusSpri = (item) => {
                   </svg>
                   Batalkan Booking
                 </button>
+                <!-- Booking Ulang — hanya jika status dibatalkan -->
+                <button v-if="selectedItem.status === 'dibatalkan'"
+                  @click="openBookingUlangModal(selectedItem)"
+                  class="w-full text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all hover:-translate-y-px"
+                  style="background:rgba(0,168,132,.1); color:#00A884; border:1.5px solid rgba(0,168,132,.3)">
+                  <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                  </svg>
+                  Booking Ulang
+                </button>
               </div>
             </template>
           </div>
@@ -1328,6 +1357,106 @@ const hapusSpri = (item) => {
       </div>
     </Transition>
 
+  </div>
+</Transition>
+
+<!-- ══ MODAL KONFIRMASI BOOKING ULANG ════════════════════════════════════ -->
+<Transition enter-active-class="transition-all duration-200" enter-from-class="opacity-0" leave-to-class="opacity-0">
+  <div v-if="modalBookingUlang.open" class="mp-modal-overlay" style="z-index:65" @click.self="closeBookingUlangModal">
+    <Transition enter-active-class="transition-all duration-200" enter-from-class="opacity-0 scale-95" leave-to-class="opacity-0 scale-95">
+      <div v-if="modalBookingUlang.open" class="mp-modal" style="max-width:460px">
+
+        <!-- Header -->
+        <div class="flex items-center gap-3 px-5 py-4 rounded-t-2xl" style="background:#00A884">
+          <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style="background:rgba(255,255,255,.2)">
+            <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-bold text-white">Konfirmasi Booking Ulang</p>
+            <p class="text-xs text-white/70 mt-0.5">Booking ICU akan dikirim ulang ke antrian</p>
+          </div>
+          <button @click="closeBookingUlangModal"
+            class="w-7 h-7 rounded-lg flex items-center justify-center transition-all hover:bg-white/20 flex-shrink-0"
+            style="color:rgba(255,255,255,.8)">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="p-5 space-y-4">
+
+          <!-- Data pasien -->
+          <div class="rounded-2xl overflow-hidden" style="border:1px solid var(--border-default)">
+            <div class="px-4 py-2.5 flex items-center gap-2" style="background:var(--bg-surface);border-bottom:1px solid var(--border-default)">
+              <svg class="w-3.5 h-3.5 flex-shrink-0" style="color:#00A884" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+              </svg>
+              <p class="text-xs font-bold uppercase tracking-wider" style="color:var(--text-muted)">Data Pasien</p>
+            </div>
+            <div class="p-4 grid grid-cols-2 gap-3" style="background:var(--bg-card)">
+              <div>
+                <p class="text-xs" style="color:var(--text-muted)">Nama Pasien</p>
+                <p class="text-sm font-bold mt-0.5" style="color:var(--text-primary)">{{ modalBookingUlang.item?.nama_pasien ?? '—' }}</p>
+              </div>
+              <div>
+                <p class="text-xs" style="color:var(--text-muted)">No. Medical Record</p>
+                <p class="text-sm font-bold font-mono mt-0.5" style="color:var(--text-primary)">{{ modalBookingUlang.item?.No_MR ?? '—' }}</p>
+              </div>
+              <div>
+                <p class="text-xs" style="color:var(--text-muted)">Diagnosa</p>
+                <p class="text-sm font-semibold mt-0.5 truncate" style="color:var(--text-secondary)">{{ modalBookingUlang.item?.Diagnosis ?? '—' }}</p>
+              </div>
+              <div>
+                <p class="text-xs" style="color:var(--text-muted)">Asal Ruang</p>
+                <p class="text-sm font-semibold mt-0.5" style="color:var(--text-secondary)">{{ modalBookingUlang.item?.asal_ruang ?? '—' }}</p>
+              </div>
+              <div v-if="modalBookingUlang.item?.Dokter" class="col-span-2">
+                <p class="text-xs" style="color:var(--text-muted)">Dokter DPJP</p>
+                <p class="text-sm font-semibold mt-0.5" style="color:var(--text-secondary)">{{ modalBookingUlang.item.Dokter }}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Info alasan batal sebelumnya -->
+          <div v-if="modalBookingUlang.item?.alasan_batal || modalBookingUlang.item?.alasan_tolak"
+            class="rounded-xl p-3.5 flex gap-3" style="background:rgba(107,114,128,.06);border:1px solid rgba(107,114,128,.2)">
+            <svg class="w-4 h-4 flex-shrink-0 mt-0.5" style="color:#6B7280" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <div>
+              <p class="text-xs font-bold" style="color:#374151">Alasan pembatalan sebelumnya</p>
+              <p class="text-xs mt-1" style="color:#6B7280">{{ modalBookingUlang.item?.alasan_batal || modalBookingUlang.item?.alasan_tolak }}</p>
+            </div>
+          </div>
+
+          <!-- Tombol -->
+          <div class="flex gap-3 pt-1">
+            <button type="button" @click="closeBookingUlangModal"
+              class="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all"
+              style="background:var(--bg-input);color:var(--text-secondary);border:1px solid var(--border-default)">
+              Batal
+            </button>
+            <button type="button" @click="bookingUlang"
+              :disabled="bookingUlangLoading"
+              class="flex-1 py-2.5 rounded-xl text-sm font-bold text-white transition-all disabled:opacity-50 hover:-translate-y-px flex items-center justify-center gap-2"
+              style="background:#00A884;box-shadow:0 4px 14px rgba(0,168,132,.3)">
+              <svg v-if="bookingUlangLoading" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+              <svg v-else class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+              </svg>
+              {{ bookingUlangLoading ? 'Memproses...' : 'Ya, Booking Ulang' }}
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </Transition>
   </div>
 </Transition>
 

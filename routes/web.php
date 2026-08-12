@@ -76,6 +76,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/icu/menu-petugas/spri',        [MenuPetugasController::class, 'storeSpri'])->name('icu.menu_petugas.spri.store')->middleware('permission:booking_int:create');
     Route::put('/icu/menu-petugas/spri/{id}',    [MenuPetugasController::class, 'updateSpri'])->name('icu.menu_petugas.spri.update')->middleware('permission:booking_int:create');
     Route::post('/icu/menu-petugas/spri/{id}/batal', [MenuPetugasController::class, 'batalSpri'])->name('icu.menu_petugas.spri.batal')->middleware('permission:booking_int:create');
+    Route::post('/icu/menu-petugas/spri/{id}/booking-ulang', [MenuPetugasController::class, 'bookingUlangSpri'])->name('icu.menu_petugas.spri.booking_ulang')->middleware('permission:booking_int:create');
     Route::delete('/icu/menu-petugas/spri/{id}', [MenuPetugasController::class, 'deleteSpri'])->name('icu.menu_petugas.spri.delete')->middleware('permission:booking_int:create');
 
     // ── Menu Yanmed ───────────────────────────────────────────────────────────

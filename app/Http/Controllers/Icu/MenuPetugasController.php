@@ -72,7 +72,12 @@ class MenuPetugasController extends Controller
             $q->where(fn ($qq) => $qq->whereIn('No_MR', $ids)->orWhere('No_MR', 'like', "%{$fNama}%"));
         }
 
-        $q->whereBetween('created_at', [$fTglDari . ' 00:00:00', $fTglAkh . ' 23:59:59']);
+        // Pasien dengan status dibatalkan selalu ditampilkan (tidak dibatasi tanggal)
+        // agar petugas bisa melakukan booking ulang kapanpun
+        $q->where(function ($qq) use ($fTglDari, $fTglAkh) {
+            $qq->whereBetween('created_at', [$fTglDari . ' 00:00:00', $fTglAkh . ' 23:59:59'])
+               ->orWhere('status', 'dibatalkan');
+        });
 
         if (in_array($sortBy, $dbSortAllowed)) {
             $q->orderBy($sortBy, $sortDir);
@@ -683,6 +688,44 @@ class MenuPetugasController extends Controller
         return back()->with('success', "Booking ICU {$nama} berhasil dibatalkan.");
     }
 
+    public function bookingUlangSpri(Request $request, int $id): RedirectResponse
+    {
+        $bu = IcuSpriInternal::findOrFail($id);
+
+        if ($bu->status !== 'dibatalkan') {
+            return back()->with('error', 'Booking ulang hanya bisa dilakukan untuk pasien yang dibatalkan.');
+        }
+
+        // Pastikan masih milik petugas yang sama
+        if (!in_array($bu->NameUser, $this->actorNames())) {
+            return back()->with('error', 'Anda tidak berhak melakukan booking ulang ini.');
+        }
+
+        $nama = $bu->No_MR;
+        try {
+            $pasien = RegistrasiPasien::where('No_MR', $bu->No_MR)->first();
+            if ($pasien) $nama = $pasien->Nama_Pasien . ' (' . $bu->No_MR . ')';
+        } catch (\Exception) {}
+
+        $bu->update([
+            'status'        => 'pending_icu',
+            'alasan_batal'  => null,
+            'alasan_tolak'  => null,
+            'dibatalkan_by' => null,
+            'dibatalkan_at' => null,
+        ]);
+
+        $this->activityLog->log(
+            'Booking Ulang Internal',
+            "Booking ulang ICU untuk {$nama}",
+            'spri_internal',
+            $bu->id,
+            'IcuSpriInternal'
+        );
+
+        return back()->with('success', "Booking ulang ICU untuk {$nama} berhasil dikirim ke ICU.");
+    }
+
     public function deleteSpri(int $id): RedirectResponse
     {
         $bu = IcuSpriInternal::findOrFail($id);
@@ -758,6 +801,9 @@ class MenuPetugasController extends Controller
             'status'         => $s->status,
             'status_label'   => $s->statusLabel(),
             'alasan_tolak'   => $s->alasan_tolak,
+            'alasan_batal'   => $s->alasan_batal,
+            'dibatalkan_by'  => $s->dibatalkan_by,
+            'dibatalkan_at_fmt' => $s->dibatalkan_at?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i'),
             'jaminan_kode'   => $jaminan['kode'] ?? null,
             'jaminan_nama'   => $jaminan['nama'] ?? null,
             // waiting list
