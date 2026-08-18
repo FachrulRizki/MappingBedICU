@@ -10,3 +10,6 @@ Artisan::command('inspire', function () {
 
 // Sync status bed ICU setiap 30 detik
 Schedule::command('icu:sync-bed')->everyThirtySeconds()->withoutOverlapping(1);
+
+// Sync permintaan ICU dari ERM/IGD (ASESMEN_SURAT_PERMINTAAN_RI) setiap 30 detik
+Schedule::command('icu:sync-spri-erm')->everyThirtySeconds()->withoutOverlapping(1);
