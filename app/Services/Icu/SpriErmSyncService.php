@@ -28,10 +28,8 @@ class SpriErmSyncService
                 ->join('REGISTER_PASIEN as rp', 'p.No_MR', '=', 'rp.No_MR')
                 ->leftJoin('DOKTER as d', 'p.Kode_Dokter', '=', 'd.Kode_Dokter')
                 ->where('p.Kode_Masuk', '1')          
-                ->where('p.Status', '1')               
-                ->whereNotNull('spri.IndikasiRI')
-                ->where('spri.IndikasiRI', '<>', '')
-                ->where('p.Tanggal', '>=', now()->subDays(3)->toDateString()) 
+                ->where('p.Status', '1')
+                ->where('p.Tanggal', '>=', now()->subDays(3)->toDateString())
                 ->select([
                     DB::raw('MAX(spri.No_Reg)      as No_Reg'),
                     DB::raw('MAX(p.No_MR)          as No_MR'),
@@ -64,7 +62,7 @@ class SpriErmSyncService
                     'No_MR'      => $noMr,
                     'No_Reg'     => $noReg,
                     'Diagnosis'  => trim($row->Diagnosis ?? '-'),
-                    'IndikasiRI' => trim($row->IndikasiRI ?? '-'),
+                    'IndikasiRI' => trim($row->IndikasiRI ?? '') ?: '-',
                     'spesialis'  => trim($row->Spesialis ?? ''),
                     'asal_ruang' => 'IGD',
                     'NameUser'   => $namaDokter ?: 'dokter-erm',
