@@ -26,7 +26,13 @@ class MenuYanmedController extends Controller
         $fTglAkh  = $request->query('tgl_sampai', now()->format('Y-m-d'));
 
         // ── Booking External ──────────────────────────────────────────────────
-        $qExt = IcuBookingExternal::with('pasien')
+        $qExt = IcuBookingExternal::select([
+                'id', 'nama_pasien', 'jenis_kelamin', 'asal_rujukan',
+                'diagnosa', 'diagnosa_icd', 'rencana_tindakan',
+                'kebutuhan_bed', 'nama_bed', 'jaminan',
+                'No_MR', 'No_Reg', 'allocated_bed_id', 'status',
+                'created_at', 'confirmed_at', 'verified_at',
+            ])
             ->whereNotIn('status', ['ditolak', 'dibatalkan']);
 
         if ($fStatus) {
@@ -51,7 +57,13 @@ class MenuYanmedController extends Controller
         $externals = $qExt->oldest()->get();
 
         // ── SPRI Internal ─────────────────────────────────────────────────────
-        $qInt = IcuSpriInternal::whereNotIn('status', ['ditolak', 'dibatalkan']);
+        $qInt = IcuSpriInternal::select([
+                'id', 'No_MR', 'No_Reg', 'Diagnosis', 'Diagnosis_ICD',
+                'IndikasiRI', 'kebutuhan_bed', 'nama_bed', 'asal_ruang',
+                'Dokter', 'allocated_bed_id', 'status',
+                'created_at', 'approved_at', 'verified_at',
+            ])
+            ->whereNotIn('status', ['ditolak', 'dibatalkan']);
 
         if ($fStatus) {
             $qInt->where('status', $fStatus);

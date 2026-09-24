@@ -53,45 +53,12 @@ class AntrianService
             $sortDir === 'desc'
         )->values();
 
-        // ── Summary — ikut filter tanggal & jenis jika ada ────────────────────
-        $dari   = ($fTglDari && $fTglAkh) ? $fTglDari . ' 00:00:00' : null;
-        $sampai = ($fTglDari && $fTglAkh) ? $fTglAkh  . ' 23:59:59' : null;
-
-        $qSummaryExt = IcuBookingExternal::whereIn('status', [
-            'pending_icu', 'waiting_list', 'bed_confirmed', 'ditolak', 'admisi_verified', 'dibatalkan', 'masuk_icu', 'selesai',
-        ]);
-        $qSummaryInt = IcuSpriInternal::whereIn('status', [
-            'pending_admisi', 'pending_icu', 'bed_verified', 'waiting_list', 'ditolak', 'dibatalkan', 'masuk_icu', 'selesai',
-        ]);
-
-        if ($dari && $sampai) {
-            $qSummaryExt->where(fn ($q) => $q->whereBetween('created_at', [$dari, $sampai])
-                ->orWhereBetween('confirmed_at', [$dari, $sampai])
-                ->orWhereBetween('verified_at',  [$dari, $sampai])
-                ->orWhereBetween('updated_at',   [$dari, $sampai]));
-            $qSummaryInt->where(fn ($q) => $q->whereBetween('created_at',  [$dari, $sampai])
-                ->orWhereBetween('approved_at',  [$dari, $sampai])
-                ->orWhereBetween('verified_at',  [$dari, $sampai])
-                ->orWhereBetween('updated_at',   [$dari, $sampai]));
-        }
-
-        // Filter nama di summary juga agar konsisten dengan tabel
-        if ($fNama) {
-            $qSummaryExt->where(fn ($q) => $q->where('nama_pasien', 'like', "%{$fNama}%")
-                ->orWhere('No_MR', 'like', "%{$fNama}%"));
-
-            $pasienIdsForSummary = RegistrasiPasien::where('Nama_Pasien', 'like', "%{$fNama}%")
-                ->pluck('No_MR')->toArray();
-            $qSummaryInt->where(fn ($q) => $q->whereIn('No_MR', $pasienIdsForSummary)
-                ->orWhere('No_MR', 'like', "%{$fNama}%"));
-        }
-
-        // Filter jenis: hanya ambil sumber yang sesuai
+        // ── Summary — hitung langsung dari data yang sudah di-fetch
         $allExternal = $fJenis !== 'internal'
-            ? $qSummaryExt->get()->map(fn ($b) => ['status' => $b->status, 'sumber' => 'external'])
+            ? collect($externals)->map(fn ($item) => array_merge($item, ['sumber' => 'external']))
             : collect();
         $allInternal = $fJenis !== 'external'
-            ? $qSummaryInt->get()->map(fn ($s) => ['status' => $s->status, 'sumber' => 'internal'])
+            ? collect($internals)->map(fn ($item) => array_merge($item, ['sumber' => 'internal']))
             : collect();
 
         $allData = $allExternal->concat($allInternal);

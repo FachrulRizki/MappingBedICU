@@ -25,12 +25,13 @@ class MonitorController extends Controller
 
     public function index(): Response
     {
-        $this->bedSync->sync();
+        $this->syncIfNeeded();
 
+        $bedData = $this->getBedData();
         return Inertia::render('Icu/Monitor', [
-            'bedData' => $this->getBedData(),
+            'bedData' => $bedData['rows'],
             'antrian' => $this->getAntrian(),
-            'summary' => $this->getSummary(),
+            'summary' => $this->getSummaryFromBedData($bedData['collection']),
         ]);
     }
 
@@ -40,14 +41,40 @@ class MonitorController extends Controller
      */
     public function data(Request $request): JsonResponse
     {
-        $this->bedSync->sync();
+        $this->syncIfNeeded();
 
+        $bedData = $this->getBedData();
         return response()->json([
-            'bedData' => $this->getBedData(),
+            'bedData' => $bedData['rows'],
             'antrian' => $this->getAntrian(),
-            'summary' => $this->getSummary(),
+            'summary' => $this->getSummaryFromBedData($bedData['collection']),
             'ts'      => now()->setTimezone('Asia/Jakarta')->format('d/m/Y H:i:s'),
         ]);
+    }
+
+    /**
+     * Mencegah sync tiap page-load yang boros koneksi ke SQL Server.
+     */
+    private function syncIfNeeded(): void
+    {
+        $lastSync = \Illuminate\Support\Facades\Cache::get('icu_bed_last_sync', 0);
+        $stale    = (time() - $lastSync) > 30;
+
+        if (! $stale) {
+            return;
+        }
+
+        $lock = \Illuminate\Support\Facades\Cache::lock('icu_bed_sync_running', 30);
+        if (! $lock->get()) {
+            return; // sync lain sedang berjalan
+        }
+
+        try {
+            $this->bedSync->sync();
+            \Illuminate\Support\Facades\Cache::put('icu_bed_last_sync', time(), 120);
+        } finally {
+            $lock->release();
+        }
     }
 
     private function getBedData(): array
@@ -99,7 +126,7 @@ class MonitorController extends Controller
             }
         }
 
-        return $bedData
+        $rows = $bedData
             ->map(fn ($row) => [
                 'kode'          => $row->Kode_RuangM,
                 'nama'          => $row->Nama_RuangM,
@@ -115,6 +142,12 @@ class MonitorController extends Controller
             ])
             ->values()
             ->toArray();
+
+        // Kembalikan rows (untuk response) + collection asli (untuk summary, tanpa query ulang)
+        return [
+            'rows'       => $rows,
+            'collection' => $bedData,
+        ];
     }
 
     private function getAntrian(): array
@@ -168,9 +201,8 @@ class MonitorController extends Controller
             ->toArray();
     }
 
-    private function getSummary(): array
+    private function getSummaryFromBedData(\Illuminate\Support\Collection $bed): array
     {
-        $bed = MRuangMaster::bedIcuDenganStatus();
         return [
             'total_bed'   => $bed->count(),
             'kosong'      => $bed->where('Status', 'KOSONG')->count(),
