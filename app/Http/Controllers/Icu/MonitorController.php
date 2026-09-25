@@ -203,11 +203,12 @@ class MonitorController extends Controller
 
     private function getSummaryFromBedData(\Illuminate\Support\Collection $bed): array
     {
+        // Hitung antrian dari tabel lokal (sqlsrv app), bukan cross-join ke RS
         return [
             'total_bed'   => $bed->count(),
-            'kosong'      => $bed->where('Status', 'KOSONG')->count(),
-            'terisi'      => $bed->where('Status', 'ISI')->count(),
-            'booking'     => $bed->where('Status', 'BOOKING')->count(),
+            'kosong'      => $bed->filter(fn($r) => strtoupper($r->Status ?? '') === 'KOSONG')->count(),
+            'terisi'      => $bed->filter(fn($r) => strtoupper($r->Status ?? '') === 'ISI')->count(),
+            'booking'     => $bed->filter(fn($r) => strtoupper($r->Status ?? '') === 'BOOKING')->count(),
             'antrian_ext' => IcuBookingExternal::whereIn('status', ['pending_icu', 'waiting_list', 'bed_confirmed', 'admisi_verified'])->count(),
             'antrian_int' => IcuSpriInternal::whereIn('status', ['pending_admisi', 'pending_icu', 'waiting_list', 'bed_verified'])->count(),
         ];

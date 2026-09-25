@@ -137,7 +137,7 @@ watch(waitingList,  (v) => { if (activeWaitingIdx.value  >= v.length) activeWait
 
 onMounted(() => {
     clockTimer     = setInterval(() => now.value = new Date(), 1000)
-    pollTimer      = setInterval(fetchData, 10000)
+    pollTimer      = setInterval(fetchData, 30000)  
     highlightTimer = setInterval(tick, INTERVAL)
     fetchData()
 })

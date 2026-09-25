@@ -12,8 +12,8 @@ use Symfony\Component\HttpFoundation\Response;
 
 class SyncKeycloakRole
 {
-    private const INTROSPECT_INTERVAL = 300;
-    private const ROLE_SYNC_INTERVAL  = 120;
+    private const INTROSPECT_INTERVAL = 600;
+    private const ROLE_SYNC_INTERVAL  = 300; 
 
     public function __construct(
         private readonly KeycloakService $keycloak,

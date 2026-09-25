@@ -31,6 +31,6 @@ return [
     'timeout'      => env('KEYCLOAK_TIMEOUT', 5),
 
     // TTL cache introspection token (detik) — kurangi round-trip ke Keycloak
-    'cache_ttl'    => env('KEYCLOAK_CACHE_TTL', 60),
+    'cache_ttl'    => env('KEYCLOAK_CACHE_TTL', 300),
 
 ];

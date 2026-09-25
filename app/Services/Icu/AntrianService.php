@@ -26,7 +26,7 @@ class AntrianService
         $fTglDari = $request->query('tgl_dari', '');
         $fTglAkh  = $request->query('tgl_sampai', '');
 
-        // ── Antrian — server hanya filter nama & tanggal (untuk external), TIDAK filter status ──
+        // Antrian — server hanya filter nama & tanggal (untuk external), TIDAK filter status
         $externals = $fJenis !== 'internal'
             ? $this->queryExternal($fNama, $fTglDari, $fTglAkh)
             : collect();
@@ -37,7 +37,7 @@ class AntrianService
 
         $merged = collect($externals)->concat($internals)->values();
 
-        // ── Inject dokter kolab ──────────────────────────────────────────────
+        // Inject dokter kolab
         $noRegs = $merged->pluck('No_Reg')->filter()->unique()->values()->toArray();
         $dokterKolabMap = $this->fetchDokterKolab($noRegs);
 
@@ -53,7 +53,7 @@ class AntrianService
             $sortDir === 'desc'
         )->values();
 
-        // ── Summary — hitung langsung dari data yang sudah di-fetch
+        // Summary
         $allExternal = $fJenis !== 'internal'
             ? collect($externals)->map(fn ($item) => array_merge($item, ['sumber' => 'external']))
             : collect();
@@ -63,9 +63,25 @@ class AntrianService
 
         $allData = $allExternal->concat($allInternal);
 
+        // Tambah count historis dari DB (tidak di-load ke $merged saat tidak ada filter tanggal)
+        $useHistory = $fTglDari !== '' && $fTglAkh !== '';
+        $extraCounts = [];
+        if (! $useHistory) {
+            $extraCounts = [
+                'masuk_icu'  => IcuBookingExternal::where('status', 'masuk_icu')->count()
+                              + IcuSpriInternal::where('status', 'masuk_icu')->count(),
+                'selesai'    => IcuBookingExternal::where('status', 'selesai')->count()
+                              + IcuSpriInternal::where('status', 'selesai')->count(),
+                'ditolak'    => IcuBookingExternal::where('status', 'ditolak')->count()
+                              + IcuSpriInternal::where('status', 'ditolak')->count(),
+                'dibatalkan' => IcuBookingExternal::where('status', 'dibatalkan')->count()
+                              + IcuSpriInternal::where('status', 'dibatalkan')->count(),
+            ];
+        }
+
         return [
             'antrian' => $merged,
-            'summary' => $this->summary($allData),
+            'summary' => array_merge($this->summary($allData), $extraCounts),
             'filters' => [
                 'filterStatus' => $request->query('status', ''),
                 'filterJenis'  => $fJenis,
@@ -80,8 +96,16 @@ class AntrianService
 
     private function queryExternal(string $fNama, string $fTglDari = '', string $fTglAkh = ''): Collection
     {
-        $activeStatuses = ['pending_icu', 'waiting_list', 'bed_confirmed', 'ditolak', 'admisi_verified', 'dibatalkan', 'masuk_icu', 'selesai'];
-        $q = IcuBookingExternal::with('pasien')->whereIn('status', $activeStatuses);
+        // Status aktif 
+        $activeStatuses = ['pending_icu', 'waiting_list', 'bed_confirmed', 'admisi_verified'];
+        $historyStatuses = ['masuk_icu', 'selesai', 'ditolak', 'dibatalkan'];
+
+        $useHistory = $fTglDari !== '' && $fTglAkh !== '';
+        $statuses   = $useHistory
+            ? array_merge($activeStatuses, $historyStatuses)
+            : $activeStatuses;
+
+        $q = IcuBookingExternal::with('pasien')->whereIn('status', $statuses);
 
         if ($fNama) {
             $q->where(function ($qq) use ($fNama) {
@@ -103,18 +127,20 @@ class AntrianService
 
     private function queryInternal(string $fNama, string $fTglDari = '', string $fTglAkh = ''): Collection
     {
-        $activeStatuses = ['pending_admisi', 'pending_icu', 'bed_verified', 'waiting_list', 'ditolak', 'dibatalkan', 'masuk_icu', 'selesai'];
-        $q = IcuSpriInternal::whereIn('status', $activeStatuses);
+        $activeStatuses  = ['pending_admisi', 'pending_icu', 'bed_verified', 'waiting_list'];
+        $historyStatuses = ['ditolak', 'dibatalkan', 'masuk_icu', 'selesai'];
+
+        $useHistory = $fTglDari !== '' && $fTglAkh !== '';
+        $statuses   = $useHistory
+            ? array_merge($activeStatuses, $historyStatuses)
+            : $activeStatuses;
+
+        $q = IcuSpriInternal::whereIn('status', $statuses);
 
         if ($fNama) {
-            $pasienIds = RegistrasiPasien::where('Nama_Pasien', 'like', "%{$fNama}%")
-                ->pluck('No_MR')->toArray();
-            $q->where(function ($qq) use ($fNama, $pasienIds) {
-                $qq->whereIn('No_MR', $pasienIds)
-                   ->orWhere('No_MR', 'like', "%{$fNama}%");
-            });
+            $q->where('No_MR', 'like', "%{$fNama}%");
         }
-        
+
         if ($fTglDari && $fTglAkh) {
             $q->where(function ($qq) use ($fTglDari, $fTglAkh) {
                 $qq->whereBetween('created_at', [$fTglDari . ' 00:00:00', $fTglAkh . ' 23:59:59'])
@@ -126,15 +152,32 @@ class AntrianService
         $results    = $q->oldest()->get();
         $noMrs      = $results->pluck('No_MR')->filter()->unique()->values()->toArray();
         $pasienMap  = $this->fetchPasienMap($noMrs);
+
+        // Filter by nama pasien dari cache (post-fetch) jika search tidak cocok by No_MR saja
+        if ($fNama && $results->isEmpty()) {
+            // Coba cari nama di cache pasien yang ada
+            $matchedNoMrs = collect($pasienMap)
+                ->filter(fn ($p) => isset($p['Nama_Pasien']) &&
+                    stripos($p['Nama_Pasien'], $fNama) !== false)
+                ->keys()->toArray();
+
+            if (! empty($matchedNoMrs)) {
+                $results   = IcuSpriInternal::whereIn('status', $statuses)
+                    ->whereIn('No_MR', $matchedNoMrs)
+                    ->oldest()->get();
+                $pasienMap = array_merge($pasienMap, $this->fetchPasienMap(
+                    $results->pluck('No_MR')->filter()->unique()->diff(array_keys($pasienMap))->toArray()
+                ));
+            }
+        }
+
         $jaminanMap = $this->buildJaminanMap($results->pluck('No_Reg')->filter()->unique()->values()->toArray());
 
         return $results->map(fn ($s) => $this->fmtInt($s, $jaminanMap[$s->No_Reg] ?? null, $pasienMap[$s->No_MR] ?? null));
     }
 
     /**
-     * Batch-load RegistrasiPasien dari RSUS.
-     * Cache per-record (No_MR) 10 menit — data nama pasien jarang berubah.
-     * Ini lebih efisien dari cache per-kombinasi: record lama tetap ter-cache meski ada record baru.
+     * Batch-load RegistrasiPasien dari RSUS
      */
     private function fetchPasienMap(array $noMrs): array
     {
